@@ -17,19 +17,21 @@ As soon as the alarmstate reaches 10, an alarm is raised and contact person(s) a
 
 
 ## Current State
-As of now the following features are implemented as a Tizen Web Application (javascript):
+As of now the following features are implemented:
+- As a [Tizen Native Service Application](https://docs.tizen.org/application/native/guides/applications/service-app/):
  - collecting accelerometer data
  - analysis of collected data as described above
- - sending warnings of if alarmstate is increased as a local notification on the watch (NOT TOO RELIABLE!)
+ - sending warnings of if alarmstate is increased as a local notification on the watch
+ 
+- as a Tizen Web Application (javascript):
+  - UI that allows starting and stopping of analysis of native service app
 
 
 Todo:
- - make sure the app always runs in background --> implement it as a native service app!
- - outsouce FFT and collecting of accelerometer data to a [Tizen Native Service Application](https://docs.tizen.org/application/native/guides/applications/service-app/) in order to optimize power consumption
  - automatic logging of analyzed data in case the alarmstate is increased (in order to later optimized default values)
  - implement raising of alarm, i.e. initialize phone call and/or send SMS (write companion app for Android or stick to LTE version of smart watch?)
  - read GPS data every now and then s.t. it can be send as an attachment of the alarm notification
  - generate UI that shows plot of freqs and allows to fully customize all parameters
  - generate widget that shows if the app and service are running correctly
- - clarify if RB.js and DSP.js can both be used under MIT license! (not necessary in case of service app as another implementation is required anyways...!)
+ - clarify if RB.js can be used under MIT license!
  

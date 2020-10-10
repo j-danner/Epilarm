@@ -20,7 +20,7 @@
 // some constant values used in the app
 #define MAX_PATH_SIZE 4096 // max file path size
 #define ACCELEROMETER_SHAKE_THRESHOLD_VALUE 15 // the value read on any accelerometer axis to be considered the shake event
-#define MYSERVICELAUNCHER_APP_ID "z5oGMBMvyR.Epilarm" // an ID of the UI application of our package
+#define MYSERVICELAUNCHER_APP_ID "QOeM6aBGp0.Epilarm" // an ID of the UI application of our package
 
 
 int sampleRate = 50; //in Hz (no samples per sec), this leads an interval of 1/sampleRate secs between measurements
@@ -457,19 +457,16 @@ void service_app_control(app_control_h app_control, void *data)
             free(caller_id);
             free(action_value);
             return;
-             return;
         } else if((caller_id != NULL) && (action_value != NULL)
              && (!strncmp(caller_id, MYSERVICELAUNCHER_APP_ID, 256))
              && (!strncmp(action_value,"stop", 256)))
         {
             dlog_print(DLOG_INFO, LOG_TAG, "Stopping epilarm sensor service!");
-             sensor_stop(data);
 
-             free(caller_id);
-             free(action_value);
-             service_app_exit();
-
-             return;
+            free(caller_id);
+            free(action_value);
+            service_app_exit(); //this also stops the sensor listener
+            return;
         } else {
             dlog_print(DLOG_INFO, LOG_TAG, "Unsupported action! Doing nothing...");
             free(caller_id);
