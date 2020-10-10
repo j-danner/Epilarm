@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<manifest xmlns="http://tizen.org/ns/packages" api-version="4.0" package="org.example.epilarm_sensor_service" version="1.0.0">
+    <profile name="wearable"/>
+    <service-application appid="org.example.epilarm_sensor_service" auto-restart="false" exec="epilarm_sensor_service" multiple="false" nodisplay="true" on-boot="false" type="capp">
+        <label>epilarm_sensor_service</label>
+        <icon>epilarm_sensor_service.png</icon>
+        <app-control>
+            <operation name="http://tizen.org/appcontrol/operation/service"/>
+        </app-control>
+        <background-category value="sensor"/>
+    </service-application>
+    <privileges>
+        <privilege>http://tizen.org/privilege/display</privilege>
+        <privilege>http://tizen.org/privilege/notification</privilege>
+    </privileges>
+    <feature name="http://tizen.org/feature/sensor.linear_acceleration">true</feature>
+</manifest>

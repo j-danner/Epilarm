@@ -1,0 +1,4 @@
+Epilarm_web_app/.sign/*
+Epilarm_sensor_service/Debug/*
+*.tmp
+*.wgt
