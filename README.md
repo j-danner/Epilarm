@@ -19,9 +19,9 @@ As soon as the alarmstate reaches 10, an alarm is raised and contact person(s) a
 ## Current State
 As of now the following features are implemented:
 - As a [Tizen Native Service Application](https://docs.tizen.org/application/native/guides/applications/service-app/):
- - collecting accelerometer data
- - analysis of collected data as described above
- - sending warnings of if alarmstate is increased as a local notification on the watch
+  - collecting accelerometer data
+  - analysis of collected data as described above
+  - sending warnings of if alarmstate is increased as a local notification on the watch
  
 - as a Tizen Web Application (javascript):
   - UI that allows starting and stopping of analysis of native service app
