@@ -26,7 +26,7 @@ Below you can find a task-list which indicates the current state of the project 
   - [x] collecting of accelerometer data
   - [x] analysis of collected data as described above
   - [x] sending of notifactions if alarmstate is increased as a local notification on the watch
-  - [ ] send notification on shutdown (if not triggered by UI) to detect when it _crashes_
+  - [x] send notification on shutdown (if not triggered by UI) to detect when it _crashes_
   - [ ] implement dataControl in service app for exchange of data with UI (data + settings)
   - [ ] save settings to local storage and exchange them with UI
   - [ ] complete logging of (analyzed) data (in order to later optimize default values); collect data for up to one week (timestamp, minFreq, maxFreq, complete simplified freqs, alarmstate, avg_roi_x|y|z, avg_nroi_x|y|z, avg_roi, multRatio --> 62 data points per second)

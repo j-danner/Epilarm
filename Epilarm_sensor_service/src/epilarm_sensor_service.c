@@ -98,8 +98,8 @@ void issue_warning_notification(int as)
 	}
 	dlog_print(DLOG_ERROR, LOG_TAG, "notification title set!");
 
-	noti_err = notification_set_text(warn_notification, NOTIFICATION_TEXT_TYPE_CONTENT, "Seizure-like movements detected! (alarmState = ?)",
-			"EPILARM_NOTIFICATION_CONTENT", NOTIFICATION_VARIABLE_TYPE_NONE); //NOTIFICATION_VARIABLE_TYPE_INT, as);
+	noti_err = notification_set_text(warn_notification, NOTIFICATION_TEXT_TYPE_CONTENT, "Seizure-like movements detected! (alarmState = %d)",
+			"EPILARM_NOTIFICATION_CONTENT", NOTIFICATION_VARIABLE_TYPE_INT, as, NOTIFICATION_VARIABLE_TYPE_NONE);
 	if (noti_err != NOTIFICATION_ERROR_NONE) {
 		dlog_print(DLOG_ERROR, LOG_TAG, "could not create content of warning notification!");
 		return;
@@ -133,8 +133,8 @@ void issue_alarm_notification(int as)
 	noti_err = notification_set_text(warn_notification, NOTIFICATION_TEXT_TYPE_TITLE, "ALARM!", "EPILARM_NOTIFICATION_TITLE", NOTIFICATION_VARIABLE_TYPE_NONE);
 	if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not create title of warning notification!"); return; }
 
-	noti_err = notification_set_text(warn_notification, NOTIFICATION_TEXT_TYPE_CONTENT, "Seizure-like movements detected!",
-			"EPILARM_NOTIFICATION_CONTENT", NOTIFICATION_VARIABLE_TYPE_NONE); // NOTIFICATION_VARIABLE_TYPE_INT, as);
+	noti_err = notification_set_text(warn_notification, NOTIFICATION_TEXT_TYPE_CONTENT, "Seizure-like movements detected! (alarmState = %d)",
+			"EPILARM_NOTIFICATION_CONTENT", NOTIFICATION_VARIABLE_TYPE_INT, as, NOTIFICATION_VARIABLE_TYPE_NONE);
 	if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not create content of warning notification!"); return; }
 
 	noti_err = notification_set_vibration(warn_notification, NOTIFICATION_VIBRATION_TYPE_DEFAULT, NULL);
@@ -142,6 +142,28 @@ void issue_alarm_notification(int as)
 
 	noti_err = notification_post(warn_notification);
 	if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not post warning notification!"); return; }
+}
+
+//send notification
+void issue_unplanned_shutdown_notification()
+{
+	notification_h warn_notification = NULL;
+	warn_notification = notification_create(NOTIFICATION_TYPE_NOTI);
+	if (warn_notification == NULL) { dlog_print(DLOG_ERROR, LOG_TAG, "could not create shutdown notification!"); return;}
+
+	int noti_err = NOTIFICATION_ERROR_NONE;
+	noti_err = notification_set_text(warn_notification, NOTIFICATION_TEXT_TYPE_TITLE, "Warning!", "EPILARM_NOTIFICATION_TITLE", NOTIFICATION_VARIABLE_TYPE_NONE);
+	if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not create title of shutdown notification!"); return; }
+
+	noti_err = notification_set_text(warn_notification, NOTIFICATION_TEXT_TYPE_CONTENT, "Unscheduled shutdown of Epilarm!\n (Restart via Epilarm app!)",
+			"EPILARM_NOTIFICATION_CONTENT", NOTIFICATION_VARIABLE_TYPE_NONE);
+	if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not create content of shutdown notification!"); return; }
+
+	noti_err = notification_set_vibration(warn_notification, NOTIFICATION_VIBRATION_TYPE_DEFAULT, NULL);
+	if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not set vibration of shutdown notification!"); return; }
+
+	noti_err = notification_post(warn_notification);
+	if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not post shutdown notification!"); return; }
 }
 
 //sensor event callback implementation
@@ -273,7 +295,7 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 
 				//TODO add appropriate handling for WARNING state (i.e. vibrate motors, display on, sounds?!)
 				//navigator.vibrate(100);
-				//update notification
+				//send new notification
 				issue_warning_notification(ad->alarmState);
 
 				if(ad->alarmState >= warnTime) {
@@ -281,6 +303,7 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 					//TODO add appropriate handling for ALARM state (i.e. contact persons based on GPS location?!)
 					issue_alarm_notification(ad->alarmState);
 					//navigator.vibrate(100);
+
 				}
 			} else {
 				if(ad->alarmState > 1) {
@@ -394,10 +417,16 @@ void sensor_start(void *data)
 	}
 }
 
-void sensor_stop(void *data)
+//input: appdata, bool that tells if a warning notification should be sent.
+void sensor_stop(void *data, int sendNot)
 {
 	// Extracting application data
 	appdata_s* ad = (appdata_s*)data;
+
+	if (sendNot != 0) { //send notification that sensorlistener is destroyed
+		dlog_print(DLOG_WARN, LOG_TAG, "Unscheduled shutdown of Epilarm-service! (Restart via UI!)");
+		issue_unplanned_shutdown_notification();
+	}
 
 	//Stopping & destroying sensor listener
 	if ((sensor_listener_stop(ad->listener) == SENSOR_ERROR_NONE)
@@ -407,7 +436,7 @@ void sensor_stop(void *data)
 	}
 	else
 	{
-		dlog_print(DLOG_INFO, LOG_TAG, "Error occurred when destroying sensor listener or a sensor listener was never created!");
+		dlog_print(DLOG_INFO, LOG_TAG, "Error occurred when destroying sensor listener: listener was never created or already destroyed!");
 	}
 }
 
@@ -416,7 +445,7 @@ void service_app_terminate(void *data)
 	// Extracting application data
 	appdata_s* ad = (appdata_s*)data;
 
-	sensor_stop(data);
+	sensor_stop(data, 1);
 
 	//destroy fft_transformers
 	free_fft_transformer(ad->fft_x);
@@ -462,10 +491,11 @@ void service_app_control(app_control_h app_control, void *data)
              && (!strncmp(action_value,"stop", 256)))
         {
             dlog_print(DLOG_INFO, LOG_TAG, "Stopping epilarm sensor service!");
+            sensor_stop(data, 0); //stop sensor listener without notification (as it was shut down on purpose)
 
             free(caller_id);
             free(action_value);
-            service_app_exit(); //this also stops the sensor listener
+            service_app_exit(); //this also tries to stop the sensor listener, but will issue a warning in the log...
             return;
         } else {
             dlog_print(DLOG_INFO, LOG_TAG, "Unsupported action! Doing nothing...");
