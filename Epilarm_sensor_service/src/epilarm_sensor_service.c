@@ -18,8 +18,6 @@
 
 
 // some constant values used in the app
-#define MAX_PATH_SIZE 4096 // max file path size
-#define ACCELEROMETER_SHAKE_THRESHOLD_VALUE 15 // the value read on any accelerometer axis to be considered the shake event
 #define MYSERVICELAUNCHER_APP_ID "QOeM6aBGp0.Epilarm" // an ID of the UI application of our package
 
 
@@ -315,44 +313,6 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 				}
 			}
 		}
-
-
-/*
-		//check if movement is made --> REMOVE LATER ON!!
-		if (event->values[0] >= ACCELEROMETER_SHAKE_THRESHOLD_VALUE
-			|| event->values[1] >= ACCELEROMETER_SHAKE_THRESHOLD_VALUE
-			|| event->values[2] >= ACCELEROMETER_SHAKE_THRESHOLD_VALUE
-			|| event->values[0] <= -ACCELEROMETER_SHAKE_THRESHOLD_VALUE
-			|| event->values[1] <= -ACCELEROMETER_SHAKE_THRESHOLD_VALUE
-			|| event->values[2] <= -ACCELEROMETER_SHAKE_THRESHOLD_VALUE)
-		{
-	            if (device_power_request_lock(POWER_LOCK_DISPLAY,10*1000)==DEVICE_ERROR_NONE)
-	            {
-	                dlog_print(DLOG_INFO, LOG_TAG, "Waking up the device!");
-	            }
-	            else
-	            {
-	                dlog_print(DLOG_ERROR, LOG_TAG, "Couldn't wake up!");
-	            }
-	            dlog_print(DLOG_INFO, LOG_TAG, "Event occurred!");
-
-	            app_control_h app_control = NULL;
-	            if (app_control_create(&app_control) == APP_CONTROL_ERROR_NONE)
-	            {
-	                //Setting an app ID.
-	                if (app_control_set_app_id(app_control, MYSERVICELAUNCHER_APP_ID) == APP_CONTROL_ERROR_NONE)
-	                {
-	                    if(app_control_send_launch_request(app_control, NULL, NULL) == APP_CONTROL_ERROR_NONE)
-	                    {
-	                        dlog_print(DLOG_INFO, LOG_TAG, "App launch request sent!");
-	                    }
-	                }
-	                if (app_control_destroy(app_control) == APP_CONTROL_ERROR_NONE)
-	                {
-	                    dlog_print(DLOG_INFO, LOG_TAG, "App control destroyed.");
-	                }
-	            }
-		}*/
 	}
 }
 
