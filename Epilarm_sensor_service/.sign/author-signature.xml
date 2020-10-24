@@ -4,8 +4,8 @@
 <SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha512"></SignatureMethod>
 <Reference URI="bin%2Fepilarm_sensor_service">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>hxqBE7Pqfav2gPAtiv+jYN88JpBF1P9fsX9NWv2tlPz73ACKWfbFYl41wwOfG5r6GBSJY5Pe4dWc
-Jgwen92y+A==</DigestValue>
+<DigestValue>hEhejimpyvJgG8pBrwAFyXjTT2nrPMuuRmPMMnhtTeIPT7BXmfDbu0zU7RMUGF7dm1wqt9K/eEP9
+ADnlMhBTaw==</DigestValue>
 </Reference>
 <Reference URI="shared%2Fres%2Fepilarm_sensor_service.png">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -14,8 +14,8 @@ bNc/wgCuGg==</DigestValue>
 </Reference>
 <Reference URI="tizen-manifest.xml">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>0/KlVbLFQqgAxXEUebpR79BQr3vE6iGLPrONMFDEQdJcDy4djbLyUv8eZvokcjZfZDRdEYENNS+l
-JWhYuZigtQ==</DigestValue>
+<DigestValue>+hwdRmsSO/nwv8yYQ4Mu9TVdJlOLayrvjtT4QC/FZyhWrf7gQhB0mjvn8CK7fcFMIN5C6mQ8Ybk0
+itoTcJEHRw==</DigestValue>
 </Reference>
 <Reference URI="#prop">
 <Transforms>
@@ -27,11 +27,11 @@ QY10fG1EWQ==</DigestValue>
 </Reference>
 </SignedInfo>
 <SignatureValue>
-IOQ/c6WWR5b4WJYXlAdgkqDBtxN5lIN55xiHb9Rcu4U7mGQnvztqXfY92JZFtnGA6y7k78mgI2/S
-hZKgt8F48RM5cSJqtDcfupJQsEHoBCTs86Ih4cuPfQnAKMJcBNTlWTsbtlOdcjleSZL0L3eDSDnR
-1cxD0c4xP6sZ+SJGTBqgpFHbrVnzYRTn0I8a0rm7LDZEeit3qygEymNlVa3p/tePi2Fub8hzRYI6
-5Mqacs+/Mv8OUuC7DrGHyuX5YLrG42IMsVAtsWPd9fd6YNvq9bBEfYpYDwFIwVu9yOMg3oRLG2Vp
-LMNB+cZZNAlQUgRQK66cOe/JAEfpe/bDdmvyXQ==
+WayWSmzwv0WTm48xQo/M6CWvP49WBm9xv1PqMh2Nwd5M6BhrGfaI1iWhNTnM8RHT/MZYk3ImXqT4
+4/L8VoPEgX9BdV/hAEODBgw659ZKIEsoUcJQAi9D8Kz9e9o2lE/7SoGsnbAn5048hd1sZA5+OFuZ
+lYPpXj8k4Kngy68I7pabyHt8lOEZYbdQ8qVyzH8seRVckm+jeUKYswspwHnwW4BW2ajqcqkECH7r
+U4DA4asW8qiVtRD6FmaUSKcccFufwPNpQQ18UjuZvWpS6qGORwj7WWm6ECu8+64kjIVAQqleiuN/
+2JNCsw1zsYuK3MV0aCBDPzx5ZswsOAtv2WuAxA==
 </SignatureValue>
 <KeyInfo>
 <X509Data>

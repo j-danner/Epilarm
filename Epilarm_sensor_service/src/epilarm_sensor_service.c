@@ -19,11 +19,11 @@
 
 // some constant values used in the app
 #define MYSERVICELAUNCHER_APP_ID "QOeM6aBGp0.Epilarm" // an ID of the UI application of our package
+#define STRNCMP_LIMIT 256 // the limit of characters to be compared using strncmp function
 
-
-int sampleRate = 50; //in Hz (no samples per sec), this leads an interval of 1/sampleRate secs between measurements
-int dataQueryInterval = 20; //time in ms between measurements //only possible to do with 20, 40, 60, 80, 100, 200, 300
-int dataAnalysisInterval = 10; //time in s that are considered for the FFT
+#define sampleRate 50 //in Hz (no samples per sec), this leads an interval of 1/sampleRate secs between measurements
+#define dataQueryInterval 20 //time in ms between measurements //only possible to do with 20, 40, 60, 80, 100, 200, 300 (results from experiments)
+#define dataAnalysisInterval 10 //time in s that are considered for the FFT
 //we have a sample frequency of sampleRate = 50Hz and for each FFT we consider dataAnalysisInterval = 10s of time,
 //i.e., we have a frequency resolution of 1/dataAnalysisInterval = 1/10s = 0.1Hz (should be considerably smaller than 0.5Hz)
 //the maximal freq we can detect with FFT is sampleRate/2 = 25Hz (and should be larger than 10Hz, so large enough! -> the bigger the better!)
@@ -42,7 +42,7 @@ int alarmState = 0;
 
 
 //buffers for the three linear acceleration measurements
-int bufferSize = 50*10; //sampleRate*dataAnalysisInterval; //size of stored data on which we perform the FFT
+int bufferSize = sampleRate*dataAnalysisInterval; //size of stored data on which we perform the FFT
 
 
 // application data (context) that will be passed to functions when needed
@@ -72,7 +72,7 @@ typedef struct appdata
 
     int alarmState;
 
-    //indicate if analysis is running... (required to give appropriate debugging output when receiving appcontrol)
+    //indicate if analysis and sensor listener are running... (required to give appropriate debugging output when receiving appcontrol)
     int running;
 } appdata_s;
 
@@ -123,6 +123,7 @@ void issue_warning_notification(int as)
 //send notification
 void issue_alarm_notification(int as)
 {
+
 	notification_h warn_notification = NULL;
 	warn_notification = notification_create(NOTIFICATION_TYPE_NOTI);
 	if (warn_notification == NULL) { dlog_print(DLOG_ERROR, LOG_TAG, "could not create warning notification!"); return;}
@@ -162,6 +163,26 @@ void issue_unplanned_shutdown_notification()
 
 	noti_err = notification_post(warn_notification);
 	if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not post shutdown notification!"); return; }
+}
+
+void start_UI()
+{
+	app_control_h app_control = NULL;
+	if (app_control_create(&app_control) == APP_CONTROL_ERROR_NONE)
+	{
+		//Setting an app ID.
+		if (app_control_set_app_id(app_control, MYSERVICELAUNCHER_APP_ID) == APP_CONTROL_ERROR_NONE)
+		{
+			if(app_control_send_launch_request(app_control, NULL, NULL) == APP_CONTROL_ERROR_NONE)
+			{
+				dlog_print(DLOG_INFO, LOG_TAG, "App launch request sent!");
+			}
+		}
+		if (app_control_destroy(app_control) == APP_CONTROL_ERROR_NONE)
+		{
+			dlog_print(DLOG_INFO, LOG_TAG, "App control destroyed.");
+		}
+	}
 }
 
 //sensor event callback implementation
@@ -301,7 +322,7 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 					//TODO add appropriate handling for ALARM state (i.e. contact persons based on GPS location?!)
 					issue_alarm_notification(ad->alarmState);
 					//navigator.vibrate(100);
-
+					start_UI();
 				}
 			} else {
 				if(ad->alarmState > 1) {
@@ -372,6 +393,7 @@ void sensor_start(void *data)
 			if (sensor_listener_start(ad->listener) == SENSOR_ERROR_NONE)
 			{
 				dlog_print(DLOG_INFO, LOG_TAG, "Sensor listener started.");
+				ad->running = 1;
 			}
 		}
 	}
@@ -383,16 +405,18 @@ void sensor_stop(void *data, int sendNot)
 	// Extracting application data
 	appdata_s* ad = (appdata_s*)data;
 
-	if (sendNot != 0) { //send notification that sensorlistener is destroyed
-		dlog_print(DLOG_WARN, LOG_TAG, "Unscheduled shutdown of Epilarm-service! (Restart via UI!)");
-		issue_unplanned_shutdown_notification();
-	}
-
 	//Stopping & destroying sensor listener
 	if ((sensor_listener_stop(ad->listener) == SENSOR_ERROR_NONE)
 		&& (sensor_destroy_listener(ad->listener) == SENSOR_ERROR_NONE))
 	{
 		dlog_print(DLOG_INFO, LOG_TAG, "Sensor listener destroyed.");
+		ad->running = 0;
+		if (sendNot != 0) { //send notification that sensorlistener is destroyed
+			dlog_print(DLOG_INFO, LOG_TAG, "Unscheduled shutdown of Epilarm-service! (Restart via UI!)");
+			issue_unplanned_shutdown_notification();
+			//TODO start UI and tell it that service app crashed!
+			start_UI();
+		}
 	}
 	else
 	{
@@ -405,7 +429,7 @@ void service_app_terminate(void *data)
 	// Extracting application data
 	appdata_s* ad = (appdata_s*)data;
 
-	sensor_stop(data, 1);
+	sensor_stop(data, 1); //if sensor is stopped - with a warning; if already stopped before, no warning
 
 	//destroy fft_transformers
 	free_fft_transformer(ad->fft_x);
@@ -437,8 +461,8 @@ void service_app_control(app_control_h app_control, void *data)
     	dlog_print(DLOG_INFO, LOG_TAG, "caller_id = %s", caller_id);
     	dlog_print(DLOG_INFO, LOG_TAG, "action_value = %s", action_value);
         if((caller_id != NULL) && (action_value != NULL)
-             && (!strncmp(caller_id, MYSERVICELAUNCHER_APP_ID, 256))
-             && (!strncmp(action_value,"start", 256)))
+             && (!strncmp(caller_id, MYSERVICELAUNCHER_APP_ID, STRNCMP_LIMIT))
+             && (!strncmp(action_value,"start", STRNCMP_LIMIT)))
         {
             dlog_print(DLOG_INFO, LOG_TAG, "Starting epilarm sensor service!");
             sensor_start(data);
@@ -447,8 +471,8 @@ void service_app_control(app_control_h app_control, void *data)
             free(action_value);
             return;
         } else if((caller_id != NULL) && (action_value != NULL)
-             && (!strncmp(caller_id, MYSERVICELAUNCHER_APP_ID, 256))
-             && (!strncmp(action_value,"stop", 256)))
+             && (!strncmp(caller_id, MYSERVICELAUNCHER_APP_ID, STRNCMP_LIMIT))
+             && (!strncmp(action_value,"stop", STRNCMP_LIMIT)))
         {
             dlog_print(DLOG_INFO, LOG_TAG, "Stopping epilarm sensor service!");
             sensor_stop(data, 0); //stop sensor listener without notification (as it was shut down on purpose)

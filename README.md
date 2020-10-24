@@ -31,13 +31,14 @@ Below you can find a task-list which indicates the current state of the project 
   - [ ] save settings to local storage and exchange them with UI
   - [ ] complete logging of (analyzed) data (in order to later optimize default values); collect data for up to one week (timestamp, minFreq, maxFreq, complete simplified freqs, alarmstate, avg_roi_x|y|z, avg_nroi_x|y|z, avg_roi, multRatio --> 62 data points per second)
   - [ ] implement data transfer to Raspberry Pi 4 (running home assistant) via MQTT (triggered via button in UI)
-  - [ ] start UI (web app) if alarmstate changes (and app is not running)
+  - [x] start UI (web app) if alarmstate changes (and app is not running)
   - [ ] raise alarm by initializing phone call and/or send SMS (write companion app for Android or stick to LTE version of smart watch/can we use Samsung's very own SOS system?)
   - [ ] read GPS data every now and then s.t. it can be send as an attachment of the alarm notification 
  
 - Tizen Web Application (javascript):
   - [x] UI that allows starting and stopping of analysis of native service app
   - [x] basic setup of UI (three pages: _settings_ - _on-off-switch_ - _graphs_)
+  - [ ] check on start of UI if service app is running (and initialize button correctly!)
   - [ ] receive data from dataControl of service app and plot freqs, multRatio, avg_roi for plotting
   - [ ] button for sending collected internal data via MQTT to specified IP address
   - [ ] settings (that are sent to service app on startup):

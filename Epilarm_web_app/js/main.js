@@ -62,6 +62,8 @@ window.onload = function () {
 
 	//leave screen on
 	tizen.power.request('SCREEN', 'SCREEN_NORMAL');
+	
+	console.log('UI running!');
 };
 
 
