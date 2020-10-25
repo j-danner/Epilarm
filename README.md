@@ -38,7 +38,7 @@ Below you can find a task-list which indicates the current state of the project 
 - Tizen Web Application (javascript):
   - [x] UI that allows starting and stopping of analysis of native service app
   - [x] basic setup of UI (three pages: _settings_ - _on-off-switch_ - _graphs_)
-  - [ ] check on start of UI if service app is running (and initialize button correctly!)
+  - [x] check on start of UI if service app is running (and initialize button correctly!)
   - [ ] receive data from dataControl of service app and plot freqs, multRatio, avg_roi for plotting
   - [ ] button for sending collected internal data via MQTT to specified IP address
   - [ ] settings (that are sent to service app on startup):
