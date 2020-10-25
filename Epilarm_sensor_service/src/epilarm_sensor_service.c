@@ -339,7 +339,6 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 	}
 }
 
-
 bool service_app_create(void *data)
 {
 	// Extracting application data

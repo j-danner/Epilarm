@@ -68,6 +68,7 @@ function update_start_stop_checkbox() {
 
 
 
+
 function stop_service_app()  {
 	console.log('stopping service app...');
 	var obj = new tizen.ApplicationControlData('service_action', ['stop']); //you'll find the app id in config.xml file.
