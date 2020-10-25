@@ -375,6 +375,8 @@ bool service_app_create(void *data)
 
     ad->alarmState = 0;
 
+    ad->running = 0;
+
 	return true;
 }
 
@@ -454,6 +456,9 @@ void service_app_terminate(void *data)
 
 void service_app_control(app_control_h app_control, void *data)
 {
+	// Extracting application data
+	appdata_s* ad = (appdata_s*)data;
+
     char *caller_id = NULL, *action_value = NULL;
     if ((app_control_get_caller(app_control, &caller_id) == APP_CONTROL_ERROR_NONE)
         && (app_control_get_extra_data(app_control, "service_action", &action_value) == APP_CONTROL_ERROR_NONE))
@@ -462,7 +467,7 @@ void service_app_control(app_control_h app_control, void *data)
     	dlog_print(DLOG_INFO, LOG_TAG, "action_value = %s", action_value);
         if((caller_id != NULL) && (action_value != NULL)
              && (!strncmp(caller_id, MYSERVICELAUNCHER_APP_ID, STRNCMP_LIMIT))
-             && (!strncmp(action_value,"start", STRNCMP_LIMIT)))
+             && (!strncmp(action_value, "start", STRNCMP_LIMIT)))
         {
             dlog_print(DLOG_INFO, LOG_TAG, "Starting epilarm sensor service!");
             sensor_start(data);
@@ -472,7 +477,7 @@ void service_app_control(app_control_h app_control, void *data)
             return;
         } else if((caller_id != NULL) && (action_value != NULL)
              && (!strncmp(caller_id, MYSERVICELAUNCHER_APP_ID, STRNCMP_LIMIT))
-             && (!strncmp(action_value,"stop", STRNCMP_LIMIT)))
+             && (!strncmp(action_value, "stop", STRNCMP_LIMIT)))
         {
             dlog_print(DLOG_INFO, LOG_TAG, "Stopping epilarm sensor service!");
             sensor_stop(data, 0); //stop sensor listener without notification (as it was shut down on purpose)
@@ -480,6 +485,31 @@ void service_app_control(app_control_h app_control, void *data)
             free(caller_id);
             free(action_value);
             service_app_exit(); //this also tries to stop the sensor listener, but will issue a warning in the log...
+            return;
+        } else if((caller_id != NULL) && (action_value != NULL)
+                && (!strncmp(caller_id, MYSERVICELAUNCHER_APP_ID, STRNCMP_LIMIT))
+                && (!strncmp(action_value, "running?", STRNCMP_LIMIT)))
+        {
+            dlog_print(DLOG_INFO, LOG_TAG, "are we running? (asked by UI)!");
+
+        	char *app_id;
+        	app_control_h reply;
+    		app_control_create(&reply);
+    		app_control_get_app_id(app_control, &app_id);
+
+    		//convert int ad->running to string:
+    		//char str_running[12];
+    		//sprintf(str_running, "%d", ad->running);
+
+    		app_control_add_extra_data(reply, APP_CONTROL_DATA_SELECTED, ad->running ? "1" : "0");
+
+    		app_control_reply_to_launch_request(reply, app_control, APP_CONTROL_RESULT_SUCCEEDED);
+            dlog_print(DLOG_INFO, LOG_TAG, "reply sent");
+
+    		app_control_destroy(reply);
+
+            free(caller_id);
+            free(action_value);
             return;
         } else {
             dlog_print(DLOG_INFO, LOG_TAG, "Unsupported action! Doing nothing...");

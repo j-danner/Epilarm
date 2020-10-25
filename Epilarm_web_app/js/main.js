@@ -13,7 +13,7 @@ var alarmState = 0;
 //ringbuffers for data received from service app
 var freq = new createRingBuffer(15*2); freq.fill(0);
 
-var MYSERVICE_APP_ID = 'QOeM6aBGp0.epilarm_sensor_service';
+var SERVICE_APP_ID = 'QOeM6aBGp0.epilarm_sensor_service';
 
 
 function start_service_app()  {
@@ -26,10 +26,41 @@ function start_service_app()  {
 			[obj] 
 	);
 	tizen.application.launchAppControl(obj1,
-			MYSERVICE_APP_ID,
+			SERVICE_APP_ID,
 			function() {console.log('Launch Service succeeded'); },
 			function(e) {console.log('Launch Service failed : ' + e.message);}, null);
 }
+
+function update_start_stop_checkbox() {
+	console.log('ask service app if the sensor listener is running...');
+	var obj = new tizen.ApplicationControlData('service_action', ['running?']); //you'll find the app id in config.xml file.
+	var obj1 = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
+			null,
+			null,
+			null,
+			[obj] 
+	);
+	var appControlReplyCallback = {
+			// callee sent a reply
+			onsuccess: function(data) {
+				//console.log('reply is: ' + data[0].value[0]);
+				//save result:
+				document.getElementById("start_stop").checked = (data[0].value[0] == 1);
+				console.log('updated checkbox!');
+			},
+			// callee returned failure
+			onfailure: function() {
+				console.log('reply failed');
+			}
+	};
+	
+	tizen.application.launchAppControl(obj1,
+			SERVICE_APP_ID,
+			function() {console.log('Checking whether sensor listener is running succeeded'); },
+			function(e) {console.log('Checking whether sensor listener is running failed : ' + e.message);}, 
+			appControlReplyCallback);
+}
+
 
 
 function stop_service_app()  {
@@ -42,7 +73,7 @@ function stop_service_app()  {
 			[obj] 
 	);
 	tizen.application.launchAppControl(obj1,
-			MYSERVICE_APP_ID,
+			SERVICE_APP_ID,
 			function() {console.log('Stopping Service succeeded'); },
 			function(e) {console.log('Stopping Service failed : ' + e.message);}, null);
 }
@@ -63,7 +94,9 @@ window.onload = function () {
 	//leave screen on
 	tizen.power.request('SCREEN', 'SCREEN_NORMAL');
 	
-	console.log('UI running!');
+	console.log('UI started!');
+	update_start_stop_checkbox(); // make sure that checkbox is in correct state on startup
+	
 };
 
 
