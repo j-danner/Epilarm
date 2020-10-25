@@ -3,27 +3,32 @@
 var saveData = true; //boolean to decide if sensordata should be stored
 
 //parameters TODO should be transferred to service app at startup!
-var minFreq = 2.5; //minimal freq of seizure-like movements (3Hz -> TODO verify using videos!)
-var maxFreq = 7.5; //maximum freq of seizure-like movements (8Hz -> TODO verify using videos!)
-var avgRoiThresh = 6; //average value above which the relevant (combined) freqs have to be for warning mode
-var warnMultThresh = 2.5; //threshhold for ration of average of non-relevant freqs and relevant freqs required for warning mode (as sum of the rations of the three dimensions)
+var minFreq = 3; //minimal freq of seizure-like movements (3Hz -> TODO verify using videos!)
+var maxFreq = 8; //maximum freq of seizure-like movements (8Hz -> TODO verify using videos!)
+var avgRoiThresh = 2.3; //average value above which the relevant (combined) freqs have to be for warning mode
+var multThresh = 2.5; //threshhold for ration of average of non-relevant freqs and relevant freqs required for warning mode (as sum of the rations of the three dimensions)
 var warnTime = 10;//time after which a continuous WARNING state raises an ALARM
-var alarmState = 0;
 
 //ringbuffers for data received from service app
 var freq = new createRingBuffer(15*2); freq.fill(0);
 
 var SERVICE_APP_ID = 'QOeM6aBGp0.epilarm_sensor_service';
 
+//returns params [minFreq, maxFreq, avgRoiThresh, multThresh, warnTime] each as string
+//TODO read those values from local strorage
+function load_params_as_str() {
+	return [minFreq.toString(), maxFreq.toString(), avgRoiThresh.toString(), multThresh.toString(), warnTime.toString()];
+}
 
 function start_service_app()  {
 	console.log('starting service app...');
-	var obj = new tizen.ApplicationControlData('service_action', ['start']); //you'll find the app id in config.xml file.
+	var obj = new tizen.ApplicationControlData('service_action', ['start']);
+	var params = new tizen.ApplicationControlData('params', load_params_as_str());
 	var obj1 = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
 			null,
 			null,
 			null,
-			[obj] 
+			[obj, params] 
 	);
 	tizen.application.launchAppControl(obj1,
 			SERVICE_APP_ID,

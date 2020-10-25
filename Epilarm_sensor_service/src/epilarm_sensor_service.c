@@ -24,6 +24,7 @@
 #define sampleRate 50 //in Hz (no samples per sec), this leads an interval of 1/sampleRate secs between measurements
 #define dataQueryInterval 20 //time in ms between measurements //only possible to do with 20, 40, 60, 80, 100, 200, 300 (results from experiments)
 #define dataAnalysisInterval 10 //time in s that are considered for the FFT
+
 //we have a sample frequency of sampleRate = 50Hz and for each FFT we consider dataAnalysisInterval = 10s of time,
 //i.e., we have a frequency resolution of 1/dataAnalysisInterval = 1/10s = 0.1Hz (should be considerably smaller than 0.5Hz)
 //the maximal freq we can detect with FFT is sampleRate/2 = 25Hz (and should be larger than 10Hz, so large enough! -> the bigger the better!)
@@ -33,13 +34,6 @@
 // (2) to get into WARNING mode, two conditions have to be satisfied: first the freq corresponding to seizure-like movements are present and above
 //                                                                    a certain threshold, second those 'seizure'-freq are on average considerably
 //        															  larger than some fixed multiple of the freqs of all other freqs.
-double minFreq = 3; //minimal freq of seizure-like movements (3Hz -> TODO verify using videos!)
-double maxFreq = 8; //maximum freq of seizure-like movements (8Hz -> TODO verify using videos!)
-double avgRoiThresh = 2.3; //average value above which the relevant (combined) freqs have to be for warning mode
-double warnMultThresh = 2.5; //threshhold for ration of average of non-relevant freqs and relevant freqs required for warning mode (as sum of the rations of the three dimensions)
-int warnTime = 10; //time after which a continuous WARNING state raises an ALARM
-int alarmState = 0;
-
 
 //buffers for the three linear acceleration measurements
 int bufferSize = sampleRate*dataAnalysisInterval; //size of stored data on which we perform the FFT
@@ -50,6 +44,19 @@ typedef struct appdata
 {
 	sensor_h sensor; // sensor handle
 	sensor_listener_h listener; // sensor listener handle
+
+	//params of analysis (set by UI on startup)
+	double minFreq;
+	double maxFreq;
+	double avgRoiThresh;
+	double multThresh;
+	int warnTime;
+
+    //indicate if analysis and sensor listener are running... (required to give appropriate debugging output when receiving appcontrol)
+    int running;
+
+	//current alarmState
+    int alarmState;
 
 	//circular buffers for x, y, and z linear acc data
     ringbuf_t rb_x;
@@ -69,11 +76,6 @@ typedef struct appdata
     double* fft_x_spec_simplified;
     double* fft_y_spec_simplified;
     double* fft_z_spec_simplified;
-
-    int alarmState;
-
-    //indicate if analysis and sensor listener are running... (required to give appropriate debugging output when receiving appcontrol)
-    int running;
 } appdata_s;
 
 //send notification
@@ -249,7 +251,7 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 			double max_x = 0;
 			double max_y = 0;
 			double max_z = 0;
-			for (int i = 2*minFreq; i <= 2*maxFreq; ++i) {
+			for (int i = 2*ad->minFreq; i <= 2*ad->maxFreq; ++i) {
 				avg_roi_x += ad->fft_x_spec_simplified[i];
 				avg_roi_y += ad->fft_y_spec_simplified[i];
 				avg_roi_z += ad->fft_z_spec_simplified[i];
@@ -263,14 +265,14 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 				avg_nroi_z += ad->fft_z_spec_simplified[i];
 			}
 
-			avg_nroi_x = (avg_nroi_x-avg_roi_x) / (sampleRate-(2*maxFreq-2*minFreq+1));
-			avg_roi_x = avg_roi_x / (2*maxFreq-2*minFreq+1);
-			avg_nroi_y = (avg_nroi_y-avg_roi_y) / (sampleRate-(2*maxFreq-2*minFreq+1));
-			avg_roi_y = avg_roi_y / (2*maxFreq-2*minFreq+1);
-			avg_nroi_z = (avg_nroi_z-avg_roi_z) / (sampleRate-(2*maxFreq-2*minFreq+1));
-			avg_roi_z = avg_roi_z / (2*maxFreq-2*minFreq+1);
+			avg_nroi_x = (avg_nroi_x-avg_roi_x) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
+			avg_roi_x = avg_roi_x / (2*ad->maxFreq-2*ad->minFreq+1);
+			avg_nroi_y = (avg_nroi_y-avg_roi_y) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
+			avg_roi_y = avg_roi_y / (2*ad->maxFreq-2*ad->minFreq+1);
+			avg_nroi_z = (avg_nroi_z-avg_roi_z) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
+			avg_roi_z = avg_roi_z / (2*ad->maxFreq-2*ad->minFreq+1);
 
-			dlog_print(DLOG_INFO, LOG_TAG, "minfreq: %f, maxfeq: %f", minFreq, maxFreq);
+			dlog_print(DLOG_INFO, LOG_TAG, "minfreq: %f, maxfeq: %f", ad->minFreq, ad->maxFreq);
 
 
 			dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_x: %f, avg_roi_x: %f, (max_x_roi: %f)", avg_nroi_x, avg_roi_x, max_x);
@@ -297,18 +299,18 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 			double avg_roi = sqrt(avg_roi_x*avg_roi_x + avg_roi_y*avg_roi_y + avg_roi_z*avg_roi_z);
 
 			dlog_print(DLOG_INFO, LOG_TAG, "# multRatio: %f, avg_roi: %f", multRatio, avg_roi);
-			if (avg_roi>=avgRoiThresh)
+			if (avg_roi >= ad->avgRoiThresh)
 				dlog_print(DLOG_INFO, LOG_TAG, "---> avgRoiThresh reached");
 			else
 				dlog_print(DLOG_INFO, LOG_TAG, "---> avgRoiThresh NOT reached");
 
-			if (multRatio >= warnMultThresh)
+			if (multRatio >= ad->multThresh)
 				dlog_print(DLOG_INFO, LOG_TAG, "---> multThresh reached");
 			else
 				dlog_print(DLOG_INFO, LOG_TAG, "---> multThresh NOT reached");
 
 			//check both conditions for increasing alarmstate
-			if(multRatio >= warnMultThresh && avg_roi >= avgRoiThresh) {
+			if(multRatio >= ad->multThresh && avg_roi >= ad->avgRoiThresh) {
 				ad->alarmState = ad->alarmState+1;
 				dlog_print(DLOG_INFO, LOG_TAG, "### alarmState increased by one to %i", ad->alarmState);
 
@@ -317,7 +319,7 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 				//send new notification
 				issue_warning_notification(ad->alarmState);
 
-				if(ad->alarmState >= warnTime) {
+				if(ad->alarmState >= ad->warnTime) {
 					dlog_print(DLOG_INFO, LOG_TAG, "#### ALARM RAISED ####");
 					//TODO add appropriate handling for ALARM state (i.e. contact persons based on GPS location?!)
 					issue_alarm_notification(ad->alarmState);
@@ -469,12 +471,29 @@ void service_app_control(app_control_h app_control, void *data)
              && (!strncmp(caller_id, MYSERVICELAUNCHER_APP_ID, STRNCMP_LIMIT))
              && (!strncmp(action_value, "start", STRNCMP_LIMIT)))
         {
-            dlog_print(DLOG_INFO, LOG_TAG, "Starting epilarm sensor service!");
-            sensor_start(data);
+        	//get params from appcontrol: [minFreq, maxFreq, avgRoiThresh, multThresh, warnTime]
+            dlog_print(DLOG_INFO, LOG_TAG, "Epilarm start! reading params...");
+            char **params; int length;
+        	if (app_control_get_extra_data_array(app_control, "params", &params, &length) == APP_CONTROL_ERROR_NONE)
+        	{
+        		if (length != 5) { dlog_print(DLOG_INFO, LOG_TAG, "received too few params!"); }
+        		dlog_print(DLOG_INFO, LOG_TAG, "received %i params: minFreq=%s, maxFreq=%s, avgRoiThresh=%s, multThresh=%s, warnTime=%s", length, params[0], params[1], params[2], params[3], params[4]);
+        	    char *eptr;
+        		//set new params
+        		ad->minFreq = strtod(params[0],&eptr);
+        		ad->maxFreq = strtod(params[1],&eptr);
+        		ad->avgRoiThresh = strtod(params[2],&eptr);
+        		ad->multThresh = strtod(params[3],&eptr);
+        		ad->warnTime = atoi(params[4]);
 
-            free(caller_id);
-            free(action_value);
-            return;
+        		dlog_print(DLOG_INFO, LOG_TAG, "Starting epilarm sensor service!");
+        		sensor_start(ad);
+        	} else {
+        		dlog_print(DLOG_INFO, LOG_TAG, "receiving params failed! sensor not started!");
+        	}
+
+        	free(params);
+
         } else if((caller_id != NULL) && (action_value != NULL)
              && (!strncmp(caller_id, MYSERVICELAUNCHER_APP_ID, STRNCMP_LIMIT))
              && (!strncmp(action_value, "stop", STRNCMP_LIMIT)))
@@ -497,10 +516,6 @@ void service_app_control(app_control_h app_control, void *data)
     		app_control_create(&reply);
     		app_control_get_app_id(app_control, &app_id);
 
-    		//convert int ad->running to string:
-    		//char str_running[12];
-    		//sprintf(str_running, "%d", ad->running);
-
     		app_control_add_extra_data(reply, APP_CONTROL_DATA_SELECTED, ad->running ? "1" : "0");
 
     		app_control_reply_to_launch_request(reply, app_control, APP_CONTROL_RESULT_SUCCEEDED);
@@ -518,7 +533,6 @@ void service_app_control(app_control_h app_control, void *data)
             caller_id = NULL;
             action_value = NULL;
         }
-
     }
 }
 
