@@ -1,16 +1,19 @@
 
-//variables that can be changed in settings:
-var saveData = true; //boolean to decide if sensordata should be stored
-var mqqtBrokerAddress = 'some_ip_address' //
-
 
 //parameters TODO should be transferred to service app at startup!
-var minFreq = 3; //minimal freq of seizure-like movements (3Hz -> TODO verify using videos!)
-var maxFreq = 8; //maximum freq of seizure-like movements (8Hz -> TODO verify using videos!)
-var avgRoiThresh = 2.3; //average value above which the relevant (combined) freqs have to be for warning mode
-var multThresh = 2.5; //threshhold for ration of average of non-relevant freqs and relevant freqs required for warning mode (as sum of the rations of the three dimensions)
-var warnTime = 10; //time after which a continuous WARNING state raises an ALARM
+var params = {
+	minFreq : 3, //minimal freq of seizure-like movements (3Hz -> TODO verify using videos!)
+	maxFreq : 8, //maximum freq of seizure-like movements (8Hz -> TODO verify using videos!)
+	avgRoiThresh : 2.3, //average value above which the relevant (combined) freqs have to be for warning mode
+	multThresh : 2.5, //threshhold for ration of average of non-relevant freqs and relevant freqs required for warning mode (as sum of the rations of the three dimensions)
+	warnTime : 10, //time after which a continuous WARNING state raises an ALARM
+	
 
+	//variables that can be changed in settings:
+	logging : true, //boolean to decide if sensordata should be stored
+	mqqtBrokerAddress : 'some_ip_address' //address of your (local) mqqt broker to which logs are sent
+}
+	
 //ringbuffers for data received from service app
 var freq = new createRingBuffer(15*2); freq.fill(0);
 
@@ -19,20 +22,9 @@ var SERVICE_APP_ID = 'QOeM6aBGp0.epilarm_sensor_service';
 //save params to local storage, must be called after changing any value
 function save_params() {
 	// Set the local storage
-    if ('localStorage' in window) {
-		// params that can be changed
-    	//localStorage.setItem('minFreq', minFreq);
-    	//localStorage.setItem('maxFreq', maxFreq);    
-    	//localStorage.setItem('avgRoiThresh', avgRoiThresh);
-    	//localStorage.setItem('multThresh', multThresh);
-    	//localStorage.setItem('warnTime', warnTime);
-        //
-    	// params that cannot be changed (yet?)
-    	//localStorage.setItem('saveData', saveData);
-    	//localStorage.setItem('mqqtBrokerAddress', mqqtBrokerAddress); */
-    	
-    	//save params as one item:
-    	localStorage.setItem('params', [minFreq, maxFreq, avgRoiThresh, multThresh, warnTime, saveData, mqqtBrokerAddress]);
+    if ('localStorage' in window) {   	
+    	//save params
+    	localStorage.setItem('params', JSON.stringify(params));
     	console.log('params saved!')
     } else {
     	console.log('save_params: no localStorage in window!');
@@ -44,39 +36,22 @@ function load_params() {
     if ('localStorage' in window) {
     	// params that can be changed
     	if (localStorage.getItem('params') === null) {
-    		console.log('load_params: no custom params found, using default values!');
+    		console.log('load_params: no saved params found, using default values!');
         	//default values are always used when loading fails!
+    	} else {
+    		params = JSON.parse(localStorage.getItem('params'));
+    		console.log('params loaded!')
     	}
-    	
-    	//minFreq      = localStorage.getItem('minFreq');
-    	//maxFreq      = localStorage.getItem('maxFreq');    
-    	//avgRoiThresh = localStorage.getItem('avgRoiThresh');
-    	//multThresh   = localStorage.getItem('multThresh');
-    	//warnTime     = localStorage.getItem('warnTime');
-    	// params that cannot be changed (yet?)
-    	//saveData          = localStorage.getItem('saveData');
-    	//mqqtBrokerAddress = localStorage.getItem('mqqtBrokerAddress');
-    	var params = localStorage.getItem('params');
-    	minFreq = params[0];
-    	maxFreq = params[1];
-    	avgRoiThresh = params[2];
-    	multThresh = params[3];
-    	warnTime = params[4];
-    	saveData = params[5];
-    	mqqtBrokerAddress = params[6];
-
-    	console.log('params loaded!')
     } else {
     	console.log('load_params: no localStorage in window found, using default values!');
    }
 }
 
-//returns params [minFreq, maxFreq, avgRoiThresh, multThresh, warnTime] each as string
+//returns params [minFreq, maxFreq, avgRoiThresh, multThresh, warnTime, logging] each as string
 //TODO read those values from local strorage
 function load_params_as_str() {
-	return [minFreq.toString(), maxFreq.toString(), avgRoiThresh.toString(), multThresh.toString(), warnTime.toString()];
+	return [params.minFreq.toString(), params.maxFreq.toString(), params.avgRoiThresh.toString(), params.multThresh.toString(), params.warnTime.toString(), params.logging.toString()];
 }
-
 
 function start_service_app()  {
 	console.log('starting service app...');

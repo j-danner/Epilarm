@@ -51,9 +51,10 @@ typedef struct appdata
 	double avgRoiThresh;
 	double multThresh;
 	int warnTime;
+	bool logging;
 
     //indicate if analysis and sensor listener are running... (required to give appropriate debugging output when receiving appcontrol)
-    int running;
+    bool running;
 
 	//current alarmState
     int alarmState;
@@ -336,6 +337,10 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 				}
 			}
 		}
+		//logging of data:
+		if(ad->logging) {
+			//TODO write to local storage
+		}
 	}
 }
 
@@ -376,7 +381,7 @@ bool service_app_create(void *data)
 
     ad->alarmState = 0;
 
-    ad->running = 0;
+    ad->running = false;
 
 	return true;
 }
@@ -396,7 +401,7 @@ void sensor_start(void *data)
 			if (sensor_listener_start(ad->listener) == SENSOR_ERROR_NONE)
 			{
 				dlog_print(DLOG_INFO, LOG_TAG, "Sensor listener started.");
-				ad->running = 1;
+				ad->running = true;
 			}
 		}
 	}
@@ -413,7 +418,7 @@ void sensor_stop(void *data, int sendNot)
 		&& (sensor_destroy_listener(ad->listener) == SENSOR_ERROR_NONE))
 	{
 		dlog_print(DLOG_INFO, LOG_TAG, "Sensor listener destroyed.");
-		ad->running = 0;
+		ad->running = false;
 		if (sendNot != 0) { //send notification that sensorlistener is destroyed
 			dlog_print(DLOG_INFO, LOG_TAG, "Unscheduled shutdown of Epilarm-service! (Restart via UI!)");
 			issue_unplanned_shutdown_notification();
@@ -454,7 +459,6 @@ void service_app_terminate(void *data)
 	free(ad->fft_z_spec_simplified);
 }
 
-
 void service_app_control(app_control_h app_control, void *data)
 {
 	// Extracting application data
@@ -475,8 +479,8 @@ void service_app_control(app_control_h app_control, void *data)
             char **params; int length;
         	if (app_control_get_extra_data_array(app_control, "params", &params, &length) == APP_CONTROL_ERROR_NONE)
         	{
-        		if (length != 5) { dlog_print(DLOG_INFO, LOG_TAG, "received too few params!"); }
-        		dlog_print(DLOG_INFO, LOG_TAG, "received %i params: minFreq=%s, maxFreq=%s, avgRoiThresh=%s, multThresh=%s, warnTime=%s", length, params[0], params[1], params[2], params[3], params[4]);
+        		if (length != 6) { dlog_print(DLOG_INFO, LOG_TAG, "received too few params!"); }
+        		dlog_print(DLOG_INFO, LOG_TAG, "received %i params: minFreq=%s, maxFreq=%s, avgRoiThresh=%s, multThresh=%s, warnTime=%s, logging=%s", length, params[0], params[1], params[2], params[3], params[4], params[5]);
         	    char *eptr;
         		//set new params
         		ad->minFreq = strtod(params[0],&eptr);
@@ -484,6 +488,7 @@ void service_app_control(app_control_h app_control, void *data)
         		ad->avgRoiThresh = strtod(params[2],&eptr);
         		ad->multThresh = strtod(params[3],&eptr);
         		ad->warnTime = atoi(params[4]);
+        		ad->logging = (params[5] == "true");
 
         		dlog_print(DLOG_INFO, LOG_TAG, "Starting epilarm sensor service!");
         		sensor_start(ad);
