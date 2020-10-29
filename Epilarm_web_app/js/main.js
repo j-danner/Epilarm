@@ -12,7 +12,7 @@ var params = {
 	//variables that can be changed in settings:
 	logging : true, //boolean to decide if sensordata should be stored
 	mqqtBrokerAddress : 'some_ip_address' //address of your (local) mqqt broker to which logs are sent
-}
+};
 	
 //ringbuffers for data received from service app
 var freq = new createRingBuffer(15*2); freq.fill(0);
@@ -25,7 +25,7 @@ function save_params() {
     if ('localStorage' in window) {   	
     	//save params
     	localStorage.setItem('params', JSON.stringify(params));
-    	console.log('params saved!')
+    	console.log('params saved!');
     } else {
     	console.log('save_params: no localStorage in window!');
    }
@@ -40,7 +40,7 @@ function load_params() {
         	//default values are always used when loading fails!
     	} else {
     		params = JSON.parse(localStorage.getItem('params'));
-    		console.log('params loaded!')
+    		console.log('params loaded!');
     	}
     } else {
     	console.log('load_params: no localStorage in window found, using default values!');
@@ -99,7 +99,7 @@ function update_start_stop_checkbox() {
 			onsuccess: function(data) {
 				//console.log('reply is: ' + data[0].value[0]);
 				//save result:
-				document.getElementById("start_stop").checked = (data[0].value[0] == 1);
+				document.getElementById("start_stop").checked = (data[0].value[0] === 1);
 				console.log('updated checkbox!');
 			},
 			// callee returned failure
