@@ -1,4 +1,5 @@
 Epilarm_web_app/.sign/*
 Epilarm_sensor_service/Debug/*
+Epilarm_sensor_service/.sign/*
 *.tmp
 *.wgt
