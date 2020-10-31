@@ -393,17 +393,17 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 
 			//print comp freqs 0-1Hz 1-2Hz 2-3Hz ... 9-10Hz
 			dlog_print(DLOG_INFO, LOG_TAG, "x: %f  %f  %f  %f  %f  %f  %f  %f  %f  %f", ad->fft_x_spec_simplified[0]+ad->fft_x_spec_simplified[1], ad->fft_x_spec_simplified[2]+ad->fft_x_spec_simplified[3],
-					ad->fft_x_spec_simplified[4]+ad->fft_x_spec_simplified[5], ad->fft_x_spec_simplified[7]+ad->fft_x_spec_simplified[8], ad->fft_x_spec_simplified[9]+ad->fft_x_spec_simplified[10],
-					ad->fft_x_spec_simplified[11]+ad->fft_x_spec_simplified[12], ad->fft_x_spec_simplified[13]+ad->fft_x_spec_simplified[14], ad->fft_x_spec_simplified[15]+ad->fft_x_spec_simplified[16],
-					ad->fft_x_spec_simplified[17]+ad->fft_x_spec_simplified[18], ad->fft_x_spec_simplified[19]+ad->fft_x_spec_simplified[20]);
+					ad->fft_x_spec_simplified[4]+ad->fft_x_spec_simplified[5], ad->fft_x_spec_simplified[6]+ad->fft_x_spec_simplified[7], ad->fft_x_spec_simplified[8]+ad->fft_x_spec_simplified[9],
+					ad->fft_x_spec_simplified[10]+ad->fft_x_spec_simplified[11], ad->fft_x_spec_simplified[12]+ad->fft_x_spec_simplified[13], ad->fft_x_spec_simplified[14]+ad->fft_x_spec_simplified[15],
+					ad->fft_x_spec_simplified[16]+ad->fft_x_spec_simplified[17], ad->fft_x_spec_simplified[18]+ad->fft_x_spec_simplified[19]);
 			dlog_print(DLOG_INFO, LOG_TAG, "y: %f  %f  %f  %f  %f  %f  %f  %f  %f  %f", ad->fft_y_spec_simplified[0]+ad->fft_y_spec_simplified[1], ad->fft_y_spec_simplified[2]+ad->fft_y_spec_simplified[3],
-					ad->fft_y_spec_simplified[4]+ad->fft_y_spec_simplified[5], ad->fft_y_spec_simplified[7]+ad->fft_y_spec_simplified[8], ad->fft_y_spec_simplified[9]+ad->fft_y_spec_simplified[10],
-					ad->fft_y_spec_simplified[11]+ad->fft_y_spec_simplified[12], ad->fft_y_spec_simplified[13]+ad->fft_y_spec_simplified[14], ad->fft_y_spec_simplified[15]+ad->fft_y_spec_simplified[16],
-					ad->fft_y_spec_simplified[17]+ad->fft_y_spec_simplified[18], ad->fft_y_spec_simplified[19]+ad->fft_y_spec_simplified[20]);
+					ad->fft_y_spec_simplified[4]+ad->fft_y_spec_simplified[5], ad->fft_y_spec_simplified[7]+ad->fft_y_spec_simplified[6], ad->fft_y_spec_simplified[9]+ad->fft_y_spec_simplified[8],
+					ad->fft_y_spec_simplified[11]+ad->fft_y_spec_simplified[10], ad->fft_y_spec_simplified[13]+ad->fft_y_spec_simplified[12], ad->fft_y_spec_simplified[15]+ad->fft_y_spec_simplified[14],
+					ad->fft_y_spec_simplified[17]+ad->fft_y_spec_simplified[16], ad->fft_y_spec_simplified[19]+ad->fft_y_spec_simplified[18]);
 			dlog_print(DLOG_INFO, LOG_TAG, "z: %f  %f  %f  %f  %f  %f  %f  %f  %f  %f", ad->fft_z_spec_simplified[0]+ad->fft_z_spec_simplified[1], ad->fft_z_spec_simplified[2]+ad->fft_z_spec_simplified[3],
-					ad->fft_z_spec_simplified[4]+ad->fft_z_spec_simplified[5], ad->fft_z_spec_simplified[7]+ad->fft_z_spec_simplified[8], ad->fft_z_spec_simplified[9]+ad->fft_z_spec_simplified[10],
-					ad->fft_z_spec_simplified[11]+ad->fft_z_spec_simplified[12], ad->fft_z_spec_simplified[13]+ad->fft_z_spec_simplified[14], ad->fft_z_spec_simplified[15]+ad->fft_z_spec_simplified[16],
-					ad->fft_z_spec_simplified[17]+ad->fft_z_spec_simplified[18], ad->fft_z_spec_simplified[19]+ad->fft_z_spec_simplified[20]);
+					ad->fft_z_spec_simplified[4]+ad->fft_z_spec_simplified[5], ad->fft_z_spec_simplified[7]+ad->fft_z_spec_simplified[6], ad->fft_z_spec_simplified[9]+ad->fft_z_spec_simplified[8],
+					ad->fft_z_spec_simplified[11]+ad->fft_z_spec_simplified[10], ad->fft_z_spec_simplified[13]+ad->fft_z_spec_simplified[12], ad->fft_z_spec_simplified[15]+ad->fft_z_spec_simplified[14],
+					ad->fft_z_spec_simplified[17]+ad->fft_z_spec_simplified[16], ad->fft_z_spec_simplified[19]+ad->fft_z_spec_simplified[18]);
 
 			double multRatio = ((avg_roi_x/avg_nroi_x) + (avg_roi_y/avg_nroi_y) + (avg_roi_z/avg_nroi_z)) / 3;
 
