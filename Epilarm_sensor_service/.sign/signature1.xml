@@ -4,13 +4,13 @@
 <SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha512"></SignatureMethod>
 <Reference URI="author-signature.xml">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>ihsG6B01bu89jkJeiDvXlQdY/x/g7q806plDub8qdqtnRwwuxrbl735WeAkOExIP+4b3iQ/5hMcA
-k15AD04IEg==</DigestValue>
+<DigestValue>yJHWO+T2HKhQIo6dfBraMbupXoTB76+DUS2YtWKATMrv/OfyyPD2BaLFkyoiiy3vFmPVvHxmKAve
+92KsBNKGaw==</DigestValue>
 </Reference>
 <Reference URI="bin%2Fepilarm_sensor_service">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>hEhejimpyvJgG8pBrwAFyXjTT2nrPMuuRmPMMnhtTeIPT7BXmfDbu0zU7RMUGF7dm1wqt9K/eEP9
-ADnlMhBTaw==</DigestValue>
+<DigestValue>+aXnNjVuXpXs9tky5uau4YtWFMlImDFEyptBwsKGfDn2GHnfmOJNTqwR480rha25Zo8FkTPkfJwP
+T+dnHX+rAA==</DigestValue>
 </Reference>
 <Reference URI="shared%2Fres%2Fepilarm_sensor_service.png">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -32,11 +32,11 @@ GyvKX9Snig==</DigestValue>
 </Reference>
 </SignedInfo>
 <SignatureValue>
-YVMxerRFtfJj3TMk50j/kRABN8xn3vB6BH5iXPn+INgsAyvSbIXrefWudZIqSjOzxMMdS0UflvEH
-h2s11WDgPU3Lvg2HijUSaHYudkJvMdIvFNHYHaWPoy5upNYo4jRSEpZuMOZ8F9Kyw4eG5MDk8WlN
-fC+htkrw/eV7YSZEyjN0mu7lLVwBhuUsqSif5+ZlAzbqLY6bYB3iebZ83WRO26FcrpDK75LY2rdJ
-RiX90QmIBx+JVvESuJa1xTRp3nQAd4kt4f3LOcMTjtvYEWynloocN9ANrENeDikg3CuoOJMIfsFB
-E8adjWjH0F8Mg8hYahHUC7+FFxykhEAy4mE3wg==
+hP7yScj0mz1/ahlIcxRq60AWfRYW0ya2BEokqgQDa1pyyHeFGzovMgkxJ5GB2R5MX36rKUHKIjle
+XGfU9yCGbPX1yYPAPsB/D3vsfXYIgc6MFTZjDYEo2RISQ8grogtQ6QsOVV8ufOpgo1nazM0OfDuR
+VFsZqJ/vQ0BrBSSvZrjry4DGLmH4NfR0IekTzjJpMY3huJFa9YwPWNecXrCEaMi7MfoMCL7ZrQCE
+gNLqEA7uD4RCfLwoKUoxkcCe3BrLjE5HdWdshqzh48pji4JUNs7otP+NIXV7PxqOdC3JVp+GYJUy
+5nLvGXWorylLMzUY7I10QggCkGx+tllFA+UWFA==
 </SignatureValue>
 <KeyInfo>
 <X509Data>

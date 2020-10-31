@@ -4,8 +4,8 @@
 <SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha512"></SignatureMethod>
 <Reference URI="bin%2Fepilarm_sensor_service">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
-<DigestValue>hEhejimpyvJgG8pBrwAFyXjTT2nrPMuuRmPMMnhtTeIPT7BXmfDbu0zU7RMUGF7dm1wqt9K/eEP9
-ADnlMhBTaw==</DigestValue>
+<DigestValue>+aXnNjVuXpXs9tky5uau4YtWFMlImDFEyptBwsKGfDn2GHnfmOJNTqwR480rha25Zo8FkTPkfJwP
+T+dnHX+rAA==</DigestValue>
 </Reference>
 <Reference URI="shared%2Fres%2Fepilarm_sensor_service.png">
 <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha512"></DigestMethod>
@@ -27,11 +27,11 @@ QY10fG1EWQ==</DigestValue>
 </Reference>
 </SignedInfo>
 <SignatureValue>
-WayWSmzwv0WTm48xQo/M6CWvP49WBm9xv1PqMh2Nwd5M6BhrGfaI1iWhNTnM8RHT/MZYk3ImXqT4
-4/L8VoPEgX9BdV/hAEODBgw659ZKIEsoUcJQAi9D8Kz9e9o2lE/7SoGsnbAn5048hd1sZA5+OFuZ
-lYPpXj8k4Kngy68I7pabyHt8lOEZYbdQ8qVyzH8seRVckm+jeUKYswspwHnwW4BW2ajqcqkECH7r
-U4DA4asW8qiVtRD6FmaUSKcccFufwPNpQQ18UjuZvWpS6qGORwj7WWm6ECu8+64kjIVAQqleiuN/
-2JNCsw1zsYuK3MV0aCBDPzx5ZswsOAtv2WuAxA==
+CS8IHQwHDXsel09iD9eV9jOp0SQnedR1oLfkbLI6UMWvaX/+Ta3SOxaNI/RuweJSuFPts9u4jKNm
+6vuQJSOutoWFTcuwuVVKevSKhewA6PfrMumprl9HVl0S/DfXCDUpS5yi4kr3LV1/yV/5nA2DaPoo
+5miC/qqYJnRWcslL+agYSFqNGS84ywJ2tff/i3JkNTBYLS/RedzOozVo39EFvAh0SYzDYeidBviJ
+ec6ErwuGyc4N4uxib4/slL59Y6Jun3YNt/Xap83bHcsZxsWuZEYzdNHgH9r12YjLjQi+/IhIJ9Xf
++3B+VIfZbsi2uLrJvHOFUlixa/5lybrD8scnKQ==
 </SignatureValue>
 <KeyInfo>
 <X509Data>
