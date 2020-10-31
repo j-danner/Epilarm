@@ -8,9 +8,11 @@
             <operation name="http://tizen.org/appcontrol/operation/service"/>
         </app-control>
         <background-category value="sensor"/>
+        <background-category value="background-network"/>
     </service-application>
     <privileges>
         <privilege>http://tizen.org/privilege/appmanager.launch</privilege>
+        <privilege>http://tizen.org/privilege/internet</privilege>
         <privilege>http://tizen.org/privilege/display</privilege>
         <privilege>http://tizen.org/privilege/notification</privilege>
     </privileges>
