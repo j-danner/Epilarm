@@ -27,9 +27,9 @@ Below you can find a task-list which indicates the current state of the project 
   - [x] analysis of collected data as described above
   - [x] sending of notifactions if alarmstate is increased as a local notification on the watch
   - [x] send notification on shutdown (if not triggered by UI) to detect when it _crashes_
-  - [ ] implement dataControl in service app for exchange of data with UI (data + settings)
   - [ ] complete logging of (analyzed) data (in order to later optimize default values); collect data for up to one week (timestamp, minFreq, maxFreq, complete simplified freqs, alarmstate, avg_roi_x|y|z, avg_nroi_x|y|z, avg_roi, multRatio --> 62 data points per second)
   - [ ] implement data transfer to Raspberry Pi 4 (running home assistant) via MQTT (triggered via button in UI)
+  - [x] implement basic functionality for mqtt protocol to home assistant
   - [x] start UI (web app) if alarmstate changes (and app is not running)
   - [ ] raise alarm by initializing phone call and/or send SMS (write companion app for Android or stick to LTE version of smart watch/can we use Samsung's very own SOS system?)
   - [ ] read GPS data every now and then s.t. it can be sent as an attachment of the alarm notification 
@@ -38,7 +38,6 @@ Below you can find a task-list which indicates the current state of the project 
   - [x] UI that allows starting and stopping of analysis of native service app
   - [x] basic setup of UI (three pages: _settings_ - _on-off-switch_ - _graphs_)
   - [x] check on start of UI if service app is running (and initialize button correctly!)
-  - [ ] receive data from dataControl of service app and plot freqs, multRatio, avg_roi for plotting
   - [ ] button for sending collected internal data via MQTT to specified IP address
   - [x] settings (that are sent to service app on startup):
    - **mandatory** warnTime, mult_thresh, roi_thresh, min|maxFreq (only in 0.5Hz steps)
