@@ -89,11 +89,6 @@ typedef struct appdata
 } appdata_s;
 
 
-//locally save analyzed data
-void saveData() {
-}
-
-
 void publish_callback(void** unused, struct mqtt_response_publish *published)
 {
     /* not used in this example */
@@ -315,9 +310,6 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 		//each second perform fft analysis -> a second has passed if sampleRate number of new entries were made in rb_X, i.e., if rb_x->idx = sampleRate
 		if((ad->rb_x)->idx % sampleRate == 0)
 		{
-			//TODO remove after extensive testing!!!
-			send_data(ad);
-
 			//dlog_print(DLOG_INFO, LOG_TAG, "read out ringbufs...");
 			ringbuf_get_buf(ad->rb_x, ad->fft_x_spec);
 			ringbuf_get_buf(ad->rb_y, ad->fft_y_spec);
@@ -524,10 +516,6 @@ void sensor_stop(void *data, int sendNot)
 	// Extracting application data
 	appdata_s* ad = (appdata_s*)data;
 
-	if(!ad->running) {
-		dlog_print(DLOG_INFO, LOG_TAG, "Sensor listener already destroyed.");
-		return;
-	}
 	//Stopping & destroying sensor listener
 	if ((sensor_listener_stop(ad->listener) == SENSOR_ERROR_NONE)
 		&& (sensor_destroy_listener(ad->listener) == SENSOR_ERROR_NONE))
@@ -543,7 +531,7 @@ void sensor_stop(void *data, int sendNot)
 	}
 	else
 	{
-		dlog_print(DLOG_INFO, LOG_TAG, "Error occurred when destroying sensor listener: listener was never created!");
+		dlog_print(DLOG_INFO, LOG_TAG, "Error occurred when destroying sensor listener: listener was never created or already destroyed!");
 	}
 }
 
