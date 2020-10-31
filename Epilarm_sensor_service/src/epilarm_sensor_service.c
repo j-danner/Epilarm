@@ -516,6 +516,10 @@ void sensor_stop(void *data, int sendNot)
 	// Extracting application data
 	appdata_s* ad = (appdata_s*)data;
 
+	if(!ad->running) {
+		dlog_print(DLOG_INFO, LOG_TAG, "Sensor listener already destroyed.");
+		return;
+	}
 	//Stopping & destroying sensor listener
 	if ((sensor_listener_stop(ad->listener) == SENSOR_ERROR_NONE)
 		&& (sensor_destroy_listener(ad->listener) == SENSOR_ERROR_NONE))
@@ -531,7 +535,7 @@ void sensor_stop(void *data, int sendNot)
 	}
 	else
 	{
-		dlog_print(DLOG_INFO, LOG_TAG, "Error occurred when destroying sensor listener: listener was never created or already destroyed!");
+		dlog_print(DLOG_INFO, LOG_TAG, "Error occurred when destroying sensor listener: listener was never created!");
 	}
 }
 
