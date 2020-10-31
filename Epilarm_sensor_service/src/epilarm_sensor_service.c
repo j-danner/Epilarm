@@ -12,8 +12,11 @@
 
 
 //own modules
-#include "fft.h"
-#include "rb.h"
+#include <fft.h>
+#include <rb.h>
+#include <mqtt.h>
+#include <unistd.h>
+#include <posix_sockets.h>
 
 
 
@@ -51,7 +54,13 @@ typedef struct appdata
 	double avgRoiThresh;
 	double multThresh;
 	int warnTime;
+	//logging of data AND sending over mqtt to broker
 	bool logging;
+	char* mqttBroker;
+	char* mqttPort;
+	char* mqttTopic;
+	char* mqttUsername;
+	char* mqttPassword;
 
     //indicate if analysis and sensor listener are running... (required to give appropriate debugging output when receiving appcontrol)
     bool running;
@@ -78,6 +87,100 @@ typedef struct appdata
     double* fft_y_spec_simplified;
     double* fft_z_spec_simplified;
 } appdata_s;
+
+
+void publish_callback(void** unused, struct mqtt_response_publish *published)
+{
+    /* not used in this example */
+}
+
+void* client_refresher(void* client)
+{
+    while(1)
+    {
+        mqtt_sync((struct mqtt_client*) client);
+        usleep(100000U);
+    }
+    return NULL;
+}
+
+//send data over mqqt to broker
+void send_data(void *data) {
+	// Extracting application data
+	appdata_s* ad = (appdata_s*)data;
+
+	int sockfd = open_nb_socket(ad->mqttBroker, ad->mqttPort);
+
+	if (sockfd == -1) {
+	   dlog_print(DLOG_INFO, LOG_TAG, "Failed to open socket!");
+	   return;
+	} else {
+       dlog_print(DLOG_INFO, LOG_TAG, "Opened socket! (%d)", sockfd);
+	}
+
+	/* setup a client */
+	struct mqtt_client client;
+	uint8_t sendbuf[2048];  /* sendbuf should be large enough to hold multiple whole mqtt messages */
+    uint8_t recvbuf[1024];  /* recvbuf should be large enough any whole mqtt message expected to be received */
+	mqtt_init(&client, sockfd, sendbuf, sizeof(sendbuf), recvbuf, sizeof(recvbuf), publish_callback);
+    dlog_print(DLOG_INFO, LOG_TAG, "initialized mqtt client!");
+	/* Create an anonymous session */
+	const char* client_id = "galaxy_active_2_epilarm";
+	/* Ensure we have a clean session */
+	uint8_t connect_flags = MQTT_CONNECT_CLEAN_SESSION;
+	/* Send connection request to the broker. */
+	mqtt_connect(&client, client_id, NULL, NULL, 0, ad->mqttUsername, ad->mqttPassword, connect_flags, 400);
+    dlog_print(DLOG_INFO, LOG_TAG, "mqtt connected!");
+
+	/* check that we don't have any errors */
+	if (client.error != MQTT_OK) {
+		dlog_print(DLOG_INFO, LOG_TAG, "error: %s", mqtt_error_str(client.error));
+	    close(sockfd);
+		return;
+	}
+
+	/* start a thread to refresh the client (handle egress and ingree client traffic) */
+	pthread_t client_daemon;
+	if(pthread_create(&client_daemon, NULL, client_refresher, &client)) {
+		dlog_print(DLOG_INFO, LOG_TAG, "Failed to start client daemon.");
+	    close(sockfd);
+		return;
+	}
+
+	/* start publishing the time */
+    time_t timer;
+    time(&timer);
+    struct tm* tm_info = localtime(&timer);
+    char timebuf[26];
+    strftime(timebuf, 26, "%Y-%m-%d %H:%M:%S", tm_info);
+
+    /* print a message */
+    char application_message[256];
+    snprintf(application_message, sizeof(application_message), "The time is %s", timebuf);
+
+	dlog_print(DLOG_INFO, LOG_TAG, "service is publishing message='%s' under topic='%s'.", application_message, ad->mqttTopic);
+
+	/* publish the test message */
+	mqtt_publish(&client, ad->mqttTopic, application_message, strlen(application_message) + 1, MQTT_PUBLISH_QOS_0);
+	dlog_print(DLOG_INFO, LOG_TAG, "message published!");
+
+	/* check for errors */
+	if (client.error != MQTT_OK) {
+		dlog_print(DLOG_INFO, LOG_TAG, "error: %s", mqtt_error_str(client.error));
+	    close(sockfd);
+	    pthread_cancel(client_daemon);
+	}
+
+	/* disconnect */
+	dlog_print(DLOG_INFO, LOG_TAG, "service disconnecting from %s", ad->mqttBroker);
+	mqtt_disconnect(&client);
+	sleep(1);
+
+	/* exit */
+    close(sockfd);
+    pthread_cancel(client_daemon);
+}
+
 
 //send notification
 void issue_warning_notification(int as)
@@ -479,8 +582,9 @@ void service_app_control(app_control_h app_control, void *data)
             char **params; int length;
         	if (app_control_get_extra_data_array(app_control, "params", &params, &length) == APP_CONTROL_ERROR_NONE)
         	{
-        		if (length != 6) { dlog_print(DLOG_INFO, LOG_TAG, "received too few params!"); }
-        		dlog_print(DLOG_INFO, LOG_TAG, "received %i params: minFreq=%s, maxFreq=%s, avgRoiThresh=%s, multThresh=%s, warnTime=%s, logging=%s", length, params[0], params[1], params[2], params[3], params[4], params[5]);
+        		if (length != 11) { dlog_print(DLOG_INFO, LOG_TAG, "received too few params!"); }
+        		dlog_print(DLOG_INFO, LOG_TAG, "received %i params: minFreq=%s, maxFreq=%s, avgRoiThresh=%s, multThresh=%s, warnTime=%s, logging=%s, mqttBrokerAddress=%s, mqttPort=%s, mqttTopic=%s, mqttUsername=%s, mqttPassword=%s",
+        				length, params[0], params[1], params[2], params[3], params[4], params[5], params[6], params[7], params[8], params[9], params[10]);
         	    char *eptr;
         		//set new params
         		ad->minFreq = strtod(params[0],&eptr);
@@ -488,7 +592,13 @@ void service_app_control(app_control_h app_control, void *data)
         		ad->avgRoiThresh = strtod(params[2],&eptr);
         		ad->multThresh = strtod(params[3],&eptr);
         		ad->warnTime = atoi(params[4]);
-        		ad->logging = (params[5] == "true");
+        		ad->logging = atoi(params[5]);
+        		ad->mqttBroker = params[6];
+        		ad->mqttPort = params[7];
+        		ad->mqttTopic = params[8];
+        		ad->mqttUsername = params[9];
+        		ad->mqttPassword = params[10];
+
 
         		dlog_print(DLOG_INFO, LOG_TAG, "Starting epilarm sensor service!");
         		sensor_start(ad);

@@ -11,7 +11,16 @@ var params = {
 
 	//variables that can be changed in settings:
 	logging : true, //boolean to decide if sensordata should be stored
-	mqqtBrokerAddress : 'some_ip_address' //address of your (local) mqqt broker to which logs are sent
+	mqttBrokerAddress : '192.168.178.33', //address of your (local) mqqt broker to which logs are sent
+	mqttPort : '1883', //port under which the broker is found
+	mqttTopic : 'epilarm/log', //topic under which logging data is published
+	mqttUsername : 'sam_gal_act_2', //username
+	mqttPassword : 'password', //password
+		
+	toString : function(){
+		return [this.minFreq.toString(), this.maxFreq.toString(), this.avgRoiThresh.toString(), this.multThresh.toString(), this.warnTime.toString(), (this.logging ? "1" : "0"),
+				this.mqttBrokerAddress, this.mqttPort, this.mqttTopic, this.mqttUsername, this.mqttPassword];
+	}
 };
 	
 //ringbuffers for data received from service app
@@ -47,21 +56,15 @@ function load_params() {
    }
 }
 
-//returns params [minFreq, maxFreq, avgRoiThresh, multThresh, warnTime, logging] each as string
-//TODO read those values from local strorage
-function load_params_as_str() {
-	return [params.minFreq.toString(), params.maxFreq.toString(), params.avgRoiThresh.toString(), params.multThresh.toString(), params.warnTime.toString(), params.logging.toString()];
-}
-
 function start_service_app()  {
 	console.log('starting service app...');
 	var obj = new tizen.ApplicationControlData('service_action', ['start']);
-	var params = new tizen.ApplicationControlData('params', load_params_as_str());
+	var obj_params = new tizen.ApplicationControlData('params', params.toString());
 	var obj1 = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
 			null,
 			null,
 			null,
-			[obj, params] 
+			[obj, obj_params] 
 	);
 	tizen.application.launchAppControl(obj1,
 			SERVICE_APP_ID,
@@ -140,6 +143,7 @@ window.onload = function () {
 
 	console.log('UI started!');
 	
+	start_service_app();
 };
 
 
