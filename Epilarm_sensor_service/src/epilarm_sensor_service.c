@@ -3,20 +3,29 @@
 #include "epilarm_sensor_service.h"
 
 // headers that will be needed for our service:
-#include <sensor.h>
+//stdlib...
 #include <stdlib.h>
 #include <stdio.h>
-#include <device/power.h>
+#include <unistd.h>
 #include <math.h>
+#include <dirent.h>
+//tizen...
+#include <sensor.h>
+#include <device/power.h>
 #include <notification.h>
+
+//mqtt lib
+#include <mqtt.h>
+#include <posix_sockets.h>
+#include <glib-object.h>
+#include <json-glib/json-glib.h>
 
 
 //own modules
 #include <fft.h>
 #include <rb.h>
-#include <mqtt.h>
-#include <unistd.h>
-#include <posix_sockets.h>
+
+
 
 
 
@@ -52,8 +61,13 @@ typedef struct appdata
 	double minFreq;
 	double maxFreq;
 	double avgRoiThresh;
+	double avg_roi_x, avg_nroi_x;
+	double avg_roi_y, avg_nroi_y;
+	double avg_roi_z, avg_nroi_z;
 	double multThresh;
 	int warnTime;
+	double multRatio;
+	double avgRoi;
 	//logging of data AND sending over mqtt to broker
 	bool logging;
 	char* mqttBroker;
@@ -89,6 +103,153 @@ typedef struct appdata
 } appdata_s;
 
 
+//locally save analyzed data (called after each analysis and stored locally) -> CAUTION: must not be called more than once per second!
+void save_log(void *data) {
+	// Extracting application data
+	appdata_s* ad = (appdata_s*)data;
+
+	//get timestamp:
+	struct timespec tmnow;
+	struct tm *tm;
+	char timebuf[30], nsec_buf[6];
+
+	clock_gettime(CLOCK_REALTIME, &tmnow);
+	tm = localtime(&tmnow.tv_sec);
+	strftime(timebuf, 30, "%Y-%m-%d_%H-%M-%S-", tm);
+	sprintf(nsec_buf, "%d", (int) round(tmnow.tv_nsec/1000000));
+	strcat(timebuf, nsec_buf);
+
+	//find appropriate file name and path
+	char file_path[256];
+	char* data_path = app_get_data_path();
+	snprintf(file_path, sizeof(file_path), "%slog_%s.%s", data_path, timebuf, "json");
+	free(data_path);
+
+	dlog_print(DLOG_INFO, LOG_TAG, "save_log: data_path=%s", file_path);
+
+	//print contents in json-format using json-glib
+	JsonBuilder *builder = json_builder_new ();
+
+	json_builder_begin_object (builder);
+	//add timestamp
+	json_builder_set_member_name (builder, "time");
+	json_builder_add_string_value (builder, timebuf);
+
+	//add alarmstate
+	json_builder_set_member_name (builder, "alarmstate");
+	json_builder_add_int_value (builder, ad->alarmState);
+
+	//add multRatio
+	json_builder_set_member_name (builder, "multRatio");
+	json_builder_add_double_value (builder, ad->multRatio);
+
+	//add avgRoi
+	json_builder_set_member_name (builder, "avgRoi");
+	json_builder_add_double_value (builder, ad->avgRoi);
+
+	//add avg_roi_x|y|z
+	json_builder_set_member_name (builder, "avg_roi");
+	json_builder_begin_array(builder);
+	json_builder_add_double_value(builder, ad->avg_roi_x);
+	json_builder_add_double_value(builder, ad->avg_roi_y);
+	json_builder_add_double_value(builder, ad->avg_roi_z);
+	json_builder_end_array(builder);
+
+	//add avg_nroi_x|y|z
+	json_builder_set_member_name (builder, "avg_nroi");
+	json_builder_begin_array(builder);
+	json_builder_add_double_value(builder, ad->avg_nroi_x);
+	json_builder_add_double_value(builder, ad->avg_nroi_y);
+	json_builder_add_double_value(builder, ad->avg_nroi_z);
+	json_builder_end_array(builder);
+
+	//include the bins of fft_x_spec_simplified corresponding to the first 40 bins (so in the 0-20Hz range)
+	json_builder_set_member_name (builder, "x_spec");
+	json_builder_begin_array(builder);
+	for (int i = 0; i < 20; ++i) {
+		json_builder_add_double_value(builder, ad->fft_x_spec_simplified[i]);
+	}
+	json_builder_end_array(builder);
+
+	//include the bins of fft_y_spec_simplified corresponding to the first 40 bins (so in the 0-20Hz range)
+	json_builder_set_member_name (builder, "y_spec");
+	json_builder_begin_array(builder);
+	for (int i = 0; i < 20; ++i) {
+		json_builder_add_double_value(builder, ad->fft_y_spec_simplified[i]);
+	}
+	json_builder_end_array(builder);
+
+	//include the bins of fft_z_spec_simplified corresponding to the first 40 bins (so in the 0-20Hz range)
+	json_builder_set_member_name (builder, "z_spec");
+	json_builder_begin_array(builder);
+	for (int i = 0; i < 20; ++i) {
+		json_builder_add_double_value(builder, ad->fft_z_spec_simplified[i]);
+	}
+	json_builder_end_array(builder);
+
+
+	//include params of analysis (in one array)
+	json_builder_set_member_name (builder, "params");
+	json_builder_begin_array(builder);
+	json_builder_begin_object(builder);
+	json_builder_set_member_name(builder, "minFreq");
+	json_builder_add_double_value(builder, ad->minFreq);
+	json_builder_set_member_name(builder, "maxFreq");
+	json_builder_add_double_value(builder, ad->maxFreq);
+	json_builder_set_member_name(builder, "avgRoiThresh");
+	json_builder_add_double_value(builder, ad->avgRoiThresh);
+	json_builder_set_member_name(builder, "multThresh");
+	json_builder_add_double_value(builder, ad->multThresh);
+	json_builder_set_member_name(builder, "warnTime");
+	json_builder_add_int_value(builder, ad->warnTime);
+	json_builder_end_object(builder);
+	json_builder_end_array(builder);
+
+	json_builder_end_object (builder);
+
+	//generate json string (will be in str)
+	JsonGenerator *gen = json_generator_new();
+	JsonNode * root = json_builder_get_root(builder);
+	json_generator_set_root(gen, root);
+	gchar *str = json_generator_to_data(gen, NULL);
+
+	json_node_free(root);
+	g_object_unref(gen);
+	g_object_unref(builder);
+
+	dlog_print(DLOG_INFO, LOG_TAG, "save_log: content with len %d is = '%s'", strlen(str), str);
+
+
+	//write contents to file
+    FILE *fp;
+    fp = fopen(file_path, "w");
+    fputs(str, fp);
+    fclose(fp);
+}
+
+char* read_file(const char* filename)
+{
+	char * buffer = 0;
+	long length;
+	FILE * f = fopen(filename, "r");
+	if (f==NULL){dlog_print(DLOG_INFO, LOG_TAG, "fopen did NOT succeed! (f=NULL)");}
+
+
+	if (f)
+	{
+	  fseek(f, 0, SEEK_END);
+	  length = ftell(f);
+	  fseek(f, 0, SEEK_SET);
+	  buffer = malloc(length);
+	  if (buffer)
+	  {
+	    fread(buffer, 1, length, f);
+	  }
+	  fclose(f);
+	}
+	return buffer;
+}
+
 void publish_callback(void** unused, struct mqtt_response_publish *published)
 {
     /* not used in this example */
@@ -104,8 +265,8 @@ void* client_refresher(void* client)
     return NULL;
 }
 
-//send data over mqqt to broker
-void send_data(void *data) {
+//send all locally saved data over mqtt to broker if available and delete files after successful publication (QoS 1)
+void share_data_mqtt(void *data) {
 	// Extracting application data
 	appdata_s* ad = (appdata_s*)data;
 
@@ -120,7 +281,7 @@ void send_data(void *data) {
 
 	/* setup a client */
 	struct mqtt_client client;
-	uint8_t sendbuf[2048];  /* sendbuf should be large enough to hold multiple whole mqtt messages */
+	uint8_t sendbuf[100*2048];  /* sendbuf should be large enough to hold multiple whole mqtt messages */
     uint8_t recvbuf[1024];  /* recvbuf should be large enough any whole mqtt message expected to be received */
 	mqtt_init(&client, sockfd, sendbuf, sizeof(sendbuf), recvbuf, sizeof(recvbuf), publish_callback);
     dlog_print(DLOG_INFO, LOG_TAG, "initialized mqtt client!");
@@ -147,34 +308,69 @@ void send_data(void *data) {
 		return;
 	}
 
-	/* start publishing the time */
-    time_t timer;
-    time(&timer);
-    struct tm* tm_info = localtime(&timer);
-    char timebuf[26];
-    strftime(timebuf, 26, "%Y-%m-%d %H:%M:%S", tm_info);
+	dlog_print(DLOG_INFO, LOG_TAG, "initializing publishing of locally stored json-files... (sending starting message...)");
+	mqtt_publish(&client, ad->mqttTopic, "1", 1, MQTT_PUBLISH_QOS_1);
 
-    /* print a message */
-    char application_message[256];
-    snprintf(application_message, sizeof(application_message), "The time is %s", timebuf);
 
-	dlog_print(DLOG_INFO, LOG_TAG, "service is publishing message='%s' under topic='%s'.", application_message, ad->mqttTopic);
+    //send all locally saved files -- ony-by-one --
+	char* data_msg; //this seems to be large enough
+	char file_path[256];
+	char* data_path = app_get_data_path();
 
-	/* publish the test message */
-	mqtt_publish(&client, ad->mqttTopic, application_message, strlen(application_message) + 1, MQTT_PUBLISH_QOS_0);
-	dlog_print(DLOG_INFO, LOG_TAG, "message published!");
 
-	/* check for errors */
-	if (client.error != MQTT_OK) {
-		dlog_print(DLOG_INFO, LOG_TAG, "error: %s", mqtt_error_str(client.error));
-	    close(sockfd);
-	    pthread_cancel(client_daemon);
+    //iterate over files:
+    DIR *d;
+    struct dirent *dir;
+    d = opendir(data_path);
+    if (d) {
+    	while ((dir = readdir(d)) != NULL && strlen(dir->d_name)>5) {
+    		//now dir->d_name stores name of file in dir
+    		if (strncmp(dir->d_name,"log_",4) == 0 && strcmp(strrchr(dir->d_name, '.'), ".json") == 0)
+    		{
+    			dlog_print(DLOG_INFO, LOG_TAG, "processing file %s", dir->d_name);
+    			//set correct file_path
+    			snprintf(file_path, sizeof(file_path), "%s%s", data_path, dir->d_name);
+
+    			dlog_print(DLOG_INFO, LOG_TAG, "reading %s", file_path);
+    			/* print a message */
+    			data_msg = read_file(file_path);
+    			dlog_print(DLOG_INFO, LOG_TAG, "reading done! (%s)", data_msg);
+
+    			dlog_print(DLOG_INFO, LOG_TAG, "publishing msg: topic='%s', payload_len=%d, payload='%s'.", ad->mqttTopic, strlen(data_msg)+1, data_msg);
+
+    			/* publish the test message */
+    			mqtt_publish(&client, ad->mqttTopic, data_msg, strlen(data_msg) + 1, MQTT_PUBLISH_QOS_2);
+    			free(data_msg);
+    			dlog_print(DLOG_INFO, LOG_TAG, "message published!");
+
+    			/* check for errors */
+    			if (client.error != MQTT_OK) {
+    				dlog_print(DLOG_INFO, LOG_TAG, "error: %s", mqtt_error_str(client.error));
+    				close(sockfd);
+    				pthread_cancel(client_daemon);
+    				return;
+    			} else { //no error occured, file can be removed
+    				dlog_print(DLOG_INFO, LOG_TAG, "file sent successfully: %s", mqtt_error_str(client.error));
+    				remove(dir->d_name);
+    				dlog_print(DLOG_INFO, LOG_TAG, "local file deleted.");
+    			}
+    		} else {
+    			//dir is either no regular file, its name is shorter than 5 chars or it does not end with .json
+    			dlog_print(DLOG_INFO, LOG_TAG, "skipping 'file' %s", dir->d_name);
+    		}
+    	}
+    	closedir(d);
+	} else {
+		dlog_print(DLOG_INFO, LOG_TAG, "directory does not exist!");
 	}
+	free(data_path);
 
+	dlog_print(DLOG_INFO, LOG_TAG, "(sending ending message...)");
+	mqtt_publish(&client, ad->mqttTopic, "0", 1, MQTT_PUBLISH_QOS_1);
 	/* disconnect */
 	dlog_print(DLOG_INFO, LOG_TAG, "service disconnecting from %s", ad->mqttBroker);
 	mqtt_disconnect(&client);
-	sleep(1);
+    usleep(500000U);
 
 	/* exit */
     close(sockfd);
@@ -307,9 +503,12 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 
 		//dlog_print(DLOG_INFO, LOG_TAG, "sensors read!");
 
-		//each second perform fft analysis -> a second has passed if sampleRate number of new entries were made in rb_X, i.e., if rb_x->idx = sampleRate
+		//each second perform fft analysis -> a second has passed if sampleRate number of new entries were made in rb_X, i.e., if rb_x->idx % sampleRate == 0
 		if((ad->rb_x)->idx % sampleRate == 0)
 		{
+			//TODO remove after extensive testing!!!
+			//share_data_mqtt(ad);
+
 			//dlog_print(DLOG_INFO, LOG_TAG, "read out ringbufs...");
 			ringbuf_get_buf(ad->rb_x, ad->fft_x_spec);
 			ringbuf_get_buf(ad->rb_y, ad->fft_y_spec);
@@ -345,20 +544,20 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 
 			//first step of analysis: compute the average value among the relevant freqs, and
 			//second step of analysis: compute the average value of all other freqs
-			double avg_roi_x = 0;
+			double avgRoi_x = 0;
 			double avg_nroi_x = 0;
-			double avg_roi_y = 0;
+			double avgRoi_y = 0;
 			double avg_nroi_y = 0;
-			double avg_roi_z = 0;
+			double avgRoi_z = 0;
 			double avg_nroi_z = 0;
 
 			double max_x = 0;
 			double max_y = 0;
 			double max_z = 0;
 			for (int i = 2*ad->minFreq; i <= 2*ad->maxFreq; ++i) {
-				avg_roi_x += ad->fft_x_spec_simplified[i];
-				avg_roi_y += ad->fft_y_spec_simplified[i];
-				avg_roi_z += ad->fft_z_spec_simplified[i];
+				avgRoi_x += ad->fft_x_spec_simplified[i];
+				avgRoi_y += ad->fft_y_spec_simplified[i];
+				avgRoi_z += ad->fft_z_spec_simplified[i];
 				if(ad->fft_x_spec_simplified[i] > max_x) max_x = ad->fft_x_spec_simplified[i];
 				if(ad->fft_y_spec_simplified[i] > max_y) max_y = ad->fft_y_spec_simplified[i];
 				if(ad->fft_z_spec_simplified[i] > max_z) max_z = ad->fft_z_spec_simplified[i];
@@ -369,19 +568,19 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 				avg_nroi_z += ad->fft_z_spec_simplified[i];
 			}
 
-			avg_nroi_x = (avg_nroi_x-avg_roi_x) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
-			avg_roi_x = avg_roi_x / (2*ad->maxFreq-2*ad->minFreq+1);
-			avg_nroi_y = (avg_nroi_y-avg_roi_y) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
-			avg_roi_y = avg_roi_y / (2*ad->maxFreq-2*ad->minFreq+1);
-			avg_nroi_z = (avg_nroi_z-avg_roi_z) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
-			avg_roi_z = avg_roi_z / (2*ad->maxFreq-2*ad->minFreq+1);
+			avg_nroi_x = (avg_nroi_x-avgRoi_x) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
+			avgRoi_x = avgRoi_x / (2*ad->maxFreq-2*ad->minFreq+1);
+			avg_nroi_y = (avg_nroi_y-avgRoi_y) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
+			avgRoi_y = avgRoi_y / (2*ad->maxFreq-2*ad->minFreq+1);
+			avg_nroi_z = (avg_nroi_z-avgRoi_z) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
+			avgRoi_z = avgRoi_z / (2*ad->maxFreq-2*ad->minFreq+1);
 
 			dlog_print(DLOG_INFO, LOG_TAG, "minfreq: %f, maxfeq: %f", ad->minFreq, ad->maxFreq);
 
 
-			dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_x: %f, avg_roi_x: %f, (max_x_roi: %f)", avg_nroi_x, avg_roi_x, max_x);
-			dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_y: %f, avg_roi_y: %f, (max_y_roi: %f)", avg_nroi_y, avg_roi_y, max_y);
-			dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_z: %f, avg_roi_z: %f, (max_z_roi: %f)", avg_nroi_z, avg_roi_z, max_z);
+			dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_x: %f, avgRoi_x: %f, (max_x_roi: %f)", avg_nroi_x, avgRoi_x, max_x);
+			dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_y: %f, avgRoi_y: %f, (max_y_roi: %f)", avg_nroi_y, avgRoi_y, max_y);
+			dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_z: %f, avgRoi_z: %f, (max_z_roi: %f)", avg_nroi_z, avgRoi_z, max_z);
 
 			//print comp freqs 0-1Hz 1-2Hz 2-3Hz ... 9-10Hz
 			dlog_print(DLOG_INFO, LOG_TAG, "x: %f  %f  %f  %f  %f  %f  %f  %f  %f  %f", ad->fft_x_spec_simplified[0]+ad->fft_x_spec_simplified[1], ad->fft_x_spec_simplified[2]+ad->fft_x_spec_simplified[3],
@@ -397,24 +596,24 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 					ad->fft_z_spec_simplified[11]+ad->fft_z_spec_simplified[10], ad->fft_z_spec_simplified[13]+ad->fft_z_spec_simplified[12], ad->fft_z_spec_simplified[15]+ad->fft_z_spec_simplified[14],
 					ad->fft_z_spec_simplified[17]+ad->fft_z_spec_simplified[16], ad->fft_z_spec_simplified[19]+ad->fft_z_spec_simplified[18]);
 
-			double multRatio = ((avg_roi_x/avg_nroi_x) + (avg_roi_y/avg_nroi_y) + (avg_roi_z/avg_nroi_z)) / 3;
+			ad->multRatio = ((avgRoi_x/avg_nroi_x) + (avgRoi_y/avg_nroi_y) + (avgRoi_z/avg_nroi_z)) / 3;
 
 			//combine three values for threshold comparison
-			double avg_roi = sqrt(avg_roi_x*avg_roi_x + avg_roi_y*avg_roi_y + avg_roi_z*avg_roi_z);
+			ad->avgRoi = sqrt(avgRoi_x*avgRoi_x + avgRoi_y*avgRoi_y + avgRoi_z*avgRoi_z);
 
-			dlog_print(DLOG_INFO, LOG_TAG, "# multRatio: %f, avg_roi: %f", multRatio, avg_roi);
-			if (avg_roi >= ad->avgRoiThresh)
+			dlog_print(DLOG_INFO, LOG_TAG, "# multRatio: %f, avgRoi: %f", ad->multRatio, ad->avgRoi);
+			if (ad->avgRoi >= ad->avgRoiThresh)
 				dlog_print(DLOG_INFO, LOG_TAG, "---> avgRoiThresh reached");
 			else
 				dlog_print(DLOG_INFO, LOG_TAG, "---> avgRoiThresh NOT reached");
 
-			if (multRatio >= ad->multThresh)
+			if (ad->multRatio >= ad->multThresh)
 				dlog_print(DLOG_INFO, LOG_TAG, "---> multThresh reached");
 			else
 				dlog_print(DLOG_INFO, LOG_TAG, "---> multThresh NOT reached");
 
 			//check both conditions for increasing alarmstate
-			if(multRatio >= ad->multThresh && avg_roi >= ad->avgRoiThresh) {
+			if(ad->multRatio >= ad->multThresh && ad->avgRoi >= ad->avgRoiThresh) {
 				ad->alarmState = ad->alarmState+1;
 				dlog_print(DLOG_INFO, LOG_TAG, "### alarmState increased by one to %i", ad->alarmState);
 
@@ -439,10 +638,15 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 					dlog_print(DLOG_INFO, LOG_TAG, "### alarmState decreased by one to %i", ad->alarmState);
 				}
 			}
+
+			if(ad->logging) {
+				//write log to local storage
+				save_log(ad);
+			}
 		}
-		//logging of data:
-		if(ad->logging) {
-			//TODO write to local storage
+		//every 10 seconds (dataAnalysisInterval) try to share locally stored data
+		if((ad->rb_x)->idx == 0) {
+			share_data_mqtt(ad);
 		}
 	}
 }

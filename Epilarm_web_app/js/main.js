@@ -144,6 +144,7 @@ window.onload = function () {
 	console.log('UI started!');
 	
 	start_service_app();
+	//setTimeout(() => {  stop_service_app(); }, 25000);	//automatically stop sensor service after 12secs
 };
 
 
