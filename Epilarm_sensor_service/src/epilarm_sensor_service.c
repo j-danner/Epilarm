@@ -51,6 +51,21 @@
 int bufferSize = sampleRate*dataAnalysisInterval; //size of stored data on which we perform the FFT
 
 
+// mqtt connection info
+struct mqtt_state_t {
+    const char* hostname;
+    const char* port;
+    const char* topic;
+    const char* username;
+    const char* password;
+    const char* client_id;
+    uint8_t* sendbuf;
+    size_t sendbufsz;
+    uint8_t* recvbuf;
+    size_t recvbufsz;
+};
+
+
 // application data (context) that will be passed to functions when needed
 typedef struct appdata
 {
@@ -70,11 +85,10 @@ typedef struct appdata
 	double avgRoi;
 	//logging of data AND sending over mqtt to broker
 	bool logging;
-	char* mqttBroker;
-	char* mqttPort;
-	char* mqttTopic;
-	char* mqttUsername;
-	char* mqttPassword;
+	struct mqtt_client client;
+	struct mqtt_state_t mqtt_state; //state info on mqtt connection
+	pthread_t mqtt_daemon;
+
 
     //indicate if analysis and sensor listener are running... (required to give appropriate debugging output when receiving appcontrol)
     bool running;
@@ -163,29 +177,29 @@ void save_log(void *data) {
 	json_builder_add_double_value(builder, ad->avg_nroi_z);
 	json_builder_end_array(builder);
 
-	//include the bins of fft_x_spec_simplified corresponding to the first 40 bins (so in the 0-20Hz range)
-	json_builder_set_member_name (builder, "x_spec");
-	json_builder_begin_array(builder);
-	for (int i = 0; i < 20; ++i) {
-		json_builder_add_double_value(builder, ad->fft_x_spec_simplified[i]);
-	}
-	json_builder_end_array(builder);
-
+	//include the bins of fft_x_spec_simplified corresponding to the first 20 bins (so in the 0-10Hz range)
+	//json_builder_set_member_name (builder, "x_spec");
+	//json_builder_begin_array(builder);
+	//for (int i = 0; i < 20; ++i) {
+	//	json_builder_add_double_value(builder, ad->fft_x_spec_simplified[i]);
+	//}
+	//json_builder_end_array(builder);
+	//
 	//include the bins of fft_y_spec_simplified corresponding to the first 40 bins (so in the 0-20Hz range)
-	json_builder_set_member_name (builder, "y_spec");
-	json_builder_begin_array(builder);
-	for (int i = 0; i < 20; ++i) {
-		json_builder_add_double_value(builder, ad->fft_y_spec_simplified[i]);
-	}
-	json_builder_end_array(builder);
-
+	//json_builder_set_member_name (builder, "y_spec");
+	//json_builder_begin_array(builder);
+	//for (int i = 0; i < 20; ++i) {
+	//	json_builder_add_double_value(builder, ad->fft_y_spec_simplified[i]);
+	//}
+	//json_builder_end_array(builder);
+	//
 	//include the bins of fft_z_spec_simplified corresponding to the first 40 bins (so in the 0-20Hz range)
-	json_builder_set_member_name (builder, "z_spec");
-	json_builder_begin_array(builder);
-	for (int i = 0; i < 20; ++i) {
-		json_builder_add_double_value(builder, ad->fft_z_spec_simplified[i]);
-	}
-	json_builder_end_array(builder);
+	//json_builder_set_member_name (builder, "z_spec");
+	//json_builder_begin_array(builder);
+	//for (int i = 0; i < 20; ++i) {
+	//	json_builder_add_double_value(builder, ad->fft_z_spec_simplified[i]);
+	//}
+	//json_builder_end_array(builder);
 
 
 	//include params of analysis (in one array)
@@ -252,71 +266,22 @@ char* read_file(const char* filename)
 
 void publish_callback(void** unused, struct mqtt_response_publish *published)
 {
-    /* not used in this example */
+    /* not used in our setting (we do not subscribe to any topic...) */
 }
 
-void* client_refresher(void* client)
-{
-    while(1)
-    {
-        mqtt_sync((struct mqtt_client*) client);
-        usleep(100000U);
-    }
-    return NULL;
-}
-
-//send all locally saved data over mqtt to broker if available and delete files after successful publication (QoS 1)
-void share_data_mqtt(void *data) {
+void share_data(void* data) {
 	// Extracting application data
 	appdata_s* ad = (appdata_s*)data;
 
-	int sockfd = open_nb_socket(ad->mqttBroker, ad->mqttPort);
-
-	if (sockfd == -1) {
-	   dlog_print(DLOG_INFO, LOG_TAG, "Failed to open socket!");
-	   return;
-	} else {
-       dlog_print(DLOG_INFO, LOG_TAG, "Opened socket! (%d)", sockfd);
-	}
-
-	/* setup a client */
-	struct mqtt_client client;
-	uint8_t sendbuf[100*2048];  /* sendbuf should be large enough to hold multiple whole mqtt messages */
-    uint8_t recvbuf[1024];  /* recvbuf should be large enough any whole mqtt message expected to be received */
-	mqtt_init(&client, sockfd, sendbuf, sizeof(sendbuf), recvbuf, sizeof(recvbuf), publish_callback);
-    dlog_print(DLOG_INFO, LOG_TAG, "initialized mqtt client!");
-	/* Create an anonymous session */
-	const char* client_id = "galaxy_active_2_epilarm";
-	/* Ensure we have a clean session */
-	uint8_t connect_flags = MQTT_CONNECT_CLEAN_SESSION;
-	/* Send connection request to the broker. */
-	mqtt_connect(&client, client_id, NULL, NULL, 0, ad->mqttUsername, ad->mqttPassword, connect_flags, 400);
-    dlog_print(DLOG_INFO, LOG_TAG, "mqtt connected!");
-
-	/* check that we don't have any errors */
-	if (client.error != MQTT_OK) {
-		dlog_print(DLOG_INFO, LOG_TAG, "error: %s", mqtt_error_str(client.error));
-	    close(sockfd);
-		return;
-	}
-
-	/* start a thread to refresh the client (handle egress and ingree client traffic) */
-	pthread_t client_daemon;
-	if(pthread_create(&client_daemon, NULL, client_refresher, &client)) {
-		dlog_print(DLOG_INFO, LOG_TAG, "Failed to start client daemon.");
-	    close(sockfd);
-		return;
-	}
-
-	dlog_print(DLOG_INFO, LOG_TAG, "initializing publishing of locally stored json-files... (sending starting message...)");
-	mqtt_publish(&client, ad->mqttTopic, "1", 1, MQTT_PUBLISH_QOS_1);
-
+	//share data
+	dlog_print(DLOG_INFO, LOG_TAG_MQTT, "initializing publishing of locally stored json-files... (sending starting message...)");
+	mqtt_publish(&ad->client, ad->mqtt_state.topic, "1", 1, MQTT_PUBLISH_QOS_1);
+	mqtt_sync(&ad->client);
 
     //send all locally saved files -- ony-by-one --
 	char* data_msg; //this seems to be large enough
 	char file_path[256];
 	char* data_path = app_get_data_path();
-
 
     //iterate over files:
     DIR *d;
@@ -327,56 +292,129 @@ void share_data_mqtt(void *data) {
     		//now dir->d_name stores name of file in dir
     		if (strncmp(dir->d_name,"log_",4) == 0 && strcmp(strrchr(dir->d_name, '.'), ".json") == 0)
     		{
-    			dlog_print(DLOG_INFO, LOG_TAG, "processing file %s", dir->d_name);
+    			dlog_print(DLOG_INFO, LOG_TAG_MQTT, "processing file %s", dir->d_name);
     			//set correct file_path
     			snprintf(file_path, sizeof(file_path), "%s%s", data_path, dir->d_name);
 
-    			dlog_print(DLOG_INFO, LOG_TAG, "reading %s", file_path);
+    			dlog_print(DLOG_INFO, LOG_TAG_MQTT, "reading %s", file_path);
     			/* print a message */
     			data_msg = read_file(file_path);
-    			dlog_print(DLOG_INFO, LOG_TAG, "reading done! (%s)", data_msg);
+    			dlog_print(DLOG_INFO, LOG_TAG_MQTT, "reading done! (%s)", data_msg);
 
-    			dlog_print(DLOG_INFO, LOG_TAG, "publishing msg: topic='%s', payload_len=%d, payload='%s'.", ad->mqttTopic, strlen(data_msg)+1, data_msg);
+    			dlog_print(DLOG_INFO, LOG_TAG_MQTT, "publishing msg: topic='%s', payload_len=%d, payload='%s'.", ad->mqtt_state.topic, strlen(data_msg)+1, data_msg);
 
     			/* publish the test message */
-    			mqtt_publish(&client, ad->mqttTopic, data_msg, strlen(data_msg) + 1, MQTT_PUBLISH_QOS_2);
+    			mqtt_publish(&ad->client, ad->mqtt_state.topic, data_msg, strlen(data_msg) + 1, MQTT_PUBLISH_QOS_1);
+    			mqtt_sync(&ad->client);
     			free(data_msg);
-    			dlog_print(DLOG_INFO, LOG_TAG, "message published!");
+    			dlog_print(DLOG_INFO, LOG_TAG_MQTT, "message published!");
 
     			/* check for errors */
-    			if (client.error != MQTT_OK) {
-    				dlog_print(DLOG_INFO, LOG_TAG, "error: %s", mqtt_error_str(client.error));
-    				close(sockfd);
-    				pthread_cancel(client_daemon);
+    			if (ad->client.error != MQTT_OK) {
+    				dlog_print(DLOG_INFO, LOG_TAG_MQTT, "error: %s", mqtt_error_str(ad->client.error));
     				return;
     			} else { //no error occured, file can be removed
-    				dlog_print(DLOG_INFO, LOG_TAG, "file sent successfully: %s", mqtt_error_str(client.error));
+    				dlog_print(DLOG_INFO, LOG_TAG_MQTT, "file sent successfully: %s", mqtt_error_str(ad->client.error));
     				remove(dir->d_name);
-    				dlog_print(DLOG_INFO, LOG_TAG, "local file deleted.");
+    				dlog_print(DLOG_INFO, LOG_TAG_MQTT, "local file deleted.");
     			}
     		} else {
     			//dir is either no regular file, its name is shorter than 5 chars or it does not end with .json
-    			dlog_print(DLOG_INFO, LOG_TAG, "skipping 'file' %s", dir->d_name);
+    			dlog_print(DLOG_INFO, LOG_TAG_MQTT, "skipping 'file' %s", dir->d_name);
     		}
     	}
     	closedir(d);
 	} else {
-		dlog_print(DLOG_INFO, LOG_TAG, "directory does not exist!");
+		dlog_print(DLOG_INFO, LOG_TAG_MQTT, "directory does not exist!");
 	}
 	free(data_path);
 
-	dlog_print(DLOG_INFO, LOG_TAG, "(sending ending message...)");
-	mqtt_publish(&client, ad->mqttTopic, "0", 1, MQTT_PUBLISH_QOS_1);
-	/* disconnect */
-	dlog_print(DLOG_INFO, LOG_TAG, "service disconnecting from %s", ad->mqttBroker);
-	mqtt_disconnect(&client);
-    usleep(500000U);
-
-	/* exit */
-    close(sockfd);
-    pthread_cancel(client_daemon);
+	dlog_print(DLOG_INFO, LOG_TAG_MQTT, "(sending ending message...)");
+	mqtt_publish(&ad->client, ad->mqtt_state.topic, "0", 1, MQTT_PUBLISH_QOS_1);
+	mqtt_sync(&ad->client);
 }
 
+void* share_data_daemon(void* data)
+{
+	// Extracting application data
+	appdata_s* ad = (appdata_s*) data;
+
+	dlog_print(DLOG_INFO, LOG_TAG_MQTT, "started share_data_daemon");
+
+    while(1)
+    {
+    	mqtt_sync(&ad->client);
+        share_data(ad);
+    	mqtt_sync(&ad->client);
+        //sleep(10); //send data every 10 secs
+    	usleep(500000U); //every 0.5s
+    }
+    return NULL;
+}
+
+//send all locally saved data over mqtt to broker if available and delete files after successful publication (QoS 1)
+void reconnect_client(struct mqtt_client* client, void **reconnect_state_vptr) {
+    struct mqtt_state_t *mqtt_state = *((struct mqtt_state_t**) reconnect_state_vptr);
+    //struct reconnect_state_t *reconnect_state = *((struct reconnect_state_t**) reconnect_state_vptr);
+	dlog_print(DLOG_INFO, LOG_TAG_MQTT, "mqtt reconnect started...");
+
+    /* Close the clients socket if this isn't the initial reconnect call */
+    if (client->error != MQTT_ERROR_INITIAL_RECONNECT) {
+        close(client->socketfd);
+    }
+
+    /* Perform error handling here. */
+    if (client->error != MQTT_ERROR_INITIAL_RECONNECT) {
+        dlog_print(DLOG_INFO, LOG_TAG_MQTT, "reconnect_client: called while client was in error state '%s'", mqtt_error_str(client->error));
+        //TODO handle specific errors!
+    }
+
+    /* Open a new socket. */
+    int sockfd = open_nb_socket(mqtt_state->hostname, mqtt_state->port);
+    if (sockfd == -1) {
+ 	    dlog_print(DLOG_INFO, LOG_TAG_MQTT, "Failed to open socket!");
+    } else {
+        dlog_print(DLOG_INFO, LOG_TAG_MQTT, "Opened socket! (%d)", sockfd);
+ 	}
+
+    /* Reinitialize the client. */
+    mqtt_reinit(client, sockfd, mqtt_state->sendbuf, mqtt_state->sendbufsz, mqtt_state->recvbuf, mqtt_state->recvbufsz);
+
+    /* Ensure we have a clean session */
+    uint8_t connect_flags = MQTT_CONNECT_CLEAN_SESSION;
+    /* Send connection request to the broker. */
+	mqtt_connect(client, mqtt_state->client_id, NULL, NULL, 0, mqtt_state->username, mqtt_state->password, connect_flags, 400);
+	dlog_print(DLOG_INFO, LOG_TAG_MQTT, "mqtt reconnect finished!");
+}
+
+//starts daemon for continuous sharing of all locally saved files (trying to send every 10mins)
+void start_mqtt_daemon(void* data) {
+	// Extracting application data
+	appdata_s* ad = (appdata_s*) data;
+
+	//make sure connection is reconnected when needed.
+	mqtt_init_reconnect(&ad->client, reconnect_client, &ad->mqtt_state, publish_callback);
+
+	dlog_print(DLOG_INFO, LOG_TAG_MQTT, "started mqtt_init_reconnect");
+
+	/* start a thread to share data every 10mins (and update client) */
+    if(pthread_create(&ad->mqtt_daemon, NULL, share_data_daemon, data)) {
+        fprintf(stderr, "Failed to start client daemon.\n");
+    }
+}
+
+void stop_mqtt_daemon(void* data) {
+	// Extracting application data
+	appdata_s* ad = (appdata_s*) data;
+
+	/* disconnect */
+	mqtt_disconnect(&ad->client);
+
+	/* close socket and cancel data-sharing daemon */
+    close(ad->client.socketfd);
+    pthread_cancel(ad->mqtt_daemon);
+	dlog_print(DLOG_INFO, LOG_TAG_MQTT, "service disconnected from %s, socket closed and data-sharing daemon cancelled.", ad->mqtt_state.hostname);
+}
 
 //send notification
 void issue_warning_notification(int as)
@@ -544,43 +582,43 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 
 			//first step of analysis: compute the average value among the relevant freqs, and
 			//second step of analysis: compute the average value of all other freqs
-			double avgRoi_x = 0;
-			double avg_nroi_x = 0;
-			double avgRoi_y = 0;
-			double avg_nroi_y = 0;
-			double avgRoi_z = 0;
-			double avg_nroi_z = 0;
+			ad->avg_roi_x = 0;
+			ad->avg_roi_y = 0;
+			ad->avg_roi_z = 0;
+			ad->avg_nroi_x = 0;
+			ad->avg_nroi_y = 0;
+			ad->avg_nroi_z = 0;
 
 			double max_x = 0;
 			double max_y = 0;
 			double max_z = 0;
 			for (int i = 2*ad->minFreq; i <= 2*ad->maxFreq; ++i) {
-				avgRoi_x += ad->fft_x_spec_simplified[i];
-				avgRoi_y += ad->fft_y_spec_simplified[i];
-				avgRoi_z += ad->fft_z_spec_simplified[i];
+				ad->avg_roi_x += ad->fft_x_spec_simplified[i];
+				ad->avg_roi_y += ad->fft_y_spec_simplified[i];
+				ad->avg_roi_z += ad->fft_z_spec_simplified[i];
 				if(ad->fft_x_spec_simplified[i] > max_x) max_x = ad->fft_x_spec_simplified[i];
 				if(ad->fft_y_spec_simplified[i] > max_y) max_y = ad->fft_y_spec_simplified[i];
 				if(ad->fft_z_spec_simplified[i] > max_z) max_z = ad->fft_z_spec_simplified[i];
 			}
 			for (int i = 0; i < sampleRate; ++i) {
-				avg_nroi_x += ad->fft_x_spec_simplified[i];
-				avg_nroi_y += ad->fft_y_spec_simplified[i];
-				avg_nroi_z += ad->fft_z_spec_simplified[i];
+				ad->avg_nroi_x += ad->fft_x_spec_simplified[i];
+				ad->avg_nroi_y += ad->fft_y_spec_simplified[i];
+				ad->avg_nroi_z += ad->fft_z_spec_simplified[i];
 			}
 
-			avg_nroi_x = (avg_nroi_x-avgRoi_x) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
-			avgRoi_x = avgRoi_x / (2*ad->maxFreq-2*ad->minFreq+1);
-			avg_nroi_y = (avg_nroi_y-avgRoi_y) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
-			avgRoi_y = avgRoi_y / (2*ad->maxFreq-2*ad->minFreq+1);
-			avg_nroi_z = (avg_nroi_z-avgRoi_z) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
-			avgRoi_z = avgRoi_z / (2*ad->maxFreq-2*ad->minFreq+1);
+			ad->avg_nroi_x = (ad->avg_nroi_x - ad->avg_roi_x) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
+			ad->avg_roi_x = ad->avg_roi_x / (2*ad->maxFreq-2*ad->minFreq+1);
+			ad->avg_nroi_y = (ad->avg_nroi_y - ad->avg_roi_y) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
+			ad->avg_roi_y = ad->avg_roi_y / (2*ad->maxFreq-2*ad->minFreq+1);
+			ad->avg_nroi_z = (ad->avg_nroi_z - ad->avg_roi_z) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
+			ad->avg_roi_z = ad->avg_roi_z / (2*ad->maxFreq-2*ad->minFreq+1);
 
 			dlog_print(DLOG_INFO, LOG_TAG, "minfreq: %f, maxfeq: %f", ad->minFreq, ad->maxFreq);
 
 
-			dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_x: %f, avgRoi_x: %f, (max_x_roi: %f)", avg_nroi_x, avgRoi_x, max_x);
-			dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_y: %f, avgRoi_y: %f, (max_y_roi: %f)", avg_nroi_y, avgRoi_y, max_y);
-			dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_z: %f, avgRoi_z: %f, (max_z_roi: %f)", avg_nroi_z, avgRoi_z, max_z);
+			dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_x: %f, avgRoi_x: %f, (max_x_roi: %f)", ad->avg_nroi_x, ad->avg_roi_x, max_x);
+			dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_y: %f, avgRoi_y: %f, (max_y_roi: %f)", ad->avg_nroi_y, ad->avg_roi_y, max_y);
+			dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_z: %f, avgRoi_z: %f, (max_z_roi: %f)", ad->avg_nroi_z, ad->avg_roi_z, max_z);
 
 			//print comp freqs 0-1Hz 1-2Hz 2-3Hz ... 9-10Hz
 			dlog_print(DLOG_INFO, LOG_TAG, "x: %f  %f  %f  %f  %f  %f  %f  %f  %f  %f", ad->fft_x_spec_simplified[0]+ad->fft_x_spec_simplified[1], ad->fft_x_spec_simplified[2]+ad->fft_x_spec_simplified[3],
@@ -596,10 +634,10 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 					ad->fft_z_spec_simplified[11]+ad->fft_z_spec_simplified[10], ad->fft_z_spec_simplified[13]+ad->fft_z_spec_simplified[12], ad->fft_z_spec_simplified[15]+ad->fft_z_spec_simplified[14],
 					ad->fft_z_spec_simplified[17]+ad->fft_z_spec_simplified[16], ad->fft_z_spec_simplified[19]+ad->fft_z_spec_simplified[18]);
 
-			ad->multRatio = ((avgRoi_x/avg_nroi_x) + (avgRoi_y/avg_nroi_y) + (avgRoi_z/avg_nroi_z)) / 3;
+			ad->multRatio = ((ad->avg_roi_x/ad->avg_nroi_x) + (ad->avg_roi_y/ad->avg_nroi_y) + (ad->avg_roi_z/ad->avg_nroi_z)) / 3.0;
 
 			//combine three values for threshold comparison
-			ad->avgRoi = sqrt(avgRoi_x*avgRoi_x + avgRoi_y*avgRoi_y + avgRoi_z*avgRoi_z);
+			ad->avgRoi = sqrt(ad->avg_roi_x * ad->avg_roi_x + ad->avg_roi_y * ad->avg_roi_y + ad->avg_roi_z * ad->avg_roi_z);
 
 			dlog_print(DLOG_INFO, LOG_TAG, "# multRatio: %f, avgRoi: %f", ad->multRatio, ad->avgRoi);
 			if (ad->avgRoi >= ad->avgRoiThresh)
@@ -640,13 +678,9 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 			}
 
 			if(ad->logging) {
-				//write log to local storage
+				//write log to local storage after every analysis
 				save_log(ad);
 			}
-		}
-		//every 10 seconds (dataAnalysisInterval) try to share locally stored data
-		if((ad->rb_x)->idx == 0) {
-			share_data_mqtt(ad);
 		}
 	}
 }
@@ -689,6 +723,8 @@ bool service_app_create(void *data)
     ad->alarmState = 0;
 
     ad->running = false;
+
+    ad->logging = false;
 
 	return true;
 }
@@ -801,15 +837,33 @@ void service_app_control(app_control_h app_control, void *data)
         		ad->multThresh = strtod(params[3],&eptr);
         		ad->warnTime = atoi(params[4]);
         		ad->logging = atoi(params[5]);
-        		ad->mqttBroker = params[6];
-        		ad->mqttPort = params[7];
-        		ad->mqttTopic = params[8];
-        		ad->mqttUsername = params[9];
-        		ad->mqttPassword = params[10];
-
 
         		dlog_print(DLOG_INFO, LOG_TAG, "Starting epilarm sensor service!");
         		sensor_start(ad);
+
+        		if(ad->logging)
+        		{
+        			/* in case logging is enabled, setup a mqtt clients info and start sharing of data*/
+
+        			ad->mqtt_state.hostname = params[6];
+        			ad->mqtt_state.port =  params[7];
+        			ad->mqtt_state.topic = params[8];
+        			ad->mqtt_state.username = params[9];
+        			ad->mqtt_state.password = params[10];
+        			ad->mqtt_state.client_id = "sam_gal_act_2";
+        			uint8_t sendbuf[128 * 2048];
+        			uint8_t recvbuf[1024];
+        			ad->mqtt_state.sendbuf = sendbuf;
+        			ad->mqtt_state.sendbufsz = sizeof(sendbuf);
+        			ad->mqtt_state.recvbuf = recvbuf;
+        			ad->mqtt_state.recvbufsz = sizeof(recvbuf);
+
+        			dlog_print(DLOG_INFO, LOG_TAG, "Starting mqtt daemon!");
+        			dlog_print(DLOG_INFO, LOG_TAG_MQTT, "Starting mqtt daemon!");
+
+        			start_mqtt_daemon(ad);
+        		}
+
         	} else {
         		dlog_print(DLOG_INFO, LOG_TAG, "receiving params failed! sensor not started!");
         	}
@@ -822,6 +876,10 @@ void service_app_control(app_control_h app_control, void *data)
         {
             dlog_print(DLOG_INFO, LOG_TAG, "Stopping epilarm sensor service!");
             sensor_stop(data, 0); //stop sensor listener without notification (as it was shut down on purpose)
+
+            if(ad->logging) {
+            	stop_mqtt_daemon(ad);
+            }
 
             free(caller_id);
             free(action_value);
