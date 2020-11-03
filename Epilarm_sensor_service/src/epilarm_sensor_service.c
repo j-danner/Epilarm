@@ -14,9 +14,10 @@
 #include <device/power.h>
 #include <notification.h>
 
-//mqtt lib
-#include <mqtt.h>
-#include <posix_sockets.h>
+//ftp
+#include <curl/curl.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <glib-object.h>
 #include <json-glib/json-glib.h>
 
@@ -51,18 +52,12 @@
 int bufferSize = sampleRate*dataAnalysisInterval; //size of stored data on which we perform the FFT
 
 
-// mqtt connection info
-struct mqtt_state_t {
+// ftp connection info
+struct ftp_info_t {
     const char* hostname;
     const char* port;
-    const char* topic;
     const char* username;
     const char* password;
-    const char* client_id;
-    uint8_t* sendbuf;
-    size_t sendbufsz;
-    uint8_t* recvbuf;
-    size_t recvbufsz;
 };
 
 
@@ -83,11 +78,10 @@ typedef struct appdata
 	int warnTime;
 	double multRatio;
 	double avgRoi;
-	//logging of data AND sending over mqtt to broker
+	//logging of data AND sending over ftp to broker
 	bool logging;
-	struct mqtt_client client;
-	struct mqtt_state_t mqtt_state; //state info on mqtt connection
-	pthread_t mqtt_daemon;
+	struct ftp_info_t ftp_info; //state info on ftp connection
+	pthread_t ftp_daemon;
 
 
     //indicate if analysis and sensor listener are running... (required to give appropriate debugging output when receiving appcontrol)
@@ -264,21 +258,12 @@ char* read_file(const char* filename)
 	return buffer;
 }
 
-void publish_callback(void** unused, struct mqtt_response_publish *published)
-{
-    /* not used in our setting (we do not subscribe to any topic...) */
-}
-
 void share_data(void* data) {
 	// Extracting application data
 	appdata_s* ad = (appdata_s*)data;
 
-	//share data
-	dlog_print(DLOG_INFO, LOG_TAG_MQTT, "initializing publishing of locally stored json-files... (sending starting message...)");
-	mqtt_publish(&ad->client, ad->mqtt_state.topic, "1", 1, MQTT_PUBLISH_QOS_1);
-	mqtt_sync(&ad->client);
 
-    //send all locally saved files -- ony-by-one --
+    //get local data path
 	char* data_msg; //this seems to be large enough
 	char file_path[256];
 	char* data_path = app_get_data_path();
@@ -292,46 +277,39 @@ void share_data(void* data) {
     		//now dir->d_name stores name of file in dir
     		if (strncmp(dir->d_name,"log_",4) == 0 && strcmp(strrchr(dir->d_name, '.'), ".json") == 0)
     		{
-    			dlog_print(DLOG_INFO, LOG_TAG_MQTT, "processing file %s", dir->d_name);
+    			dlog_print(DLOG_INFO, LOG_TAG_FTP, "processing file %s", dir->d_name);
     			//set correct file_path
     			snprintf(file_path, sizeof(file_path), "%s%s", data_path, dir->d_name);
 
-    			dlog_print(DLOG_INFO, LOG_TAG_MQTT, "reading %s", file_path);
+    			dlog_print(DLOG_INFO, LOG_TAG_FTP, "reading %s", file_path);
     			/* print a message */
     			data_msg = read_file(file_path);
-    			dlog_print(DLOG_INFO, LOG_TAG_MQTT, "reading done! (%s)", data_msg);
+    			dlog_print(DLOG_INFO, LOG_TAG_FTP, "reading done! (%s)", data_msg);
 
-    			dlog_print(DLOG_INFO, LOG_TAG_MQTT, "publishing msg: topic='%s', payload_len=%d, payload='%s'.", ad->mqtt_state.topic, strlen(data_msg)+1, data_msg);
-
-    			/* publish the test message */
-    			mqtt_publish(&ad->client, ad->mqtt_state.topic, data_msg, strlen(data_msg) + 1, MQTT_PUBLISH_QOS_1);
-    			mqtt_sync(&ad->client);
+    			/* publish log stored in data_msg */
+    			//TODO upload data_msg via ftp!
     			free(data_msg);
-    			dlog_print(DLOG_INFO, LOG_TAG_MQTT, "message published!");
+    			dlog_print(DLOG_INFO, LOG_TAG_FTP, "message published!");
 
     			/* check for errors */
-    			if (ad->client.error != MQTT_OK) {
-    				dlog_print(DLOG_INFO, LOG_TAG_MQTT, "error: %s", mqtt_error_str(ad->client.error));
+    			//TODO
+    			if (ERROR) {
     				return;
     			} else { //no error occured, file can be removed
-    				dlog_print(DLOG_INFO, LOG_TAG_MQTT, "file sent successfully: %s", mqtt_error_str(ad->client.error));
+    				dlog_print(DLOG_INFO, LOG_TAG_FTP, "file sent successfully");
     				remove(dir->d_name);
-    				dlog_print(DLOG_INFO, LOG_TAG_MQTT, "local file deleted.");
+    				dlog_print(DLOG_INFO, LOG_TAG_FTP, "local file deleted.");
     			}
     		} else {
     			//dir is either no regular file, its name is shorter than 5 chars or it does not end with .json
-    			dlog_print(DLOG_INFO, LOG_TAG_MQTT, "skipping 'file' %s", dir->d_name);
+    			dlog_print(DLOG_INFO, LOG_TAG_FTP, "skipping 'file' %s", dir->d_name);
     		}
     	}
     	closedir(d);
 	} else {
-		dlog_print(DLOG_INFO, LOG_TAG_MQTT, "directory does not exist!");
+		dlog_print(DLOG_INFO, LOG_TAG_FTP, "directory does not exist!");
 	}
 	free(data_path);
-
-	dlog_print(DLOG_INFO, LOG_TAG_MQTT, "(sending ending message...)");
-	mqtt_publish(&ad->client, ad->mqtt_state.topic, "0", 1, MQTT_PUBLISH_QOS_1);
-	mqtt_sync(&ad->client);
 }
 
 void* share_data_daemon(void* data)
@@ -339,81 +317,35 @@ void* share_data_daemon(void* data)
 	// Extracting application data
 	appdata_s* ad = (appdata_s*) data;
 
-	dlog_print(DLOG_INFO, LOG_TAG_MQTT, "started share_data_daemon");
+	dlog_print(DLOG_INFO, LOG_TAG_FTP, "started share_data_daemon");
 
     while(1)
     {
-    	mqtt_sync(&ad->client);
         share_data(ad);
-    	mqtt_sync(&ad->client);
         //sleep(10); //send data every 10 secs
     	usleep(500000U); //every 0.5s
     }
     return NULL;
 }
 
-//send all locally saved data over mqtt to broker if available and delete files after successful publication (QoS 1)
-void reconnect_client(struct mqtt_client* client, void **reconnect_state_vptr) {
-    struct mqtt_state_t *mqtt_state = *((struct mqtt_state_t**) reconnect_state_vptr);
-    //struct reconnect_state_t *reconnect_state = *((struct reconnect_state_t**) reconnect_state_vptr);
-	dlog_print(DLOG_INFO, LOG_TAG_MQTT, "mqtt reconnect started...");
-
-    /* Close the clients socket if this isn't the initial reconnect call */
-    if (client->error != MQTT_ERROR_INITIAL_RECONNECT) {
-        close(client->socketfd);
-    }
-
-    /* Perform error handling here. */
-    if (client->error != MQTT_ERROR_INITIAL_RECONNECT) {
-        dlog_print(DLOG_INFO, LOG_TAG_MQTT, "reconnect_client: called while client was in error state '%s'", mqtt_error_str(client->error));
-        //TODO handle specific errors!
-    }
-
-    /* Open a new socket. */
-    int sockfd = open_nb_socket(mqtt_state->hostname, mqtt_state->port);
-    if (sockfd == -1) {
- 	    dlog_print(DLOG_INFO, LOG_TAG_MQTT, "Failed to open socket!");
-    } else {
-        dlog_print(DLOG_INFO, LOG_TAG_MQTT, "Opened socket! (%d)", sockfd);
- 	}
-
-    /* Reinitialize the client. */
-    mqtt_reinit(client, sockfd, mqtt_state->sendbuf, mqtt_state->sendbufsz, mqtt_state->recvbuf, mqtt_state->recvbufsz);
-
-    /* Ensure we have a clean session */
-    uint8_t connect_flags = MQTT_CONNECT_CLEAN_SESSION;
-    /* Send connection request to the broker. */
-	mqtt_connect(client, mqtt_state->client_id, NULL, NULL, 0, mqtt_state->username, mqtt_state->password, connect_flags, 400);
-	dlog_print(DLOG_INFO, LOG_TAG_MQTT, "mqtt reconnect finished!");
-}
-
 //starts daemon for continuous sharing of all locally saved files (trying to send every 10mins)
-void start_mqtt_daemon(void* data) {
+void start_ftp_daemon(void* data) {
 	// Extracting application data
 	appdata_s* ad = (appdata_s*) data;
 
-	//make sure connection is reconnected when needed.
-	mqtt_init_reconnect(&ad->client, reconnect_client, &ad->mqtt_state, publish_callback);
-
-	dlog_print(DLOG_INFO, LOG_TAG_MQTT, "started mqtt_init_reconnect");
-
 	/* start a thread to share data every 10mins (and update client) */
-    if(pthread_create(&ad->mqtt_daemon, NULL, share_data_daemon, data)) {
+    if(pthread_create(&ad->ftp_daemon, NULL, share_data_daemon, data)) {
         fprintf(stderr, "Failed to start client daemon.\n");
     }
 }
 
-void stop_mqtt_daemon(void* data) {
+void stop_ftp_daemon(void* data) {
 	// Extracting application data
 	appdata_s* ad = (appdata_s*) data;
 
-	/* disconnect */
-	mqtt_disconnect(&ad->client);
-
 	/* close socket and cancel data-sharing daemon */
-    close(ad->client.socketfd);
-    pthread_cancel(ad->mqtt_daemon);
-	dlog_print(DLOG_INFO, LOG_TAG_MQTT, "service disconnected from %s, socket closed and data-sharing daemon cancelled.", ad->mqtt_state.hostname);
+    pthread_cancel(ad->ftp_daemon);
+	dlog_print(DLOG_INFO, LOG_TAG_FTP, "service disconnected from %s, socket closed and data-sharing daemon cancelled.", ad->ftp_info.hostname);
 }
 
 //send notification
@@ -545,7 +477,6 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 		if((ad->rb_x)->idx % sampleRate == 0)
 		{
 			//TODO remove after extensive testing!!!
-			//share_data_mqtt(ad);
 
 			//dlog_print(DLOG_INFO, LOG_TAG, "read out ringbufs...");
 			ringbuf_get_buf(ad->rb_x, ad->fft_x_spec);
@@ -826,9 +757,9 @@ void service_app_control(app_control_h app_control, void *data)
             char **params; int length;
         	if (app_control_get_extra_data_array(app_control, "params", &params, &length) == APP_CONTROL_ERROR_NONE)
         	{
-        		if (length != 11) { dlog_print(DLOG_INFO, LOG_TAG, "received too few params!"); }
-        		dlog_print(DLOG_INFO, LOG_TAG, "received %i params: minFreq=%s, maxFreq=%s, avgRoiThresh=%s, multThresh=%s, warnTime=%s, logging=%s, mqttBrokerAddress=%s, mqttPort=%s, mqttTopic=%s, mqttUsername=%s, mqttPassword=%s",
-        				length, params[0], params[1], params[2], params[3], params[4], params[5], params[6], params[7], params[8], params[9], params[10]);
+        		if (length != 10) { dlog_print(DLOG_INFO, LOG_TAG, "received too few params!"); }
+        		dlog_print(DLOG_INFO, LOG_TAG, "received %i params: minFreq=%s, maxFreq=%s, avgRoiThresh=%s, multThresh=%s, warnTime=%s, logging=%s, ftpHostname=%s, ftpPort=%s, ftpUsername=%s, ftpPassword=%s",
+        				length, params[0], params[1], params[2], params[3], params[4], params[5], params[6], params[7], params[8], params[9]);
         	    char *eptr;
         		//set new params
         		ad->minFreq = strtod(params[0],&eptr);
@@ -843,25 +774,16 @@ void service_app_control(app_control_h app_control, void *data)
 
         		if(ad->logging)
         		{
-        			/* in case logging is enabled, setup a mqtt clients info and start sharing of data*/
+        			/* in case logging is enabled, setup a ftp_info and start sharing of data */
+        			ad->ftp_info.hostname = params[6];
+        			ad->ftp_info.port = params[7];
+        			ad->ftp_info.username = params[8];
+        			ad->ftp_info.password = params[9];
 
-        			ad->mqtt_state.hostname = params[6];
-        			ad->mqtt_state.port =  params[7];
-        			ad->mqtt_state.topic = params[8];
-        			ad->mqtt_state.username = params[9];
-        			ad->mqtt_state.password = params[10];
-        			ad->mqtt_state.client_id = "sam_gal_act_2";
-        			uint8_t sendbuf[128 * 2048];
-        			uint8_t recvbuf[1024];
-        			ad->mqtt_state.sendbuf = sendbuf;
-        			ad->mqtt_state.sendbufsz = sizeof(sendbuf);
-        			ad->mqtt_state.recvbuf = recvbuf;
-        			ad->mqtt_state.recvbufsz = sizeof(recvbuf);
+        			dlog_print(DLOG_INFO, LOG_TAG, "Starting ftp daemon!");
+        			dlog_print(DLOG_INFO, LOG_TAG_FTP, "Starting ftp daemon!");
 
-        			dlog_print(DLOG_INFO, LOG_TAG, "Starting mqtt daemon!");
-        			dlog_print(DLOG_INFO, LOG_TAG_MQTT, "Starting mqtt daemon!");
-
-        			start_mqtt_daemon(ad);
+        			start_ftp_daemon(ad);
         		}
 
         	} else {
@@ -878,7 +800,7 @@ void service_app_control(app_control_h app_control, void *data)
             sensor_stop(data, 0); //stop sensor listener without notification (as it was shut down on purpose)
 
             if(ad->logging) {
-            	stop_mqtt_daemon(ad);
+            	stop_ftp_daemon(ad);
             }
 
             free(caller_id);

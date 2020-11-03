@@ -11,15 +11,14 @@ var params = {
 
 	//variables that can be changed in settings:
 	logging : true, //boolean to decide if sensordata should be stored
-	mqttBrokerAddress : '192.168.178.33', //address of your (local) mqqt broker to which logs are sent
-	mqttPort : '1883', //port under which the broker is found
-	mqttTopic : 'epilarm/log', //topic under which logging data is published
-	mqttUsername : 'sam_gal_act_2', //username
-	mqttPassword : 'password', //password
+	ftpHostname : '192.168.178.33', //address of your (local) ftp server to which logs are uploaded
+	ftpPort : '1883', //port under which the broker is found
+	ftpUsername : 'sam_gal_act_2', //username
+	ftpPassword : 'password', //password
 		
 	toString : function(){
 		return [this.minFreq.toString(), this.maxFreq.toString(), this.avgRoiThresh.toString(), this.multThresh.toString(), this.warnTime.toString(), (this.logging ? "1" : "0"),
-				this.mqttBrokerAddress, this.mqttPort, this.mqttTopic, this.mqttUsername, this.mqttPassword];
+				this.ftpHostname, this.ftpPort, this.ftpUsername, this.ftpPassword];
 	}
 };
 	
