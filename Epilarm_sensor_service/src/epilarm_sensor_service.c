@@ -52,15 +52,6 @@
 int bufferSize = sampleRate*dataAnalysisInterval; //size of stored data on which we perform the FFT
 
 
-// ftp connection info
-struct ftp_info_t {
-    const char* hostname;
-    const char* port;
-    const char* username;
-    const char* password;
-};
-
-
 // application data (context) that will be passed to functions when needed
 typedef struct appdata
 {
@@ -80,7 +71,7 @@ typedef struct appdata
 	double avgRoi;
 	//logging of data AND sending over ftp to broker
 	bool logging;
-	struct ftp_info_t ftp_info; //state info on ftp connection
+	char* ftp_url; //url for connection to ftp
 	pthread_t ftp_daemon;
 
 
@@ -262,11 +253,17 @@ void share_data(void* data) {
 	// Extracting application data
 	appdata_s* ad = (appdata_s*)data;
 
+	//init vars for ftp transfer...
+	CURL *curl;
+	CURLcode res;
+	struct stat file_info;
+	curl_off_t speed_upload, total_time;
+	FILE *fd;
 
     //get local data path
-	char* data_msg; //this seems to be large enough
 	char file_path[256];
 	char* data_path = app_get_data_path();
+	char URL[1024]; //should be large enough to store ad->ftp_url + filename!
 
     //iterate over files:
     DIR *d;
@@ -282,24 +279,65 @@ void share_data(void* data) {
     			snprintf(file_path, sizeof(file_path), "%s%s", data_path, dir->d_name);
 
     			dlog_print(DLOG_INFO, LOG_TAG_FTP, "reading %s", file_path);
-    			/* print a message */
-    			data_msg = read_file(file_path);
-    			dlog_print(DLOG_INFO, LOG_TAG_FTP, "reading done! (%s)", data_msg);
 
-    			/* publish log stored in data_msg */
-    			//TODO upload data_msg via ftp!
-    			free(data_msg);
-    			dlog_print(DLOG_INFO, LOG_TAG_FTP, "message published!");
-
-    			/* check for errors */
-    			//TODO
-    			if (ERROR) {
-    				return;
-    			} else { //no error occured, file can be removed
-    				dlog_print(DLOG_INFO, LOG_TAG_FTP, "file sent successfully");
-    				remove(dir->d_name);
-    				dlog_print(DLOG_INFO, LOG_TAG_FTP, "local file deleted.");
+    			fd = fopen(file_path, "rb"); /* open file to upload */
+    			if(!fd) {
+    				dlog_print(DLOG_INFO, LOG_TAG_FTP, "could not open file!");
+    				return; /* can't continue */
     			}
+
+    			/* to get the file size */
+    			if(fstat(fileno(fd), &file_info) != 0) {
+    				dlog_print(DLOG_INFO, LOG_TAG_FTP, "file is empty?");
+    				return; /* can't continue */
+    			}
+
+    			curl = curl_easy_init();
+    			if(curl)
+    			{
+    				//construct url
+    				//TODO fix buggy assembling of URL !!!!
+    				strncpy(URL, ad->ftp_url, strlen(ad->ftp_url));
+    				strcat(URL, dir->d_name);
+					dlog_print(DLOG_INFO, LOG_TAG_FTP, "assembled URL=%s", URL);
+    				/* upload to this place */
+    				curl_easy_setopt(curl, CURLOPT_URL, URL);
+    				// create directory if it does not exist
+    				curl_easy_setopt(curl, CURLOPT_FTP_CREATE_MISSING_DIRS, CURLFTP_CREATE_DIR_RETRY);
+
+    				/* tell it to "upload" to the URL */
+    				curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+
+    				/* set where to read from (on Windows you need to use READFUNCTION too) */
+    				curl_easy_setopt(curl, CURLOPT_READDATA, fd);
+
+    				/* and give the size of the upload (optional) */
+    				curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t)file_info.st_size);
+
+    				/* enable verbose for easier tracing */
+    				curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+    				res = curl_easy_perform(curl);
+    				/* Check for errors */
+    				if(res != CURLE_OK) {
+    					dlog_print(DLOG_INFO, LOG_TAG_FTP, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+    				} else {
+    					dlog_print(DLOG_INFO, LOG_TAG_FTP, "file uploaded!");
+    					/* now extract transfer info */
+    					curl_easy_getinfo(curl, CURLINFO_SPEED_UPLOAD, &speed_upload);
+    					curl_easy_getinfo(curl, CURLINFO_TOTAL_TIME, &total_time);
+
+    					dlog_print(DLOG_INFO, LOG_TAG_FTP, "Speed: %" CURL_FORMAT_CURL_OFF_T " bytes/sec during %"
+    							CURL_FORMAT_CURL_OFF_T ".%06ld seconds\n",
+								speed_upload,
+								(total_time / 1000000), (long)(total_time % 1000000));
+    					remove(dir->d_name);
+    					dlog_print(DLOG_INFO, LOG_TAG_FTP, "local file deleted.");
+    				}
+    				/* always cleanup */
+    				curl_easy_cleanup(curl);
+    			}
+    			fclose(fd);
     		} else {
     			//dir is either no regular file, its name is shorter than 5 chars or it does not end with .json
     			dlog_print(DLOG_INFO, LOG_TAG_FTP, "skipping 'file' %s", dir->d_name);
@@ -322,8 +360,7 @@ void* share_data_daemon(void* data)
     while(1)
     {
         share_data(ad);
-        //sleep(10); //send data every 10 secs
-    	usleep(500000U); //every 0.5s
+        sleep(10); //try to send data every 60 secs
     }
     return NULL;
 }
@@ -333,9 +370,11 @@ void start_ftp_daemon(void* data) {
 	// Extracting application data
 	appdata_s* ad = (appdata_s*) data;
 
+	curl_global_init(CURL_GLOBAL_ALL);
+
 	/* start a thread to share data every 10mins (and update client) */
     if(pthread_create(&ad->ftp_daemon, NULL, share_data_daemon, data)) {
-        fprintf(stderr, "Failed to start client daemon.\n");
+    	dlog_print(DLOG_INFO, LOG_TAG_FTP, "Failed to start client daemon.\n");
     }
 }
 
@@ -343,9 +382,11 @@ void stop_ftp_daemon(void* data) {
 	// Extracting application data
 	appdata_s* ad = (appdata_s*) data;
 
+	curl_global_cleanup();
+
 	/* close socket and cancel data-sharing daemon */
     pthread_cancel(ad->ftp_daemon);
-	dlog_print(DLOG_INFO, LOG_TAG_FTP, "service disconnected from %s, socket closed and data-sharing daemon cancelled.", ad->ftp_info.hostname);
+	dlog_print(DLOG_INFO, LOG_TAG_FTP, "service disconnected from ftp-server, socket closed and data-sharing daemon cancelled.");
 }
 
 //send notification
@@ -757,9 +798,9 @@ void service_app_control(app_control_h app_control, void *data)
             char **params; int length;
         	if (app_control_get_extra_data_array(app_control, "params", &params, &length) == APP_CONTROL_ERROR_NONE)
         	{
-        		if (length != 10) { dlog_print(DLOG_INFO, LOG_TAG, "received too few params!"); }
-        		dlog_print(DLOG_INFO, LOG_TAG, "received %i params: minFreq=%s, maxFreq=%s, avgRoiThresh=%s, multThresh=%s, warnTime=%s, logging=%s, ftpHostname=%s, ftpPort=%s, ftpUsername=%s, ftpPassword=%s",
-        				length, params[0], params[1], params[2], params[3], params[4], params[5], params[6], params[7], params[8], params[9]);
+        		if (length != 11) { dlog_print(DLOG_INFO, LOG_TAG, "received too few params!"); }
+        		dlog_print(DLOG_INFO, LOG_TAG, "received %i params: minFreq=%s, maxFreq=%s, avgRoiThresh=%s, multThresh=%s, warnTime=%s, logging=%s, ftpHostname=%s, ftpPort=%s, ftpUsername=%s, ftpPassword=%s, ftpPath=%s",
+        				length, params[0], params[1], params[2], params[3], params[4], params[5], params[6], params[7], params[8], params[9], params[10]);
         	    char *eptr;
         		//set new params
         		ad->minFreq = strtod(params[0],&eptr);
@@ -774,13 +815,24 @@ void service_app_control(app_control_h app_control, void *data)
 
         		if(ad->logging)
         		{
-        			/* in case logging is enabled, setup a ftp_info and start sharing of data */
-        			ad->ftp_info.hostname = params[6];
-        			ad->ftp_info.port = params[7];
-        			ad->ftp_info.username = params[8];
-        			ad->ftp_info.password = params[9];
+        			//assemble ftp url
+    				char URL[256];
+    				strcpy(URL, "ftp://");
+    				strcat(URL, params[8]); //username
+    				strcat(URL, ":");
+    				strcat(URL, params[9]); //password
+    				strcat(URL, "@");
+    				strcat(URL, params[6]); //hostname
+    				strcat(URL, ":");
+    				strcat(URL, params[7]); //port
+    				strcat(URL, "/");
+    				strcat(URL, params[10]); //path
+    				strcat(URL, "/");
 
-        			dlog_print(DLOG_INFO, LOG_TAG, "Starting ftp daemon!");
+    				ad->ftp_url = URL;
+    				dlog_print(DLOG_INFO, LOG_TAG, "ftp-url is %s.", URL);
+
+    				dlog_print(DLOG_INFO, LOG_TAG, "Starting ftp daemon!");
         			dlog_print(DLOG_INFO, LOG_TAG_FTP, "Starting ftp daemon!");
 
         			start_ftp_daemon(ad);

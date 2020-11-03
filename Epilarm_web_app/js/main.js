@@ -12,13 +12,14 @@ var params = {
 	//variables that can be changed in settings:
 	logging : true, //boolean to decide if sensordata should be stored
 	ftpHostname : '192.168.178.33', //address of your (local) ftp server to which logs are uploaded
-	ftpPort : '1883', //port under which the broker is found
-	ftpUsername : 'sam_gal_act_2', //username
-	ftpPassword : 'password', //password
+	ftpPort : '21', //port under which the broker is found
+	ftpUsername : 'sam-gal-act-2', //username
+	ftpPassword : 'T5tUZKVKWq8FPAh5', //password
+	ftpPath : 'epilarm/log', //path on ftp server to store files in
 		
 	toString : function(){
 		return [this.minFreq.toString(), this.maxFreq.toString(), this.avgRoiThresh.toString(), this.multThresh.toString(), this.warnTime.toString(), (this.logging ? "1" : "0"),
-				this.ftpHostname, this.ftpPort, this.ftpUsername, this.ftpPassword];
+				this.ftpHostname, this.ftpPort, this.ftpUsername, this.ftpPassword, this.ftpPath];
 	}
 };
 	
