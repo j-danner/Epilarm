@@ -71,7 +71,7 @@ typedef struct appdata
 	double avgRoi;
 	//logging of data AND sending over ftp to broker
 	bool logging;
-	char* ftp_url; //url for connection to ftp
+	char ftp_url[256]; //url for connection to ftp
 	pthread_t ftp_daemon;
 
 
@@ -263,7 +263,7 @@ void share_data(void* data) {
     //get local data path
 	char file_path[256];
 	char* data_path = app_get_data_path();
-	char URL[1024]; //should be large enough to store ad->ftp_url + filename!
+	char URL[256]; //should be large enough to store ad->ftp_url + filename!
 
     //iterate over files:
     DIR *d;
@@ -297,9 +297,16 @@ void share_data(void* data) {
     			{
     				//construct url
     				//TODO fix buggy assembling of URL !!!!
-    				strncpy(URL, ad->ftp_url, strlen(ad->ftp_url));
+					dlog_print(DLOG_INFO, LOG_TAG_FTP, "ftp_url=%s", ad->ftp_url);
+					dlog_print(DLOG_INFO, LOG_TAG_FTP, "d_name=%s", dir->d_name);
+
+    				strcpy(URL, ad->ftp_url);
     				strcat(URL, dir->d_name);
 					dlog_print(DLOG_INFO, LOG_TAG_FTP, "assembled URL=%s", URL);
+
+					// try using ssl
+					curl_easy_setopt(curl, CURLOPT_USE_SSL, CURLUSESSL_TRY);
+
     				/* upload to this place */
     				curl_easy_setopt(curl, CURLOPT_URL, URL);
     				// create directory if it does not exist
@@ -816,21 +823,19 @@ void service_app_control(app_control_h app_control, void *data)
         		if(ad->logging)
         		{
         			//assemble ftp url
-    				char URL[256];
-    				strcpy(URL, "ftp://");
-    				strcat(URL, params[8]); //username
-    				strcat(URL, ":");
-    				strcat(URL, params[9]); //password
-    				strcat(URL, "@");
-    				strcat(URL, params[6]); //hostname
-    				strcat(URL, ":");
-    				strcat(URL, params[7]); //port
-    				strcat(URL, "/");
-    				strcat(URL, params[10]); //path
-    				strcat(URL, "/");
+    				strcpy(ad->ftp_url, "ftp://");
+    				strcat(ad->ftp_url, params[8]); //username
+    				strcat(ad->ftp_url, ":");
+    				strcat(ad->ftp_url, params[9]); //password
+    				strcat(ad->ftp_url, "@");
+    				strcat(ad->ftp_url, params[6]); //hostname
+    				strcat(ad->ftp_url, ":");
+    				strcat(ad->ftp_url, params[7]); //port
+    				strcat(ad->ftp_url, "/");
+    				strcat(ad->ftp_url, params[10]); //path
+    				strcat(ad->ftp_url, "/");
 
-    				ad->ftp_url = URL;
-    				dlog_print(DLOG_INFO, LOG_TAG, "ftp-url is %s.", URL);
+    				dlog_print(DLOG_INFO, LOG_TAG, "ftp-url is %s.", ad->ftp_url);
 
     				dlog_print(DLOG_INFO, LOG_TAG, "Starting ftp daemon!");
         			dlog_print(DLOG_INFO, LOG_TAG_FTP, "Starting ftp daemon!");

@@ -15,7 +15,7 @@ var params = {
 	ftpPort : '21', //port under which the broker is found
 	ftpUsername : 'sam-gal-act-2', //username
 	ftpPassword : 'T5tUZKVKWq8FPAh5', //password
-	ftpPath : 'epilarm/log', //path on ftp server to store files in
+	ftpPath : 'share/epilarm/log', //path on ftp server to store files in
 		
 	toString : function(){
 		return [this.minFreq.toString(), this.maxFreq.toString(), this.avgRoiThresh.toString(), this.multThresh.toString(), this.warnTime.toString(), (this.logging ? "1" : "0"),
