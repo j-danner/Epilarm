@@ -25,9 +25,6 @@ var params = {
 	}
 };
 	
-//ringbuffers for data received from service app
-var freq = new createRingBuffer(15*2); freq.fill(0);
-
 var SERVICE_APP_ID = 'QOeM6aBGp0.epilarm_sensor_service';
 
 //save params to local storage, must be called after changing any value
