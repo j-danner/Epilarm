@@ -111,7 +111,7 @@ void save_log(void *data) {
 
 	clock_gettime(CLOCK_REALTIME, &tmnow);
 	tm = localtime(&tmnow.tv_sec);
-	strftime(timebuf, 30, "%Y-%m-%d_%H-%M-%S-", tm);
+	strftime(timebuf, 30, "%Y-%m-%dT%H:%M:%S.", tm);
 	sprintf(nsec_buf, "%d", (int) round(tmnow.tv_nsec/1000000));
 	strcat(timebuf, nsec_buf);
 
