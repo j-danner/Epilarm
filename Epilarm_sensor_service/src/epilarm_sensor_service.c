@@ -21,6 +21,8 @@
 #include <glib-object.h>
 #include <json-glib/json-glib.h>
 
+//threads
+#include <Ecore.h>
 
 //own modules
 #include <fft.h>
@@ -72,7 +74,7 @@ typedef struct appdata
 	//logging of data AND sending over ftp to broker
 	bool logging;
 	char ftp_url[256]; //url for connection to ftp
-	pthread_t ftp_daemon;
+	Ecore_Thread ftp_daemon;
 
 
     //indicate if analysis and sensor listener are running... (required to give appropriate debugging output when receiving appcontrol)
@@ -163,28 +165,28 @@ void save_log(void *data) {
 	json_builder_end_array(builder);
 
 	//include the bins of fft_x_spec_simplified corresponding to the first 20 bins (so in the 0-10Hz range)
-	//json_builder_set_member_name (builder, "x_spec");
-	//json_builder_begin_array(builder);
-	//for (int i = 0; i < 20; ++i) {
-	//	json_builder_add_double_value(builder, ad->fft_x_spec_simplified[i]);
-	//}
-	//json_builder_end_array(builder);
-	//
+	json_builder_set_member_name (builder, "x_spec");
+	json_builder_begin_array(builder);
+	for (int i = 0; i < 20; ++i) {
+		json_builder_add_double_value(builder, ad->fft_x_spec_simplified[i]);
+	}
+	json_builder_end_array(builder);
+
 	//include the bins of fft_y_spec_simplified corresponding to the first 40 bins (so in the 0-20Hz range)
-	//json_builder_set_member_name (builder, "y_spec");
-	//json_builder_begin_array(builder);
-	//for (int i = 0; i < 20; ++i) {
-	//	json_builder_add_double_value(builder, ad->fft_y_spec_simplified[i]);
-	//}
-	//json_builder_end_array(builder);
-	//
+	json_builder_set_member_name (builder, "y_spec");
+	json_builder_begin_array(builder);
+	for (int i = 0; i < 20; ++i) {
+		json_builder_add_double_value(builder, ad->fft_y_spec_simplified[i]);
+	}
+	json_builder_end_array(builder);
+
 	//include the bins of fft_z_spec_simplified corresponding to the first 40 bins (so in the 0-20Hz range)
-	//json_builder_set_member_name (builder, "z_spec");
-	//json_builder_begin_array(builder);
-	//for (int i = 0; i < 20; ++i) {
-	//	json_builder_add_double_value(builder, ad->fft_z_spec_simplified[i]);
-	//}
-	//json_builder_end_array(builder);
+	json_builder_set_member_name (builder, "z_spec");
+	json_builder_begin_array(builder);
+	for (int i = 0; i < 20; ++i) {
+		json_builder_add_double_value(builder, ad->fft_z_spec_simplified[i]);
+	}
+	json_builder_end_array(builder);
 
 
 	//include params of analysis (in one array)
@@ -249,7 +251,8 @@ char* read_file(const char* filename)
 	return buffer;
 }
 
-void share_data(void* data) {
+//function to be executed inside thread
+void share_data(void *data) {
 	// Extracting application data
 	appdata_s* ad = (appdata_s*)data;
 
@@ -357,7 +360,19 @@ void share_data(void* data) {
 	free(data_path);
 }
 
-void* share_data_daemon(void* data)
+//cb to be used when thread has ended
+void share_data_end(void *data, Ecore_Thread *thread) {
+	//currently unused
+	dlog_print(DLOG_INFO, LOG_TAG_FTP, "share_data_daemon has finished.");
+}
+
+//cb to be used when thread is cancelled
+void share_data_cancel(void *data, Ecore_Thread *thread) {
+	//currently unused
+	dlog_print(DLOG_INFO, LOG_TAG_FTP, "share_data_daemon was cancelled!");
+}
+
+void share_data_daemon(void* data, Ecore_Thread *thread)
 {
 	// Extracting application data
 	appdata_s* ad = (appdata_s*) data;
@@ -369,7 +384,6 @@ void* share_data_daemon(void* data)
         share_data(ad);
         sleep(10); //try to send data every 60 secs
     }
-    return NULL;
 }
 
 //starts daemon for continuous sharing of all locally saved files (trying to send every 10mins)
@@ -380,9 +394,14 @@ void start_ftp_daemon(void* data) {
 	curl_global_init(CURL_GLOBAL_ALL);
 
 	/* start a thread to share data every 10mins (and update client) */
-    if(pthread_create(&ad->ftp_daemon, NULL, share_data_daemon, data)) {
-    	dlog_print(DLOG_INFO, LOG_TAG_FTP, "Failed to start client daemon.\n");
-    }
+    //if(pthread_create(&ad->ftp_daemon, NULL, share_data_daemon, data)) {
+    //	dlog_print(DLOG_INFO, LOG_TAG_FTP, "Failed to start client daemon.\n");
+    //}
+
+	ad->ftp_daemon = ecore_thread_run(share_data_daemon, share_data_end, share_data_cancel, ad);
+	if (ad->ftp_daemon == NULL) {
+	    dlog_print(DLOG_INFO, LOG_TAG_FTP, "Failed to start data sharing (ecore) thread.\n");
+	}
 }
 
 void stop_ftp_daemon(void* data) {
