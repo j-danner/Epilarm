@@ -17,9 +17,11 @@ var params = {
 	ftpPassword : 'T5tUZKVKWq8FPAh5', //password
 	ftpPath : 'share/epilarm/log', //path on ftp server to store files in
 		
-	toString : function(){
-		return [this.minFreq.toString(), this.maxFreq.toString(), this.avgRoiThresh.toString(), this.multThresh.toString(), this.warnTime.toString(), (this.logging ? "1" : "0"),
-				this.ftpHostname, this.ftpPort, this.ftpUsername, this.ftpPassword, this.ftpPath];
+	analysisToString : function(){
+		return [this.minFreq.toString(), this.maxFreq.toString(), this.avgRoiThresh.toString(), this.multThresh.toString(), this.warnTime.toString(), (this.logging ? "1" : "0")];
+	},
+	ftpToString : function(){
+		return [this.ftpHostname, this.ftpPort, this.ftpUsername, this.ftpPassword, this.ftpPath];
 	}
 };
 	
@@ -56,10 +58,37 @@ function load_params() {
    }
 }
 
+function start_ftp_upload()  {
+	console.log('starting service app for ftp upload...');
+	var obj = new tizen.ApplicationControlData('service_action', ['log_upload']);
+	var obj_params = new tizen.ApplicationControlData('params', params.ftpToString());
+	var obj1 = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
+			null,
+			null,
+			null,
+			[obj, obj_params] 
+	);
+	var appControlReplyCallback = {
+			// callee sent a reply
+			onsuccess: function(data) {
+				console.log('reply to ftp-upload request is: ' + data[0].value[0]);
+				//TODO end loading symbol...
+			},
+			// callee returned failure
+			onfailure: function() {
+				console.log('reply to ftp-upload request failed');
+			}
+	};
+	tizen.application.launchAppControl(obj1,
+			SERVICE_APP_ID,
+			function() {console.log('Log upload starting succeeded'); },
+			function(e) {console.log('Log upload starting failed : ' + e.message);}, appControlReplyCallback);
+}
+
 function start_service_app()  {
 	console.log('starting service app...');
 	var obj = new tizen.ApplicationControlData('service_action', ['start']);
-	var obj_params = new tizen.ApplicationControlData('params', params.toString());
+	var obj_params = new tizen.ApplicationControlData('params', params.analysisToString());
 	var obj1 = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
 			null,
 			null,
@@ -71,7 +100,6 @@ function start_service_app()  {
 			function() {console.log('Launch Service succeeded'); },
 			function(e) {console.log('Launch Service failed : ' + e.message);}, null);
 }
-
 
 function stop_service_app()  {
 	console.log('stopping service app...');
@@ -100,8 +128,7 @@ function update_start_stop_checkbox() {
 	var appControlReplyCallback = {
 			// callee sent a reply
 			onsuccess: function(data) {
-				//console.log('reply is: ' + data[0].value[0]);
-				//save result:
+				//update checkbox!
 				document.getElementById("start_stop").checked = (data[0].value[0] === 1);
 				console.log('updated checkbox!');
 			},
@@ -118,8 +145,6 @@ function update_start_stop_checkbox() {
 			appControlReplyCallback);
 }
 
-
-
 function start_stop(id){
   if(document.getElementById(id).checked) {
 	  start_service_app();
@@ -128,7 +153,6 @@ function start_stop(id){
 	  stop_service_app();
   }
 }
-
 
 window.onload = function () {
     // TODO:: Do your initialization job

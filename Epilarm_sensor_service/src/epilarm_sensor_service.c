@@ -21,8 +21,6 @@
 #include <glib-object.h>
 #include <json-glib/json-glib.h>
 
-//threads
-#include <Ecore.h>
 
 //own modules
 #include <fft.h>
@@ -73,9 +71,6 @@ typedef struct appdata
 	double avgRoi;
 	//logging of data AND sending over ftp to broker
 	bool logging;
-	char ftp_url[256]; //url for connection to ftp
-	Ecore_Thread ftp_daemon;
-
 
     //indicate if analysis and sensor listener are running... (required to give appropriate debugging output when receiving appcontrol)
     bool running;
@@ -251,16 +246,17 @@ char* read_file(const char* filename)
 	return buffer;
 }
 
-//function to be executed inside thread
-void share_data(void *data) {
-	// Extracting application data
-	appdata_s* ad = (appdata_s*)data;
+//function for sharing locally stored data, returns -1 if it did not finish, otherwise returns 0
+int share_data(const char* ftp_url) {
+	curl_global_init(CURL_GLOBAL_ALL);
+
+	dlog_print(DLOG_INFO, LOG_TAG, "share_data: start");
 
 	//init vars for ftp transfer...
 	CURL *curl;
 	CURLcode res;
 	struct stat file_info;
-	curl_off_t speed_upload, total_time;
+	double speed_upload, total_time;
 	FILE *fd;
 
     //get local data path
@@ -272,27 +268,30 @@ void share_data(void *data) {
     DIR *d;
     struct dirent *dir;
     d = opendir(data_path);
+	dlog_print(DLOG_INFO, LOG_TAG, "reading data in %s", data_path);
     if (d) {
-    	while ((dir = readdir(d)) != NULL && strlen(dir->d_name)>5) {
+    	while ((dir = readdir(d)) != NULL) {
     		//now dir->d_name stores name of file in dir
     		if (strncmp(dir->d_name,"log_",4) == 0 && strcmp(strrchr(dir->d_name, '.'), ".json") == 0)
     		{
-    			dlog_print(DLOG_INFO, LOG_TAG_FTP, "processing file %s", dir->d_name);
+    			dlog_print(DLOG_INFO, LOG_TAG, "processing file %s", dir->d_name);
     			//set correct file_path
     			snprintf(file_path, sizeof(file_path), "%s%s", data_path, dir->d_name);
 
-    			dlog_print(DLOG_INFO, LOG_TAG_FTP, "reading %s", file_path);
+    			dlog_print(DLOG_INFO, LOG_TAG, "reading %s", file_path);
 
     			fd = fopen(file_path, "rb"); /* open file to upload */
     			if(!fd) {
-    				dlog_print(DLOG_INFO, LOG_TAG_FTP, "could not open file!");
-    				return; /* can't continue */
+    				dlog_print(DLOG_INFO, LOG_TAG, "could not open file!");
+    				free(data_path);
+    				return -1; /* can't continue */
     			}
 
     			/* to get the file size */
     			if(fstat(fileno(fd), &file_info) != 0) {
-    				dlog_print(DLOG_INFO, LOG_TAG_FTP, "file is empty?");
-    				return; /* can't continue */
+    				dlog_print(DLOG_INFO, LOG_TAG, "file is empty?");
+    				free(data_path);
+    				return -1; /* can't continue */
     			}
 
     			curl = curl_easy_init();
@@ -300,12 +299,12 @@ void share_data(void *data) {
     			{
     				//construct url
     				//TODO fix buggy assembling of URL !!!!
-					dlog_print(DLOG_INFO, LOG_TAG_FTP, "ftp_url=%s", ad->ftp_url);
-					dlog_print(DLOG_INFO, LOG_TAG_FTP, "d_name=%s", dir->d_name);
+					dlog_print(DLOG_INFO, LOG_TAG, "ftp_url=%s", ftp_url);
+					dlog_print(DLOG_INFO, LOG_TAG, "d_name=%s", dir->d_name);
 
-    				strcpy(URL, ad->ftp_url);
+    				strcpy(URL, ftp_url);
     				strcat(URL, dir->d_name);
-					dlog_print(DLOG_INFO, LOG_TAG_FTP, "assembled URL=%s", URL);
+					dlog_print(DLOG_INFO, LOG_TAG, "assembled URL=%s", URL);
 
 					// try using ssl
 					curl_easy_setopt(curl, CURLOPT_USE_SSL, CURLUSESSL_TRY);
@@ -330,19 +329,22 @@ void share_data(void *data) {
     				res = curl_easy_perform(curl);
     				/* Check for errors */
     				if(res != CURLE_OK) {
-    					dlog_print(DLOG_INFO, LOG_TAG_FTP, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+    					dlog_print(DLOG_INFO, LOG_TAG, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+    					free(data_path);
+    					return -1;
     				} else {
-    					dlog_print(DLOG_INFO, LOG_TAG_FTP, "file uploaded!");
+    					dlog_print(DLOG_INFO, LOG_TAG, "file uploaded!");
     					/* now extract transfer info */
     					curl_easy_getinfo(curl, CURLINFO_SPEED_UPLOAD, &speed_upload);
     					curl_easy_getinfo(curl, CURLINFO_TOTAL_TIME, &total_time);
 
-    					dlog_print(DLOG_INFO, LOG_TAG_FTP, "Speed: %" CURL_FORMAT_CURL_OFF_T " bytes/sec during %"
-    							CURL_FORMAT_CURL_OFF_T ".%06ld seconds\n",
-								speed_upload,
-								(total_time / 1000000), (long)(total_time % 1000000));
-    					remove(dir->d_name);
-    					dlog_print(DLOG_INFO, LOG_TAG_FTP, "local file deleted.");
+    					dlog_print(DLOG_INFO, LOG_TAG, "Upload speed %.0f bytes/sec", speed_upload);
+
+
+    					dlog_print(DLOG_INFO, LOG_TAG, "Speed: %.0f bytes/sec during %.1f seconds", speed_upload, total_time);
+
+    					remove(file_path);
+    					dlog_print(DLOG_INFO, LOG_TAG, "local file deleted.");
     				}
     				/* always cleanup */
     				curl_easy_cleanup(curl);
@@ -350,69 +352,20 @@ void share_data(void *data) {
     			fclose(fd);
     		} else {
     			//dir is either no regular file, its name is shorter than 5 chars or it does not end with .json
-    			dlog_print(DLOG_INFO, LOG_TAG_FTP, "skipping 'file' %s", dir->d_name);
+    			dlog_print(DLOG_INFO, LOG_TAG, "skipping 'file' %s", dir->d_name);
     		}
     	}
     	closedir(d);
 	} else {
-		dlog_print(DLOG_INFO, LOG_TAG_FTP, "directory does not exist!");
+		dlog_print(DLOG_INFO, LOG_TAG, "directory does not exist or cannot be opened!");
+		free(data_path);
+		return -1;
 	}
+
+    curl_global_cleanup();
+
 	free(data_path);
-}
-
-//cb to be used when thread has ended
-void share_data_end(void *data, Ecore_Thread *thread) {
-	//currently unused
-	dlog_print(DLOG_INFO, LOG_TAG_FTP, "share_data_daemon has finished.");
-}
-
-//cb to be used when thread is cancelled
-void share_data_cancel(void *data, Ecore_Thread *thread) {
-	//currently unused
-	dlog_print(DLOG_INFO, LOG_TAG_FTP, "share_data_daemon was cancelled!");
-}
-
-void share_data_daemon(void* data, Ecore_Thread *thread)
-{
-	// Extracting application data
-	appdata_s* ad = (appdata_s*) data;
-
-	dlog_print(DLOG_INFO, LOG_TAG_FTP, "started share_data_daemon");
-
-    while(1)
-    {
-        share_data(ad);
-        sleep(10); //try to send data every 60 secs
-    }
-}
-
-//starts daemon for continuous sharing of all locally saved files (trying to send every 10mins)
-void start_ftp_daemon(void* data) {
-	// Extracting application data
-	appdata_s* ad = (appdata_s*) data;
-
-	curl_global_init(CURL_GLOBAL_ALL);
-
-	/* start a thread to share data every 10mins (and update client) */
-    //if(pthread_create(&ad->ftp_daemon, NULL, share_data_daemon, data)) {
-    //	dlog_print(DLOG_INFO, LOG_TAG_FTP, "Failed to start client daemon.\n");
-    //}
-
-	ad->ftp_daemon = ecore_thread_run(share_data_daemon, share_data_end, share_data_cancel, ad);
-	if (ad->ftp_daemon == NULL) {
-	    dlog_print(DLOG_INFO, LOG_TAG_FTP, "Failed to start data sharing (ecore) thread.\n");
-	}
-}
-
-void stop_ftp_daemon(void* data) {
-	// Extracting application data
-	appdata_s* ad = (appdata_s*) data;
-
-	curl_global_cleanup();
-
-	/* close socket and cancel data-sharing daemon */
-    pthread_cancel(ad->ftp_daemon);
-	dlog_print(DLOG_INFO, LOG_TAG_FTP, "service disconnected from ftp-server, socket closed and data-sharing daemon cancelled.");
+	return 1;
 }
 
 //send notification
@@ -815,18 +768,20 @@ void service_app_control(app_control_h app_control, void *data)
     {
     	dlog_print(DLOG_INFO, LOG_TAG, "caller_id = %s", caller_id);
     	dlog_print(DLOG_INFO, LOG_TAG, "action_value = %s", action_value);
+
+    	//perform adequate actions
         if((caller_id != NULL) && (action_value != NULL)
              && (!strncmp(caller_id, MYSERVICELAUNCHER_APP_ID, STRNCMP_LIMIT))
              && (!strncmp(action_value, "start", STRNCMP_LIMIT)))
         {
-        	//get params from appcontrol: [minFreq, maxFreq, avgRoiThresh, multThresh, warnTime]
+        	//get params from appcontrol: [minFreq, maxFreq, avgRoiThresh, multThresh, warnTime, logging]
             dlog_print(DLOG_INFO, LOG_TAG, "Epilarm start! reading params...");
             char **params; int length;
         	if (app_control_get_extra_data_array(app_control, "params", &params, &length) == APP_CONTROL_ERROR_NONE)
         	{
-        		if (length != 11) { dlog_print(DLOG_INFO, LOG_TAG, "received too few params!"); }
-        		dlog_print(DLOG_INFO, LOG_TAG, "received %i params: minFreq=%s, maxFreq=%s, avgRoiThresh=%s, multThresh=%s, warnTime=%s, logging=%s, ftpHostname=%s, ftpPort=%s, ftpUsername=%s, ftpPassword=%s, ftpPath=%s",
-        				length, params[0], params[1], params[2], params[3], params[4], params[5], params[6], params[7], params[8], params[9], params[10]);
+        		if (length != 6) { dlog_print(DLOG_INFO, LOG_TAG, "received too few params!"); }
+        		dlog_print(DLOG_INFO, LOG_TAG, "received %i params: minFreq=%s, maxFreq=%s, avgRoiThresh=%s, multThresh=%s, warnTime=%s, logging=%s",
+        				length, params[0], params[1], params[2], params[3], params[4], params[5]);
         	    char *eptr;
         		//set new params
         		ad->minFreq = strtod(params[0],&eptr);
@@ -838,36 +793,14 @@ void service_app_control(app_control_h app_control, void *data)
 
         		dlog_print(DLOG_INFO, LOG_TAG, "Starting epilarm sensor service!");
         		sensor_start(ad);
-
-        		if(ad->logging)
-        		{
-        			//assemble ftp url
-    				strcpy(ad->ftp_url, "ftp://");
-    				strcat(ad->ftp_url, params[8]); //username
-    				strcat(ad->ftp_url, ":");
-    				strcat(ad->ftp_url, params[9]); //password
-    				strcat(ad->ftp_url, "@");
-    				strcat(ad->ftp_url, params[6]); //hostname
-    				strcat(ad->ftp_url, ":");
-    				strcat(ad->ftp_url, params[7]); //port
-    				strcat(ad->ftp_url, "/");
-    				strcat(ad->ftp_url, params[10]); //path
-    				strcat(ad->ftp_url, "/");
-
-    				dlog_print(DLOG_INFO, LOG_TAG, "ftp-url is %s.", ad->ftp_url);
-
-    				dlog_print(DLOG_INFO, LOG_TAG, "Starting ftp daemon!");
-        			dlog_print(DLOG_INFO, LOG_TAG_FTP, "Starting ftp daemon!");
-
-        			start_ftp_daemon(ad);
-        		}
-
         	} else {
         		dlog_print(DLOG_INFO, LOG_TAG, "receiving params failed! sensor not started!");
         	}
 
         	free(params);
-
+            free(caller_id);
+            free(action_value);
+            return;
         } else if((caller_id != NULL) && (action_value != NULL)
              && (!strncmp(caller_id, MYSERVICELAUNCHER_APP_ID, STRNCMP_LIMIT))
              && (!strncmp(action_value, "stop", STRNCMP_LIMIT)))
@@ -875,13 +808,9 @@ void service_app_control(app_control_h app_control, void *data)
             dlog_print(DLOG_INFO, LOG_TAG, "Stopping epilarm sensor service!");
             sensor_stop(data, 0); //stop sensor listener without notification (as it was shut down on purpose)
 
-            if(ad->logging) {
-            	stop_ftp_daemon(ad);
-            }
-
             free(caller_id);
             free(action_value);
-            service_app_exit(); //this also tries to stop the sensor listener, but will issue a warning in the log...
+            //service_app_exit(); //this also tries to stop the sensor listener, but will issue a warning in the log...
             return;
         } else if((caller_id != NULL) && (action_value != NULL)
                 && (!strncmp(caller_id, MYSERVICELAUNCHER_APP_ID, STRNCMP_LIMIT))
@@ -901,11 +830,69 @@ void service_app_control(app_control_h app_control, void *data)
 
     		app_control_destroy(reply);
 
+    		free(app_id);
+            free(caller_id);
+            free(action_value);
+            return;
+        } else if((caller_id != NULL) && (action_value != NULL)
+                && (!strncmp(caller_id, MYSERVICELAUNCHER_APP_ID, STRNCMP_LIMIT))
+                && (!strncmp(action_value, "log_upload", STRNCMP_LIMIT)))
+        {
+           	//get params from appcontrol: [minFreq, maxFreq, avgRoiThresh, multThresh, warnTime, logging]
+            dlog_print(DLOG_INFO, LOG_TAG, "started epilarm log upload! reading params...");
+            char **params; int length;
+            if (app_control_get_extra_data_array(app_control, "params", &params, &length) == APP_CONTROL_ERROR_NONE)
+            {
+            	if (length != 5) { dlog_print(DLOG_INFO, LOG_TAG, "received too few params!"); }
+            	dlog_print(DLOG_INFO, LOG_TAG, "received %i params: ftpHostname=%s, ftpPort=%s, ftpUsername=%s, ftpPassword=%s, ftpPath=%s",
+            			length, params[0], params[1], params[2], params[3], params[4]);
+            	//set new params
+            	dlog_print(DLOG_INFO, LOG_TAG, "Starting sharing of logs!");
+               	char ftp_url[256];
+            	//assemble ftp url
+        		strcpy(ftp_url, "ftp://");
+        		strcat(ftp_url, params[2]); //username
+        		strcat(ftp_url, ":");
+        		strcat(ftp_url, params[3]); //password
+        		strcat(ftp_url, "@");
+        		strcat(ftp_url, params[0]); //hostname
+        		strcat(ftp_url, ":");
+        		strcat(ftp_url, params[1]); //port
+        		strcat(ftp_url, "/");
+        		strcat(ftp_url, params[4]); //path
+        		strcat(ftp_url, "/");
+
+        		dlog_print(DLOG_INFO, LOG_TAG, "ftp-url is %s.", ftp_url);
+           		dlog_print(DLOG_INFO, LOG_TAG, "Starting upload to ftp server!");
+            	int success = share_data(ftp_url);
+            	if (success==-1) {
+            		dlog_print(DLOG_INFO, LOG_TAG, "upload failed!");
+            	} else {
+            		dlog_print(DLOG_INFO, LOG_TAG, "upload finished!");
+            	}
+
+           		char *app_id;
+               	app_control_h reply;
+               	app_control_create(&reply);
+               	app_control_get_app_id(app_control, &app_id);
+               	app_control_add_extra_data(reply, APP_CONTROL_DATA_SELECTED, (success==-1) ? "failed!" : "success!");
+               	app_control_reply_to_launch_request(reply, app_control, APP_CONTROL_RESULT_SUCCEEDED);
+                dlog_print(DLOG_INFO, LOG_TAG, "reply sent");
+
+                app_control_destroy(reply);
+
+               	free(app_id);
+            } else {
+            	dlog_print(DLOG_INFO, LOG_TAG, "receiving params failed! no logs shared!");
+            }
+            free(params);
+
             free(caller_id);
             free(action_value);
             return;
         } else {
             dlog_print(DLOG_INFO, LOG_TAG, "Unsupported action! Doing nothing...");
+
             free(caller_id);
             free(action_value);
             caller_id = NULL;
