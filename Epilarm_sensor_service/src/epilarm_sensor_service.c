@@ -751,6 +751,7 @@ void service_app_control(app_control_h app_control, void *data)
              && (!strncmp(caller_id, MYSERVICELAUNCHER_APP_ID, STRNCMP_LIMIT))
              && (!strncmp(action_value, "start", STRNCMP_LIMIT)))
         {
+        	//// >>>> START SERVICE APP <<<< ////
         	//get params from appcontrol: [minFreq, maxFreq, avgRoiThresh, multThresh, warnTime, logging]
             dlog_print(DLOG_INFO, LOG_TAG, "Epilarm start! reading params...");
             char **params; int length;
@@ -773,26 +774,21 @@ void service_app_control(app_control_h app_control, void *data)
         	} else {
         		dlog_print(DLOG_INFO, LOG_TAG, "receiving params failed! sensor not started!");
         	}
-
         	free(params);
-            free(caller_id);
-            free(action_value);
-            return;
+
         } else if((caller_id != NULL) && (action_value != NULL)
              && (!strncmp(caller_id, MYSERVICELAUNCHER_APP_ID, STRNCMP_LIMIT))
              && (!strncmp(action_value, "stop", STRNCMP_LIMIT)))
         {
+        	//// >>>> STOP SERVICE APP <<<< ////
             dlog_print(DLOG_INFO, LOG_TAG, "Stopping epilarm sensor service!");
             sensor_stop(data, 0); //stop sensor listener without notification (as it was shut down on purpose)
 
-            free(caller_id);
-            free(action_value);
-            //service_app_exit(); //this also tries to stop the sensor listener, but will issue a warning in the log...
-            return;
         } else if((caller_id != NULL) && (action_value != NULL)
                 && (!strncmp(caller_id, MYSERVICELAUNCHER_APP_ID, STRNCMP_LIMIT))
                 && (!strncmp(action_value, "running?", STRNCMP_LIMIT)))
         {
+        	//// >>>> CHECK IF ANALYSIS IS RUNNING <<<< ////
             dlog_print(DLOG_INFO, LOG_TAG, "are we running? (asked by UI)!");
 
         	char *app_id;
@@ -808,14 +804,13 @@ void service_app_control(app_control_h app_control, void *data)
     		app_control_destroy(reply);
 
     		free(app_id);
-            free(caller_id);
-            free(action_value);
-            return;
+
         } else if((caller_id != NULL) && (action_value != NULL)
                 && (!strncmp(caller_id, MYSERVICELAUNCHER_APP_ID, STRNCMP_LIMIT))
                 && (!strncmp(action_value, "log_upload", STRNCMP_LIMIT)))
         {
-           	//get params from appcontrol: [minFreq, maxFreq, avgRoiThresh, multThresh, warnTime, logging]
+        	//// >>>> UPLOAD LOG FILES <<<< ////
+           	//get params from appcontrol: [ftp_hostname, ftpport, ftpusernam, ftppassword, ftppath]
             dlog_print(DLOG_INFO, LOG_TAG, "started epilarm log upload! reading params...");
             char **params; int length;
             if (app_control_get_extra_data_array(app_control, "params", &params, &length) == APP_CONTROL_ERROR_NONE)
@@ -857,24 +852,18 @@ void service_app_control(app_control_h app_control, void *data)
                 dlog_print(DLOG_INFO, LOG_TAG, "reply sent");
 
                 app_control_destroy(reply);
-
                	free(app_id);
             } else {
             	dlog_print(DLOG_INFO, LOG_TAG, "receiving params failed! no logs shared!");
             }
             free(params);
-
-            free(caller_id);
-            free(action_value);
-            return;
         } else {
             dlog_print(DLOG_INFO, LOG_TAG, "Unsupported action! Doing nothing...");
-
-            free(caller_id);
-            free(action_value);
-            caller_id = NULL;
-            action_value = NULL;
         }
+
+        free(caller_id);
+        free(action_value);
+        return;
     }
 }
 
