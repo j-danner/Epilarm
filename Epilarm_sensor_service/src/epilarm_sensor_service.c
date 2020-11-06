@@ -223,29 +223,6 @@ void save_log(void *data) {
     fclose(fp);
 }
 
-char* read_file(const char* filename)
-{
-	char * buffer = 0;
-	long length;
-	FILE * f = fopen(filename, "r");
-	if (f==NULL){dlog_print(DLOG_INFO, LOG_TAG, "fopen did NOT succeed! (f=NULL)");}
-
-
-	if (f)
-	{
-	  fseek(f, 0, SEEK_END);
-	  length = ftell(f);
-	  fseek(f, 0, SEEK_SET);
-	  buffer = malloc(length);
-	  if (buffer)
-	  {
-	    fread(buffer, 1, length, f);
-	  }
-	  fclose(f);
-	}
-	return buffer;
-}
-
 //function for sharing locally stored data, returns -1 if it did not finish, otherwise returns 0
 int share_data(const char* ftp_url) {
 	curl_global_init(CURL_GLOBAL_ALL);
