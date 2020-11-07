@@ -5,13 +5,16 @@
 
 		lowThreshold: 0.04,
 
+		/**
+		 * Listener for the battery level changes
+		 */
 		listenBatteryLowState: function () {
 			var self = this;
 
 			try {
 				this.systeminfo.addPropertyValueChangeListener(
 					"BATTERY",
-					function change(battery) {
+					function (battery) {
 						if (!battery.isCharging) {
 							try {
 								tizen.application.getCurrentApplication().exit();
@@ -22,7 +25,7 @@
 					{
 						lowThreshold: self.lowThreshold
 					},
-					function onError(error) {
+					function (error) {
 						console.warn("An error occurred " + error.message);
 					}
 				);
@@ -30,6 +33,9 @@
 			}
 		},
 
+		/**
+		 * Check the remaining battery level is low
+		 */
 		checkBatteryLowState: function () {
 			var self = this;
 
@@ -47,6 +53,7 @@
 					null);
 			} catch (ignore) {
 			}
+
 		},
 
 		init: function () {
@@ -61,4 +68,5 @@
 	};
 
 	systeminfo.init();
+
 }());

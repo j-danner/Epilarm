@@ -847,7 +847,7 @@ void service_app_control(app_control_h app_control, void *data)
                	app_control_h reply;
                	app_control_create(&reply);
                	app_control_get_app_id(app_control, &app_id);
-               	app_control_add_extra_data(reply, APP_CONTROL_DATA_SELECTED, (success==-1) ? "failed!" : "success!");
+               	app_control_add_extra_data(reply, APP_CONTROL_DATA_SELECTED, (success==-1) ? "-1" : "0");
                	app_control_reply_to_launch_request(reply, app_control, APP_CONTROL_RESULT_SUCCEEDED);
                 dlog_print(DLOG_INFO, LOG_TAG, "reply sent");
 
@@ -889,7 +889,11 @@ service_app_low_battery(app_event_info_h event_info, void *user_data)
 static void
 service_app_low_memory(app_event_info_h event_info, void *user_data)
 {
+	// Extracting application data
+	appdata_s* ad = (appdata_s*)user_data;
+
 	/*APP_EVENT_LOW_MEMORY*/
+	ad->logging=FALSE;
 }
 
 int main(int argc, char* argv[])

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta content="width=device-width, initial-scale=1, user-scalable=no" name="viewport" />
+	<title>Settings - FTP text input</title>
+	<link href="../../lib/tau/wearable/theme/default/tau.css" rel="stylesheet" />
+	<link href="../../lib/tau/wearable/theme/default/tau.circle.css" media="all and (-tizen-geometric-shape: circle)" rel="stylesheet" />
+	<link href="../../css/style.css" rel="stylesheet" />
+	<link href="../../css/style.circle.css" media="all and (-tizen-geometric-shape: circle)" rel="stylesheet" />
+	
+	<script src="../../js/circle-helper.js"></script>
+	<script src="../../lib/tau/wearable/js/tau.js"></script>
+</head>
+
+<body>
+	<div class="ui-page" id="ftp-input">
+		<div class="ui-content">
+			<ul class="ui-listview">
+				<li class="text-input-content">
+					<div> Hostname/IP:
+						<input id="hostname" name="hostname" placeholder="IP/web-address" type="text" />
+					</div>
+				</li>
+				<li class="text-input-content">
+					<div> Port:
+						<input id="port" name="port" placeholder="Port" type="text" />	
+					</div>
+				</li>
+				<li class="text-input-content">			
+					<div> Username:
+					<input id="username" name="username" placeholder="Username" type="text" />
+					</div>
+				</li>
+				<li class="text-input-content">			
+					Password:
+					<input id="password" name="password" placeholder="Password" type="text" />
+				</li>
+				<li class="text-input-content">			
+					<div> Path:
+					<input id="path" name="path" placeholder="path on ftp-server" type="text" />
+					</div>
+				</li>
+			</ul>
+		</div>
+		<footer class="ui-footer ui-bottom-button">
+			<button class="ui-btn">
+				Set
+			</button>
+		</footer>
+		
+		<script src="./ftp-input.js"></script>
+	</div>
+	
+	<script src="../../js/app.js"></script>
+	<script src="../../js/lowBatteryCheck.js"></script>
+</body>
+
+</html>

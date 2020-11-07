@@ -1,55 +1,190 @@
 <!DOCTYPE html>
 <html>
-<head>
-	<meta name="viewport" content="width=device-width,user-scalable=no">
-	<title>Basic</title>
-	<link rel="stylesheet" href="lib/tau/wearable/theme/default/tau.min.css">
-	<link rel="stylesheet" media="all and (-tizen-geometric-shape: circle)" href="lib/tau/wearable/theme/default/tau.circle.min.css">
-	<!-- load theme file for your application -->
-	<link rel="stylesheet" href="css/style.css">
 
-	<script src="lib/tau/wearable/js/tau.min.js"></script>
-	<script src="js/app.js"></script>
-	<script src="js/lowBatteryCheck.js"></script>
+<head>
+	<meta content="width=device-width, initial-scale=1, user-scalable=no" name="viewport" />
+	<title>
+		Epilarm UI
+	</title>
+	<link href="lib/tau/wearable/theme/default/tau.css" rel="stylesheet" />
+	<link href="lib/tau/wearable/theme/default/tau.circle.css" rel="stylesheet" />
+	<link href="css/style.css" rel="stylesheet" />
+	<link href="css/style.circle.css" rel="stylesheet" />
 	<script src="js/circle-helper.js"></script>
+	<script src="lib/tau/wearable/js/tau.js"></script>
+	
 	<!-- custom scipts -->
-	<script src="js/RB.js"></script>
-	<script src="js/file.js"></script>
     <script src="js/main.js"></script>
 </head>
 
 <body>
-	<div class="ui-page" data-enable-page-scroll="false" id="hsectionchangerPage">
-		<div class="ui-page-indicator" id="pageIndicator">
-		</div>
-		<link href="css/sectionchanger.css" rel="stylesheet" />
-		<div class="ui-content" id="hsectionchanger">
-			<!-- section changer has only one child. -->
-			<div>
-				<section style="text-align:center">
-					<h3>Settings</h3>
-				</section>
-				<section class="ui-section-active" style="text-align:center">
-					<div class="ui-switch">
-   						<div class="ui-switch-text"> Epilarm </div>
-   						<label class="ui-toggleswitch">
-      						<input type="checkbox" class="ui-switch-input" id="start_stop" onchange="start_stop(this.id)"/>
-      						<div class="ui-switch-activation">
-         						<div class="ui-switch-inneroffset">
-            						<div class="ui-switch-handler"></div>
-         						</div>
-      						</div>
-   						</label>
+	<div id="main" class="ui-page" data-go-to-top-button="true">
+		<header class="ui-header">
+			<h2 class="ui-title">
+				Epilarm
+			</h2>
+		</header>
+		<div class="ui-content">
+			<ul class="ui-listview">
+				<li class="li-has-toggle ui-li-grid ui-li-grid-full" >
+					<div>
+						Seizure-Detection
 					</div>
-				</section>
-				<section style="text-align:center">
-					<h3>Graphs</h3>
-				</section>
+					<div class="ui-toggleswitch">
+                        <input type="checkbox" class="ui-switch-input" id="start_stop" onchange="start_stop(this.id)" />
+						<div class="ui-switch-button"> </div>
+					</div>
+				</li>
+				
+  				<li class="ui-li-group-index">
+					Settings
+				</li>
+				<li class="li-has-multiline">
+					<a href="contents/settings/minfreq-picker.html">
+						minimal frequency
+						<span class="ui-li-sub-text">
+							(in region of interest)
+						</span>
+					</a>
+				</li>
+				<li class="li-has-multiline">
+					<a href="contents/settings/maxfreq-picker.html">
+						maxmial frequency
+						<span class="ui-li-sub-text">
+							(in region of interest)
+						</span>
+					</a>
+				</li>
+				<li class="li-has-multiline">
+					<a href="contents/settings/avgroithresh-picker.html">
+						average threshhold
+						<span class="ui-li-sub-text">
+							(in region of interest)
+						</span>
+					</a>
+				</li>
+				<li class="li-has-multiline">
+					<a href="contents/settings/multthresh-picker.html">
+						ratio threshhold
+						<span class="ui-li-sub-text">
+							(of ROI over total average)
+						</span>
+					</a>
+				</li>
+				<li class="li-has-multiline">
+					<a href="contents/settings/warntime-picker.html">
+						warning time
+						<span class="ui-li-sub-text">
+							(before an alarm is raised)
+						</span>
+					</a>
+				</li>
+				
+ 				<li class="li-has-toggle">
+      				<label>
+         				Logging
+         				<div class="ui-toggleswitch">
+            				<input type="checkbox" class="ui-switch-input" id="logging_checkbox" onchange="toggle_logging(this.id)" onload="update_logging_checkbox()" checked="params.logging"/>
+         					<div class="ui-switch-button"></div>
+         				</div>
+      				</label>
+   				</li>
+				<li class="li-has-multiline">
+					<a href="contents/settings/ftp-input.html">
+						FTP-Server
+						<span class="ui-li-sub-text">
+							(to upload logs)
+						</span>
+					</a>
+				</li>
+				<li>
+					<a data-rel="popup" href="#UploadPopup" onclick="start_ftp_upload()">
+						Upload logs
+					</a>
+				</li>
+				
+				<li class="ui-li-group-index"></li>
+
+				<li>
+					<a data-rel="popup" href="#ResetPopup">
+						Restore settings
+					</a>
+				</li>
+				<li>
+					<a data-rel="popup" href="#InfoPopup">
+						info
+					</a>
+				</li>
+			</ul>
+		</div>
+		
+		<!-- popup for uploading of logs/info/reseting params -->
+		<div class="ui-popup" id="UploadPopup">
+			<div class="ui-popup-content">
+				<div class="small-processing-container">
+					<div class="ui-processing" style="-webkit-transform: scale(1.08); position: relative;">
+					</div>
+					<div class="ui-processing-text" style="position:relative; margin-top: 22px;">
+						uploading logs...
+					</div>
+				</div>
 			</div>
 		</div>
-		<script src="js/hsection.js">
-		</script>
-	</div>
+		<div class="ui-popup" id="ResetPopup">
+			<div class="ui-popup-header">
+				Warning!
+			</div>
+			<div class="ui-popup-content">
+				You are about to reset your parameters to the default.
+				Do you want to proceed?
+			</div>
+			<div class="ui-popup-footer ui-side-button ui-grid-col-2">
+				<a class="ui-btn ui-btn-delete" data-rel="back" href="#">
+					Cancel
+				</a>
+				<a class="ui-btn ui-btn-check" data-rel="back" href="#" onclick="reset_params()">
+					OK
+				</a>
+			</div>
+		</div>
+		<div class="ui-popup" id="InfoPopup">
+			<div class="ui-popup-content">
+				In order to detect seizures we analyse the linear accelerometer data of the watch to filter out frequencies that are likely to appear during epileptic seizures.
+				
+				By default, the accelerometer data is collected every 20ms and every second the last 10 seconds of data are analyzed. This way we have a frequency resolution of
+				0.1Hz and the highest frequency we can detect is 25Hz. 
+				The GTCS at hand seem to admit frequencies in the range 2.5Hz--7.5Hz, which we call the region of interest - or short ROI.
+				<br />
+				Now every second a variable `alarmstate` is increased by one if
+				(1) the avg magnitude of the freqs in the ROI are higher by a factor of 2.5 than the avg of the remaining freqs, and
+				(2) the avg magnitude of the freqs in the ROI is higher than 2.3.
+				Otherwise it is decreased by one (as long as it is positive). 
+				<br />
+				As soon as the alarmstate reaches 10, an alarm is raised and one or more contact persons are notified by a phone call or SMS including the current GPS 
+				coordinates of the watch. (NOT YET IMPLEMENTED!)
+				
+				<br />
+				
+				More information and the source code can be found at 
+				<a class="ui-content ui-hyperlink" href="http://github.com/j-danner/Epilarm">
+					github.com/j-danner/Epilarm
+				</a>
+				
+			</div>
+			<div class="ui-popup-footer ui-bottom-button">
+				<a class="ui-btn" data-rel="back" href="#" id="1btnPopup-cancel">
+					OK
+				</a>
+			</div>
+		</div>
 
+		
+
+	</div>
+	<script src="js/app.js"></script>
+	<script src="js/lowBatteryCheck.js"></script>
 </body>
+
+
+
 </html>
