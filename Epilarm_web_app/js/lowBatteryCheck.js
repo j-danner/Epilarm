@@ -13,7 +13,7 @@
 
 			try {
 				this.systeminfo.addPropertyValueChangeListener(
-					"BATTERY",
+					'BATTERY',
 					function (battery) {
 						if (!battery.isCharging) {
 							try {
@@ -26,7 +26,7 @@
 						lowThreshold: self.lowThreshold
 					},
 					function (error) {
-						console.warn("An error occurred " + error.message);
+						console.warn('An error occurred ' + error.message);
 					}
 				);
 			} catch (ignore) {
@@ -41,7 +41,7 @@
 
 			try {
 				this.systeminfo.getPropertyValue(
-					"BATTERY",
+					'BATTERY',
 					function (battery) {
 						if (battery.level < self.lowThreshold && !battery.isCharging) {
 							try {
@@ -57,12 +57,12 @@
 		},
 
 		init: function () {
-			if (typeof tizen === "object" && typeof tizen.systeminfo === "object") {
+			if (typeof tizen === 'object' && typeof tizen.systeminfo === 'object') {
 				this.systeminfo = tizen.systeminfo;
 				this.checkBatteryLowState();
 				this.listenBatteryLowState();
 			}			else {
-				console.warn("tizen.systeminfo is not available.");
+				console.warn('tizen.systeminfo is not available.');
 			}
 		}
 	};

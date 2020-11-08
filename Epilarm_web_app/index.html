@@ -49,7 +49,7 @@
 				</li>
 				<li class="li-has-multiline">
 					<a href="contents/settings/maxfreq-picker.html">
-						maxmial frequency
+						maximal frequency
 						<span class="ui-li-sub-text">
 							(in region of interest)
 						</span>
@@ -57,7 +57,7 @@
 				</li>
 				<li class="li-has-multiline">
 					<a href="contents/settings/avgroithresh-picker.html">
-						average threshhold
+						average treshold
 						<span class="ui-li-sub-text">
 							(in region of interest)
 						</span>
@@ -65,7 +65,7 @@
 				</li>
 				<li class="li-has-multiline">
 					<a href="contents/settings/multthresh-picker.html">
-						ratio threshhold
+						ratio treshold
 						<span class="ui-li-sub-text">
 							(of ROI over total average)
 						</span>
@@ -148,6 +148,9 @@
 			</div>
 		</div>
 		<div class="ui-popup" id="InfoPopup">
+			<div class="ui-popup-header">
+				Epilarm
+			</div>
 			<div class="ui-popup-content">
 				In order to detect seizures we analyse the linear accelerometer data of the watch to filter out frequencies that are likely to appear during epileptic seizures.
 				
@@ -170,6 +173,23 @@
 					github.com/j-danner/Epilarm
 				</a>
 				
+			</div>
+			<div class="ui-popup-footer ui-bottom-button">
+				<a class="ui-btn" data-rel="back" href="#" id="1btnPopup-cancel">
+					OK
+				</a>
+			</div>
+		</div>
+		<div class="ui-popup" id="UploadFailedPopup">
+			<div class="ui-popup-header">
+				Warning!
+			</div>
+			<div class="ui-popup-content">
+				FTP upload failed!
+				
+				<br />
+				
+				Check your internet connection and the FTP-server settings!
 			</div>
 			<div class="ui-popup-footer ui-bottom-button">
 				<a class="ui-btn" data-rel="back" href="#" id="1btnPopup-cancel">

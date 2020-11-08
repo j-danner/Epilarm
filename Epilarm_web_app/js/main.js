@@ -49,8 +49,8 @@ function start_ftp_upload() {
             //end loading symbol...
             tau.closePopup();
 
-            if (data[0].value[0] === "-1") { //upload failed!
-                window.alert("FTP upload failed!\n Check your internet connection and the FTP-server settings!");
+            if (data[0].value[0] === '-1') { //upload failed!
+                tau.openPopup('#UploadFailedPopup');
             }
         },
         // callee returned failure
@@ -58,18 +58,23 @@ function start_ftp_upload() {
             console.log('reply to ftp-upload request failed');
             //end loading popup
             tau.closePopup();
-            window.alert("FTP upload failed!\n Check your internet connection and the FTP-server settings!");
+            //show upload failed popup
+            tau.openPopup('#UploadFailedPopup');
         }
     };
-    tizen.application.launchAppControl(obj1,
-        SERVICE_APP_ID,
-        function() {
-            console.log('Log upload starting succeeded');
-        },
-        function(e) {
-            console.log('Log upload starting failed : ' + e.message);
-            tau.closePopup();
-        }, appControlReplyCallback);
+    try {
+        tizen.application.launchAppControl(obj1,
+            SERVICE_APP_ID,
+            function() {
+                console.log('Log upload starting succeeded');
+            },
+            function(e) {
+                console.log('Log upload starting failed : ' + e.message);
+                tau.closePopup();
+            }, appControlReplyCallback);
+    } catch (e) {
+        window.alert('Error when starting appcontrol for log upload! error msg:' + e.toString());
+    }
 }
 
 
@@ -82,14 +87,18 @@ function start_service_app() {
         null,
         null, [obj, obj_params]
     );
-    tizen.application.launchAppControl(obj1,
-        SERVICE_APP_ID,
-        function() {
-            console.log('Launch Service succeeded');
-        },
-        function(e) {
-            console.log('Launch Service failed : ' + e.message);
-        }, null);
+    try {
+        tizen.application.launchAppControl(obj1,
+            SERVICE_APP_ID,
+            function() {
+                console.log('Launch Service succeeded');
+            },
+            function(e) {
+                console.log('Launch Service failed : ' + e.message);
+            }, null);
+    } catch (e) {
+        window.alert('Error when starting appcontrol for starting seizure detection! error msg:' + e.toString());
+    }
 }
 
 function stop_service_app() {
@@ -100,14 +109,18 @@ function stop_service_app() {
         null,
         null, [obj]
     );
-    tizen.application.launchAppControl(obj1,
-        SERVICE_APP_ID,
-        function() {
-            console.log('Stopping Service succeeded');
-        },
-        function(e) {
-            console.log('Stopping Service failed : ' + e.message);
-        }, null);
+    try {
+        tizen.application.launchAppControl(obj1,
+            SERVICE_APP_ID,
+            function() {
+                console.log('Stopping Service succeeded');
+            },
+            function(e) {
+                console.log('Stopping Service failed : ' + e.message);
+            }, null);
+    } catch (e) {
+        window.alert('Error when starting appcontrol for stoppint seizure detection! error msg:' + e.toString());
+    }
 }
 
 function update_start_stop_checkbox() {
@@ -122,7 +135,7 @@ function update_start_stop_checkbox() {
         // callee sent a reply
         onsuccess: function(data) {
             //update checkbox!
-            document.getElementById("start_stop").checked = (data[0].value[0] === 1);
+            document.getElementById('start_stop').checked = (data[0].value[0] === 1);
             console.log('updated checkbox!');
         },
         // callee returned failure
@@ -130,16 +143,19 @@ function update_start_stop_checkbox() {
             console.log('reply failed');
         }
     };
-
-    tizen.application.launchAppControl(obj1,
-        SERVICE_APP_ID,
-        function() {
-            console.log('Checking whether sensor listener is running succeeded');
-        },
-        function(e) {
-            console.log('Checking whether sensor listener is running failed : ' + e.message);
-        },
-        appControlReplyCallback);
+    try {
+        tizen.application.launchAppControl(obj1,
+            SERVICE_APP_ID,
+            function() {
+                console.log('Checking whether sensor listener is running succeeded');
+            },
+            function(e) {
+                console.log('Checking whether sensor listener is running failed : ' + e.message);
+            },
+            appControlReplyCallback);
+    } catch (e) {
+        window.alert('Error when starting appcontrol to detect whether seizure detection is running! error msg:' + e.toString());
+    }
 }
 
 function start_stop(id) {
@@ -178,7 +194,7 @@ function reset_params() {
         ftpPath: 'share/epilarm/log', //path on ftp server to store files in
 
         analysisToString: function() {
-            return [this.minFreq.toString(), this.maxFreq.toString(), this.avgRoiThresh.toString(), this.multThresh.toString(), this.warnTime.toString(), (this.logging ? "1" : "0")];
+            return [this.minFreq.toString(), this.maxFreq.toString(), this.avgRoiThresh.toString(), this.multThresh.toString(), this.warnTime.toString(), (this.logging ? '1' : '0')];
         },
         ftpToString: function() {
             return [this.ftpHostname, this.ftpPort, this.ftpUsername, this.ftpPassword, this.ftpPath];
@@ -188,7 +204,7 @@ function reset_params() {
 
 window.onload = function() {
     //leave screen on
-    tizen.power.request('SCREEN', 'SCREEN_NORMAL');
+    //tizen.power.request('SCREEN', 'SCREEN_NORMAL');
 
     //load user settings
     load_params();
