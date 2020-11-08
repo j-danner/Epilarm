@@ -20,7 +20,7 @@ var ns = window.tau = window.tau || {},
 nsConfig = window.tauConfig = window.tauConfig || {};
 nsConfig.rootNamespace = 'tau';
 nsConfig.fileName = 'tau';
-ns.version = '1.1.3';
+ns.version = '1.2.4';
 /*
  * Copyright (c) 2015 Samsung Electronics Co., Ltd
  *
@@ -300,6 +300,7 @@ ns.version = '1.1.3';
 	"use strict";
 				// Default configuration properties for wearable
 			ns.setConfig("autoBuildOnPageChange", false, true);
+			ns.setConfig("goToTopButton", false, true);
 
 			if (ns.support.shape.circle) {
 				ns.setConfig("pageTransition", "pop", true);
@@ -459,6 +460,12 @@ ns.version = '1.1.3';
 			 */
 			defineProperty("enablePageScroll");
 			/**
+			 * @property {boolean} goToTopButton=false
+			 * @member ns.defaults
+			 * @static
+			 */
+			defineProperty("goToTopButton");
+			/**
 			 * @property {string} scrollEndEffectArea="content
 			 * @member ns.defaults
 			 * @static
@@ -540,7 +547,7 @@ ns.version = '1.1.3';
 				waitingFrames = [];
 
 				while (currentFrameFunction) {
-					currentFrameFunction();
+					currentFrameFunction(loopTime);
 					if (performance.now() - loopTime < 15) {
 						currentFrameFunction = loopWaitingFrames.shift();
 					} else {
@@ -597,6 +604,39 @@ ns.version = '1.1.3';
 				// probably wont work if there is any more than 1
 				// active animationFrame but we are trying anyway
 				window.clearTimeout(currentFrame);
+			};
+
+			/**
+			 * Remove animation callbacks added by requestAnimationFrame
+			 * @method cancelAnimationFrames
+			 * @static
+			 * @member ns.util
+			 * @param {*} animationId value for identify animation in queue
+			 */
+			util.cancelAnimationFrames = function (animationId) {
+				var found = 0,
+					len = waitingFrames.length,
+					i = 0;
+
+				if (animationId) {
+					// remove selected requests
+					while (len > 0 && found > -1) {
+						found = -1;
+						for (; i < len; i++) {
+							if (waitingFrames[i].animationId === animationId) {
+								found = i;
+								break;
+							}
+						}
+
+						if (found > -1) {
+							waitingFrames.splice(found, 1);
+							len--;
+						}
+					}
+				} else {
+					ns.warn("cancelAnimationFrames() require one parameter for request identify");
+				}
 			};
 
 			util._getCancelAnimationFrame = function () {
@@ -747,11 +787,15 @@ ns.version = '1.1.3';
 				var result = [],
 					script;
 
-				[].slice.call(element.querySelectorAll(
+				slice.call(element.querySelectorAll(
 					"script:not([data-src]):not([type]):not([id]):not([src])"
 					)).forEach(function (item) {
 						script = document.createElement("script");
 						script.innerText = item.textContent;
+						// move attributes from original script element
+						slice.call(item.attributes).forEach(function (attribute) {
+							script.setAttribute(attribute.name, item.getAttribute(attribute.name));
+						});
 						item.parentNode.removeChild(item);
 						result.push(script);
 					});
@@ -2188,11 +2232,17 @@ ns.version = '1.1.3';
 				 * @member ns.util.object
 				 */
 				fastMerge: function (newObject, orgObject) {
-					var key;
+					var key,
+						propertyDescriptor;
 
 					for (key in orgObject) {
 						if (orgObject.hasOwnProperty(key)) {
-							newObject[key] = orgObject[key];
+							propertyDescriptor = Object.getOwnPropertyDescriptor(newObject, key);
+							if (!propertyDescriptor || propertyDescriptor.writable === true || propertyDescriptor.set != undefined) {
+								newObject[key] = orgObject[key];
+							} else {
+								console.warn("Attempt to override object readonly property (" + key + ") during merge.")
+							}
 						}
 					}
 					return newObject;
@@ -2212,7 +2262,8 @@ ns.version = '1.1.3';
 						key,
 						args = [].slice.call(arguments),
 						argsLength = args.length,
-						i;
+						i,
+						propertyDescriptor;
 
 					newObject = args.shift();
 					override = true;
@@ -2224,8 +2275,14 @@ ns.version = '1.1.3';
 						orgObject = args.shift();
 						if (orgObject !== null) {
 							for (key in orgObject) {
-								if (orgObject.hasOwnProperty(key) && (override || newObject[key] === undefined)) {
-									newObject[key] = orgObject[key];
+								if (orgObject.hasOwnProperty(key)) {
+									propertyDescriptor = Object.getOwnPropertyDescriptor(newObject, key);
+									if (!propertyDescriptor ||
+										(override && (propertyDescriptor.writable === true || propertyDescriptor.set != undefined))) {
+										newObject[key] = orgObject[key];
+									} else if (override) {
+										console.warn("Attempt to override object readonly property (" + key + ") during merge.")
+									}
 								}
 							}
 						}
@@ -2253,7 +2310,7 @@ ns.version = '1.1.3';
 						if (prototype.hasOwnProperty(property)) {
 							value = prototype[property];
 							if (typeof value === "function") {
-								basePrototype[property] = (function createFunctionWithSuper(Base, property, value) {
+								basePrototype[property] = (function (Base, property, value) {
 									var _super = function () {
 										var superFunction = Base.prototype[property];
 
@@ -2448,6 +2505,14 @@ ns.version = '1.1.3';
 				 */
 				DATA_BOUND = "data-tau-bound",
 				/**
+				 * @property {string} [DATA_WIDGET_WRAPPER="data-tau-wrapper"] attribute informs that widget has wrapper
+				 * @private
+				 * @static
+				 * @readonly
+				 * @member ns.engine
+				 */
+				DATA_WIDGET_WRAPPER = "data-tau-wrapper",
+				/**
 				 * @property {string} NAMES_SEPARATOR
 				 * @private
 				 * @static
@@ -2605,6 +2670,15 @@ ns.version = '1.1.3';
 			}
 
 			/**
+			 * Filter children with DATA_BUILT attribute
+			 * @param {HTMLElement} child
+			 * @private
+			 */
+			function filterBuiltWidget(child) {
+				return child.hasAttribute(DATA_BUILT);
+			}
+
+			/**
 			 * Get binding for element
 			 * @method getBinding
 			 * @static
@@ -2615,7 +2689,8 @@ ns.version = '1.1.3';
 			 */
 			function getBinding(element, type) {
 				var id = !element || typeof element === TYPE_STRING ? element : element.id,
-					binding;
+					binding,
+					baseElement;
 
 				if (typeof element === TYPE_STRING) {
 					element = document.getElementById(id);
@@ -2627,6 +2702,15 @@ ns.version = '1.1.3';
 
 					if (binding && typeof binding === "object") {
 						return getInstanceByElement(binding, element, type);
+					} else {
+						// Check if widget has wrapper and find base element
+						if (typeof element.hasAttribute === TYPE_FUNCTION &&
+								element.hasAttribute(DATA_WIDGET_WRAPPER)) {
+							baseElement = slice.call(element.children).filter(filterBuiltWidget)[0];
+							if (baseElement) {
+								return getBinding(baseElement, type);
+							}
+						}
 					}
 				}
 
@@ -3154,6 +3238,16 @@ ns.version = '1.1.3';
 				processHollowWidget(queueItem.element || queueItem, widgetDefinitions[queueItem.widgetName]);
 			}
 
+			function boundPerfListener() {
+				document.removeEventListener(eventType.BOUND, boundPerfListener);
+				window.tauPerf.get("engine/createWidgets", "event: " + eventType.BOUND);
+			}
+
+			function builtPerfListener() {
+				document.removeEventListener("built", builtPerfListener);
+				window.tauPerf.get("engine/createWidgets", "event: built");
+			}
+
 			/**
 			 * Build widgets on all children of context element
 			 * @method createWidgets
@@ -3345,7 +3439,8 @@ ns.version = '1.1.3';
 					built: DATA_BUILT,
 					name: DATA_NAME,
 					bound: DATA_BOUND,
-					separator: NAMES_SEPARATOR
+					separator: NAMES_SEPARATOR,
+					widgetWrapper: DATA_WIDGET_WRAPPER
 				},
 				destroyWidget: destroyWidget,
 				destroyAllWidgets: destroyAllWidgets,
@@ -5675,6 +5770,7 @@ function pathToRegexp (path, keys, options) {
 				if (!x && !y) {
 					return preparePositionForEvent(event);
 				}
+				return null;
 			}
 
 			/**
@@ -5753,8 +5849,8 @@ function pathToRegexp (path, keys, options) {
 				if (touches && touches.length === 1) {
 					didScroll = false;
 					firstTouch = touches[0];
-					startX = firstTouch.pageX;
-					startY = firstTouch.pageY;
+					startX = firstTouch.pageX || firstTouch.clientX || 0; // for touch converted from mouse event
+					startY = firstTouch.pageY || firstTouch.clientX || 0; // for touch converted from mouse event
 
 					// Check if we have touched something on our page
 					// @TODO refactor for multi touch
@@ -5800,6 +5896,8 @@ function pathToRegexp (path, keys, options) {
 			function handleTouchMove(evt) {
 				var over,
 					firstTouch = evt.touches && evt.touches[0],
+					pointerX,
+					pointerY,
 					didCancel = didScroll,
 					//sets the threshold, based on which we consider if it was the touch-move event
 					moveThreshold = vmouse.eventDistanceThreshold;
@@ -5818,15 +5916,18 @@ function pathToRegexp (path, keys, options) {
 					return;
 				}
 
+				pointerX = firstTouch.pageX || firstTouch.clientX || 0, // for touch converted from mouse event
+				pointerY = firstTouch.pageY || firstTouch.clientY || 0, // for touch converted from mouse event
+
 				didScroll = didScroll ||
 					//check in both axes X,Y if the touch-move event occur
-					(Math.abs(firstTouch.pageX - startX) > moveThreshold ||
-					Math.abs(firstTouch.pageY - startY) > moveThreshold);
+					(Math.abs(pointerX - startX) > moveThreshold ||
+					Math.abs(pointerY - startY) > moveThreshold);
 
 				// detect over event
 				// for compatibility with mouseover because "touchenter" fires only once
 				// @TODO Handle many touches
-				over = document.elementFromPoint(firstTouch.pageX, firstTouch.pageY);
+				over = document.elementFromPoint(pointerX, pointerY);
 				if (over && lastOver !== over) {
 					lastOver = over;
 					fireEvent("vmouseover", evt);
@@ -6123,7 +6224,7 @@ function pathToRegexp (path, keys, options) {
 						if (href && !options.href) {
 							options.href = href;
 						}
-						if (rel === "popup" && link && !options.link) {
+						if (rel === "popup" && !options.link) {
 							options.link = link;
 						}
 						history.disableVolatileMode();
@@ -6822,10 +6923,10 @@ function pathToRegexp (path, keys, options) {
 
 			/**
 			 * Returns style value for css property with browsers prefixes
-			 * @method getPrefixedStyle
+			 * @method getPrefixedStyleValue
 			 * @param {HTMLStyle} styles
 			 * @param {string} property
-			 * @return {Object}
+			 * @return {string|undefined}
 			 * @member ns.util.DOM
 			 * @static
 			 */
@@ -6838,7 +6939,7 @@ function pathToRegexp (path, keys, options) {
 					if (prefixedProperties.hasOwnProperty(key)) {
 						value = styles[prefixedProperties[key]];
 						if (value && value !== "none") {
-							return value;
+							break;
 						}
 					}
 				}
@@ -6959,11 +7060,11 @@ function pathToRegexp (path, keys, options) {
  */
 (function (window, ns) {
 	"use strict";
-				var Set = function () {
+				var set = function () {
 				this._data = [];
 			};
 
-			Set.prototype = {
+			set.prototype = {
 				/**
 				 * Add one or many arguments to set
 				 * @method add
@@ -7021,8 +7122,8 @@ function pathToRegexp (path, keys, options) {
 			};
 
 			// for tests
-			ns.util._Set = Set;
-			ns.util.Set = window.Set || Set;
+			ns.util._Set = set;
+			ns.util.Set = window.Set || set;
 
 			}(window, ns));
 
@@ -7119,7 +7220,7 @@ function pathToRegexp (path, keys, options) {
 			ns.widget = widget;
 			}(window.document));
 
-/*global window, ns, define */
+/*global ns, define */
 /*jslint nomen: true */
 /*
  * Copyright (c) 2015 Samsung Electronics Co., Ltd
@@ -7287,7 +7388,7 @@ function pathToRegexp (path, keys, options) {
 				 */
 				objectUtils = util.object,
 				selectorUtils = util.selectors,
-				Set = util.Set,
+				setUtils = util.Set,
 				BaseWidget = function () {
 					this.flowState = "created";
 					return this;
@@ -7303,6 +7404,8 @@ function pathToRegexp (path, keys, options) {
 				 * @readonly
 				 */
 				TYPE_FUNCTION = "function",
+				TYPE_STRING = "string",
+				DEFAULT_STRING_DELIMITER = ",",
 				disableClass = "ui-state-disabled",
 				ariaDisabled = "aria-disabled",
 				commonClasses = {
@@ -7448,15 +7551,24 @@ function pathToRegexp (path, keys, options) {
 			prototype._getCreateOptions = function (element) {
 				var self = this,
 					options = self.options,
-					tag = element.localName.toLowerCase();
+					tag = element.localName.toLowerCase(),
+					delimiter;
 
 				if (options) {
 					Object.keys(options).forEach(function (option) {
 						var attributeName = utilString.camelCaseToDashes(option),
-							baseValue,
+							baseValue = getNSData(element, attributeName, true),
 							prefixedValue = getNSData(element, attributeName);
 
 						if (prefixedValue !== null) {
+							if (typeof options[option] === "number") {
+								prefixedValue = parseFloat(prefixedValue);
+							} else if (typeof options[option] === "object" &&
+										typeof prefixedValue === "string" &&
+										Array.isArray(options[option])) {
+								delimiter = element.dataset.delimiter || DEFAULT_STRING_DELIMITER;
+								prefixedValue = prefixedValue.split(delimiter);
+							}
 							options[option] = prefixedValue;
 						} else {
 							if (typeof options[option] === "boolean") {
@@ -7480,13 +7592,14 @@ function pathToRegexp (path, keys, options) {
 							return;
 						}
 
-						baseValue = getNSData(element, attributeName, true);
 						if (baseValue !== null) {
+							if (typeof options[option] === "number") {
+								baseValue = parseFloat(baseValue);
+							}
 							options[option] = baseValue;
 						}
 					});
 				}
-
 				return options;
 			};
 
@@ -7606,7 +7719,8 @@ function pathToRegexp (path, keys, options) {
 					self._init(element);
 				}
 
-				if (element.getAttribute("disabled") || self.options.disabled === true) {
+				if (element.hasAttribute("disabled") && element.getAttribute("disabled") !== "false" ||
+					self.options.disabled === true) {
 					self.disable();
 				} else {
 					self.enable();
@@ -7897,7 +8011,10 @@ function pathToRegexp (path, keys, options) {
 			 * @return {ns.widget.BaseWidget}
 			 */
 			prototype.refresh = function () {
-				var self = this;
+				var self = this,
+					element = self.element;
+
+				self._getCreateOptions(element);
 
 				if (typeof self._refresh === TYPE_FUNCTION) {
 					self._refresh.apply(self, arguments);
@@ -8105,7 +8222,7 @@ function pathToRegexp (path, keys, options) {
 				methodName = "_set" + (field[0].toUpperCase() + field.slice(1));
 				if (typeof self[methodName] === TYPE_FUNCTION) {
 					refresh = self[methodName](self.element, value);
-					if (self.element) {
+					if (self.element && (typeof value !== "object" || Array.isArray(value))) {
 						self.element.setAttribute("data-" + (field.replace(/[A-Z]/g, function (c) {
 							return "-" + c.toLowerCase();
 						})), value);
@@ -8115,7 +8232,7 @@ function pathToRegexp (path, keys, options) {
 				} else {
 					self.options[field] = value;
 
-					if (self.element) {
+					if (self.element && (typeof value !== "object" || Array.isArray(value))) {
 						self.element.setAttribute("data-" + (field.replace(/[A-Z]/g, function (c) {
 							return "-" + c.toLowerCase();
 						})), value);
@@ -8227,6 +8344,7 @@ function pathToRegexp (path, keys, options) {
 				if (this.element) {
 					return eventUtils.trigger(this.element, eventName, data, bubbles, cancelable);
 				}
+				return false;
 			};
 
 			/**
@@ -8262,7 +8380,7 @@ function pathToRegexp (path, keys, options) {
 					func();
 				}
 				if (func !== undefined) {
-					util.requestAnimationFrame(function frameFlowCallback() {
+					util.requestAnimationFrame(function () {
 						self._framesFlow.apply(self, args);
 					});
 				}
@@ -8308,14 +8426,16 @@ function pathToRegexp (path, keys, options) {
 				var classList = stateObject.classList;
 
 				if (classList !== undefined) {
-					if (classList instanceof Set) {
+					if (classList instanceof setUtils) {
 						classList.clear();
 					} else {
-						classList = new Set();
+						classList = new setUtils();
 						stateObject.classList = classList;
 					}
 					if (element.classList.length) {
-						classList.add.apply(classList, slice.call(element.classList));
+						slice.call(element.classList).forEach(function (className) {
+							classList.add(className);
+						});
 					}
 				}
 			}
@@ -8335,23 +8455,17 @@ function pathToRegexp (path, keys, options) {
 				}
 			}
 
-			function render(stateObject, element, isChild, options) {
-				var recalculate = false,
-					animation = (options) ? options.animation : null;
-
-				if (animation && !animation.active) {
-					// Animation has stopped before render
-					return false;
-				}
+			function render(stateObject, element, isChild) {
+				var recalculate = false;
 
 				if (stateObject.classList !== undefined) {
-					slice.call(element.classList).forEach(function renderRemoveClassList(className) {
+					slice.call(element.classList).forEach(function (className) {
 						if (!stateObject.classList.has(className)) {
 							element.classList.remove(className);
 							recalculate = true;
 						}
 					});
-					stateObject.classList.forEach(function renderAddClassList(className) {
+					stateObject.classList.forEach(function (className) {
 						if (!element.classList.contains(className)) {
 							element.classList.add(className);
 							recalculate = true;
@@ -8359,12 +8473,12 @@ function pathToRegexp (path, keys, options) {
 					});
 				}
 				if (stateObject.style !== undefined) {
-					Object.keys(stateObject.style).forEach(function renderUpdateStyle(styleName) {
+					Object.keys(stateObject.style).forEach(function (styleName) {
 						element.style[styleName] = stateObject.style[styleName];
 					});
 				}
 				if (stateObject.children !== undefined) {
-					stateObject.children.forEach(function renderChildren(child, index) {
+					stateObject.children.forEach(function (child, index) {
 						render(child, element.children[index], true);
 					});
 				}
@@ -8376,13 +8490,12 @@ function pathToRegexp (path, keys, options) {
 			prototype._render = function (now) {
 				var self = this,
 					stateDOM = self._stateDOM,
-					element = self.element,
-					animation = self._animation;
+					element = self.element;
 
-				if (now) {
-					render(stateDOM, element, false, {animation: animation});
+				if (now === true) {
+					render(stateDOM, element, false);
 				} else {
-					util.requestAnimationFrame(render.bind(null, stateDOM, element, false, {animation: animation}));
+					util.requestAnimationFrame(render.bind(null, stateDOM, element, false));
 				}
 			};
 
@@ -8406,6 +8519,23 @@ function pathToRegexp (path, keys, options) {
 				}
 				return requireRefresh;
 			};
+
+			/**
+			 * Create widget wrapper element
+			 * @param {string|null} [type=div] type of HTML element
+			 * @protected
+			 * @member ns.widget.BaseWidget
+			 * @return {HTMLElement}
+			 */
+			prototype._createWrapper = function (type) {
+				var wrapper;
+
+				type = (typeof type === TYPE_STRING) ? type : "div";
+
+				wrapper = document.createElement(type);
+				wrapper.setAttribute(engineDataTau.widgetWrapper, true);
+				return wrapper;
+			}
 
 			BaseWidget.prototype = prototype;
 
@@ -8440,6 +8570,380 @@ function pathToRegexp (path, keys, options) {
 				ns.widget.core = ns.widget.core || {};
 			}(window.document, ns));
 
+/*global window, ns, define */
+/*
+ * Copyright (c) 2015 Samsung Electronics Co., Ltd
+ *
+ * Licensed under the Flora License, Version 1.1 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://floralicense.org/license/
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/*jslint nomen: true, plusplus: true */
+/**
+ * # PageContainer Widget
+ * PageContainer is a widget, which is supposed to have multiple child pages but display only one at a time.
+ *
+ * @class ns.widget.core.PageContainer
+ * @extends ns.widget.BaseWidget
+ * @author Maciej Urbanski <m.urbanski@samsung.com>
+ * @author Piotr Karny <p.karny@samsung.com>
+ * @author Krzysztof Głodowski <k.glodowski@samsung.com>
+ */
+(function (document, ns) {
+	"use strict";
+				var BaseWidget = ns.widget.BaseWidget,
+				util = ns.util,
+				DOM = util.DOM,
+				engine = ns.engine,
+				classes = {
+					pageContainer: "ui-page-container",
+					uiViewportTransitioning: "ui-viewport-transitioning",
+					out: "out",
+					in: "in",
+					reverse: "reverse",
+					uiPreIn: "ui-pre-in",
+					uiBuild: "ui-page-build"
+				},
+				PageContainer = function () {
+					/**
+					 * Active page.
+					 * @property {ns.widget.core.Page} [activePage]
+					 * @member ns.widget.core.PageContainer
+					 */
+					this.activePage = null;
+					this.inTransition = false;
+				},
+				EventType = {
+					/**
+					 * Triggered before the changePage() request
+					 * has started loading the page into the DOM.
+					 * @event pagebeforechange
+					 * @member ns.widget.core.PageContainer
+					 */
+					PAGE_BEFORE_CHANGE: "pagebeforechange",
+					/**
+					 * Triggered after the changePage() request
+					 * has finished loading the page into the DOM and
+					 * all page transition animations have completed.
+					 * @event pagechange
+					 * @member ns.widget.core.PageContainer
+					 */
+					PAGE_CHANGE: "pagechange",
+					PAGE_REMOVE: "pageremove"
+				},
+				animationend = "animationend",
+				webkitAnimationEnd = "webkitAnimationEnd",
+				mozAnimationEnd = "mozAnimationEnd",
+				msAnimationEnd = "msAnimationEnd",
+				oAnimationEnd = "oAnimationEnd",
+				animationEndNames = [
+					animationend,
+					webkitAnimationEnd,
+					mozAnimationEnd,
+					msAnimationEnd,
+					oAnimationEnd
+				],
+				prototype = new BaseWidget();
+			//When resolved deferred function is responsible for triggering events related to page change as well as
+			//destroying unused widgets from last page and/or removing last page
+
+			function deferredFunction(fromPageWidget, toPageWidget, self, options) {
+				if (fromPageWidget) {
+					fromPageWidget.onHide();
+					self._removeExternalPage(fromPageWidget, options);
+				}
+				toPageWidget.onShow();
+								self.trigger(EventType.PAGE_CHANGE);
+							}
+
+			/**
+			 * Dictionary for PageContainer related event types.
+			 * @property {Object} events
+			 * @property {string} [events.PAGE_CHANGE="pagechange"]
+			 * @member ns.router.route.popup
+			 * @static
+			 */
+			PageContainer.events = EventType;
+
+			/**
+			 * Dictionary for PageContainer related css class names
+			 * @property {Object} classes
+			 * @member ns.widget.core.Page
+			 * @static
+			 * @readonly
+			 */
+			PageContainer.classes = classes;
+
+			/**
+			 * Build widget structure
+			 * @method _build
+			 * @param {HTMLElement} element
+			 * @return {HTMLElement}
+			 * @member ns.widget.core.PageContainer
+			 * @protected
+			 */
+			prototype._build = function (element) {
+				element.classList.add(classes.pageContainer);
+				return element;
+			};
+
+			/**
+			 * This method changes active page to specified element.
+			 * @method change
+			 * @param {HTMLElement} toPageElement The element to set
+			 * @param {Object} [options] Additional options for the transition
+			 * @param {string} [options.transition=none] Specifies the type of transition
+			 * @param {boolean} [options.reverse=false] Specifies the direction of transition
+			 * @member ns.widget.core.PageContainer
+			 */
+			prototype.change = function (toPageElement, options) {
+				var self = this,
+					fromPageWidget = self.getActivePage(),
+					toPageWidget,
+					calculatedOptions = options || {};
+
+				// store options to detect that option was changed before process finish
+				self._options = calculatedOptions;
+
+				calculatedOptions.widget = calculatedOptions.widget || "Page";
+
+				// The change should be made only if no active page exists
+				// or active page is changed to another one.
+				if (!fromPageWidget || (fromPageWidget.element !== toPageElement)) {
+					if (toPageElement.parentNode !== self.element) {
+						toPageElement = self._include(toPageElement);
+					}
+
+					self.trigger(EventType.PAGE_BEFORE_CHANGE);
+
+					toPageElement.classList.add(classes.uiBuild);
+
+					delete options.url;
+					toPageWidget = engine.instanceWidget(toPageElement, calculatedOptions.widget, options);
+
+					// set sizes of page for correct display
+					toPageWidget.layout();
+
+					if (toPageWidget.option("autoBuildWidgets") || toPageElement.querySelector(".ui-i3d") || toPageElement.querySelector(".ui-coverflow")) {
+						engine.createWidgets(toPageElement, options);
+					}
+
+					if (fromPageWidget) {
+						fromPageWidget.onBeforeHide();
+					}
+					toPageWidget.onBeforeShow();
+
+					toPageElement.classList.remove(classes.uiBuild);
+
+					// if options is different that this mean that another change page was called and we need stop
+					// previous change page
+					if (calculatedOptions === self._options) {
+						calculatedOptions.deferred = {
+							resolve: deferredFunction
+						};
+						self._transition(toPageWidget, fromPageWidget, calculatedOptions);
+					}
+				}
+			};
+
+			/**
+			 * This method performs transition between the old and a new page.
+			 * @method _transition
+			 * @param {ns.widget.core.Page} toPageWidget The new page
+			 * @param {ns.widget.core.Page} fromPageWidget The page to be replaced
+			 * @param {Object} [options] Additional options for the transition
+			 * @param {string} [options.transition=none] The type of transition
+			 * @param {boolean} [options.reverse=false] Specifies transition direction
+			 * @param {Object} [options.deferred] Deferred object
+			 * @member ns.widget.core.PageContainer
+			 * @protected
+			 */
+			prototype._transition = function (toPageWidget, fromPageWidget, options) {
+				var self = this,
+					element = self.element,
+					elementClassList = element.classList,
+					transition = !fromPageWidget || !options.transition ? "none" : options.transition,
+					deferred = options.deferred,
+					clearClasses = [classes.in, classes.out, classes.uiPreIn, transition],
+					oldDeferredResolve,
+					oneEvent;
+
+				if (options.reverse) {
+					clearClasses.push(classes.reverse);
+				}
+				self.inTransition = true;
+				elementClassList.add(classes.uiViewportTransitioning);
+				oldDeferredResolve = deferred.resolve;
+				deferred.resolve = function () {
+					var fromPageWidgetClassList = fromPageWidget && fromPageWidget.element.classList,
+						toPageWidgetClassList = toPageWidget.element.classList;
+
+					self._setActivePage(toPageWidget);
+					self._clearTransitionClasses(clearClasses, fromPageWidgetClassList, toPageWidgetClassList);
+					oldDeferredResolve(fromPageWidget, toPageWidget, self, options);
+				};
+
+				if (transition !== "none") {
+					oneEvent = function () {
+						toPageWidget.off(
+							animationEndNames,
+							oneEvent,
+							false
+						);
+						deferred.resolve();
+					};
+					toPageWidget.on(
+						animationEndNames,
+						oneEvent,
+						false
+					);
+					self._appendTransitionClasses(fromPageWidget, toPageWidget, transition, options.reverse);
+				} else {
+					window.setTimeout(deferred.resolve, 0);
+				}
+			};
+
+			/**
+			 * This method adds proper transition classes to specified page widgets.
+			 * @param {ns.widget.core.Page} fromPageWidget Page widget from which transition will occur
+			 * @param {ns.widget.core.Page} toPageWidget Destination page widget for transition
+			 * @param {string} transition Specifies the type of transition
+			 * @param {boolean} reverse Specifies the direction of transition
+			 * @member ns.widget.core.PageContainer
+			 * @protected
+			 */
+			prototype._appendTransitionClasses = function (fromPageWidget, toPageWidget, transition, reverse) {
+				var classList;
+
+				if (fromPageWidget) {
+					classList = fromPageWidget.element.classList;
+					classList.add(transition, classes.out);
+					if (reverse) {
+						classList.add(classes.reverse);
+					}
+				}
+
+				classList = toPageWidget.element.classList;
+				classList.add(transition, classes.in, classes.uiPreIn);
+				if (reverse) {
+					classList.add(classes.reverse);
+				}
+			};
+
+			/**
+			 * This method removes transition classes from classLists of page widget elements.
+			 * @param {Object} clearClasses An array containing classes to be removed
+			 * @param {Object} fromPageWidgetClassList classList object from source page element
+			 * @param {Object} toPageWidgetClassList classList object from destination page element
+			 * @member ns.widget.core.PageContainer
+			 * @protected
+			 */
+			prototype._clearTransitionClasses = function (clearClasses, fromPageWidgetClassList, toPageWidgetClassList) {
+				var self = this,
+					element = self.element,
+					elementClassList = element.classList;
+
+				elementClassList.remove(classes.uiViewportTransitioning);
+				self.inTransition = false;
+				clearClasses.forEach(function (className) {
+					toPageWidgetClassList.remove(className);
+				});
+				if (fromPageWidgetClassList) {
+					clearClasses.forEach(function (className) {
+						fromPageWidgetClassList.remove(className);
+					});
+				}
+			};
+
+			/**
+			 * This method adds an element as a page.
+			 * @method _include
+			 * @param {HTMLElement} page an element to add
+			 * @return {HTMLElement}
+			 * @member ns.widget.core.PageContainer
+			 * @protected
+			 */
+			prototype._include = function (page) {
+				var element = this.element;
+
+				if (!page.parentNode || page.ownerDocument !== document) {
+					page = util.importEvaluateAndAppendElement(page, element);
+				}
+				return page;
+			};
+
+			/**
+			 * This method sets currently active page.
+			 * @method _setActivePage
+			 * @param {ns.widget.core.Page} page a widget to set as the active page
+			 * @member ns.widget.core.PageContainer
+			 * @protected
+			 */
+			prototype._setActivePage = function (page) {
+				var self = this;
+
+				if (self.activePage) {
+					self.activePage.setActive(false);
+				}
+
+				self.activePage = page;
+
+				page.setActive(true);
+			};
+
+			/**
+			 * This method returns active page widget.
+			 * @method getActivePage
+			 * @member ns.widget.core.PageContainer
+			 * @return {ns.widget.core.Page} Currently active page
+			 */
+			prototype.getActivePage = function () {
+				return this.activePage;
+			};
+
+			/**
+			 * This method removes page element from the given widget and destroys it.
+			 * @method _removeExternalPage
+			 * @param {ns.widget.core.Page} fromPageWidget the widget to destroy
+			 * @param {Object} [options] transition options
+			 * @param {boolean} [options.reverse=false] specifies transition direction
+			 * @member ns.widget.core.PageContainer
+			 * @protected
+			 */
+			prototype._removeExternalPage = function (fromPageWidget, options) {
+				var fromPageElement = fromPageWidget.element;
+
+				if (options && options.reverse && DOM.hasNSData(fromPageElement, "external") &&
+					fromPageElement.parentNode) {
+					fromPageWidget.destroy();
+					fromPageElement.parentNode.removeChild(fromPageElement);
+					this.trigger(EventType.PAGE_REMOVE);
+				}
+			};
+
+			PageContainer.prototype = prototype;
+
+			// definition
+			ns.widget.core.PageContainer = PageContainer;
+
+			engine.defineWidget(
+				"pagecontainer",
+				"",
+				["change", "getActivePage"],
+				PageContainer,
+				"core"
+			);
+			}(window.document, ns));
+
 /*global window, define, ns, HTMLElement, Node */
 /*
  * Copyright (c) 2010 - 2014 Samsung Electronics Co., Ltd.
@@ -8464,6 +8968,7 @@ function pathToRegexp (path, keys, options) {
 				prototype = {
 					_supportKeyboard: false
 				},
+				selectorsString = "",
 				BaseKeyboardSupport = function () {
 					var self = this,
 						options = self.options || {};
@@ -8544,7 +9049,6 @@ function pathToRegexp (path, keys, options) {
 					count: 1
 				}
 				],
-				selectorsString = "",
 				/**
 				* @property {Array} Array containing number of registrations of each selector
 				* @member ns.widget.tv.BaseKeyboardSupport
@@ -8740,6 +9244,8 @@ function pathToRegexp (path, keys, options) {
 					a2 = referenceRect.top + referenceRect.height;
 					b1 = contextRect.top;
 					b2 = contextRect.top + contextRect.height;
+				} else {
+					return result;
 				}
 
 				result = ((a1 > b1) && (a1 < b2)) || // at the left
@@ -8786,7 +9292,7 @@ function pathToRegexp (path, keys, options) {
 			 * @private
 			 * @member ns.widget.tv.BaseKeyboardSupport
 			 * @param {number} angle
-			 * @param tolerance [0.0 .. 45.0]
+			 * @param {number} tolerance [0.0 .. 45.0]
 			 * @return {string}
 			 */
 			function getDirectionFromAngle(angle, tolerance) {
@@ -9021,6 +9527,7 @@ function pathToRegexp (path, keys, options) {
 						distanceRest: distances.bottomRest
 					};
 				}
+				return null;
 			}
 
 			/**
@@ -9068,7 +9575,7 @@ function pathToRegexp (path, keys, options) {
 						focusableElements.push({
 							element: focusableElement,
 							angle: getRelativeAngle(focusableElementRect, elementRect),
-							direction: getDirection(elementRect, focusableElementRect, direction, focusableElement),
+							direction: getDirection(elementRect, focusableElementRect, direction),
 							distance: getDistanceLeftTopCorner(elementRect, focusableElementRect),
 							distanceByDirection: distanceByDirection,
 							distanceByCenter: getDistanceByCenter(focusableElementRect, elementRect),
@@ -9087,11 +9594,11 @@ function pathToRegexp (path, keys, options) {
 						// corner cases, when element positions overlap
 						if (focusableElement.distance === 0) {
 							if (direction === EVENT_POSITION.down) {
-								return currentLink.compareDocumentPosition(typeof focusableElement === element ? focusableElement : focusableElement.element) &
-										Node.DOCUMENT_POSITION_CONTAINED_BY;
+								return !!(currentLink.compareDocumentPosition(typeof focusableElement === element ? focusableElement : focusableElement.element) &
+										Node.DOCUMENT_POSITION_CONTAINED_BY);
 							} else if (direction === EVENT_POSITION.up) {
-								return currentLink.compareDocumentPosition(typeof focusableElement === element ? focusableElement : focusableElement.element) &
-										Node.DOCUMENT_POSITION_PRECEDING;
+								return !!(currentLink.compareDocumentPosition(typeof focusableElement === element ? focusableElement : focusableElement.element) &
+										Node.DOCUMENT_POSITION_PRECEDING);
 							}
 							return false;
 						}
@@ -9560,6 +10067,7 @@ function pathToRegexp (path, keys, options) {
 						}
 						return filteredElementOffset.left >= elementOffset.right;
 				}
+				return false;
 			}
 
 			prototype._onHWKey = function (event) {
@@ -9610,16 +10118,14 @@ function pathToRegexp (path, keys, options) {
 			prototype._onShortPress = function (event) {
 				var self = this;
 
-				if (!ns.getConfig("keyboardSupport", false)) {
-					return false;
+				if (ns.getConfig("keyboardSupport", false)) {
+					// set focus on next element
+					focusOnNeighborhood(self, self.keyboardElement || self.element, {
+						current: activeElement || getFocusedLink(),
+						event: event,
+						key: event.keyCode
+					});
 				}
-
-				// set focus on next element
-				focusOnNeighborhood(self, self.keyboardElement || self.element, {
-					current: activeElement || getFocusedLink(),
-					event: event,
-					key: event.keyCode
-				});
 			};
 
 			/**
@@ -10183,6 +10689,7 @@ function pathToRegexp (path, keys, options) {
 			 * @static
 			 */
 			var BaseWidget = ns.widget.BaseWidget,
+				PageContainer = ns.widget.core.PageContainer,
 				/**
 				 * Alias for {@link ns.util}
 				 * @property {Object} util
@@ -10224,6 +10731,8 @@ function pathToRegexp (path, keys, options) {
 					 */
 					self._contentFillAfterResizeCallback = null;
 					self._initialContentStyle = {};
+					self._lastScrollPosition = 0;
+					self._requestToShowGoToTopButton = null;
 					/**
 					 * Options for widget.
 					 * @property {Object} options
@@ -10235,6 +10744,7 @@ function pathToRegexp (path, keys, options) {
 
 					self._ui = {};
 				},
+
 				/**
 				 * Dictionary for page related event types
 				 * @property {Object} EventType
@@ -10310,7 +10820,12 @@ function pathToRegexp (path, keys, options) {
 					uiTitle: "ui-title",
 					uiPageScroll: "ui-scroll-on",
 					uiScroller: "ui-scroller",
-					uiContentUnderPopup: "ui-content-under-popup"
+					uiArcListview: "ui-arc-listview",
+					uiContentUnderPopup: "ui-content-under-popup",
+					//appbar temporary classes
+					uiAppbar: "ui-appbar",
+					uiAppbarTitle: "ui-appbar-title",
+					uiAppbarTitleContainer: "ui-appbar-title-container"
 				},
 				HEADER_SELECTOR = "header,[data-role='header'],." + classes.uiHeader,
 				FOOTER_SELECTOR = "footer,[data-role='footer'],." + classes.uiFooter,
@@ -10319,10 +10834,12 @@ function pathToRegexp (path, keys, options) {
 				//indexscrollbar element
 				CONTENT_SELECTOR = "[data-role='content'],." + classes.uiContent,
 				ONLY_CHILD_MORE_BUTTON_SELECTOR = "." + classes.uiMore + ":first-child:last-child",
+				SHOW_GO_TO_TOP_BUTTON_TIMEOUT = 800,
 				prototype = new BaseWidget();
 
 			Page.classes = classes;
 			Page.events = EventType;
+			Page.selector = "[data-role=page],.ui-page";
 
 			/**
 			 * Configure default options for widget
@@ -10338,17 +10855,30 @@ function pathToRegexp (path, keys, options) {
 				 * @property {boolean|string|null} [options.header=false] Sets content of header.
 				 * @property {boolean|string|null} [options.footer=false] Sets content of footer.
 				 * @property {boolean} [options.autoBuildWidgets=false] Automatically build widgets inside page.
+				 * @property {boolean} [options.goToTopButton=false] Shows go to top button at the bottom of the page.
 				 * @property {string} [options.content=null] Sets content of popup.
 				 * @member ns.widget.core.Page
 				 * @static
 				 */
 
+
 				options.header = null;
 				options.footer = null;
 				options.content = null;
+				options.goToTopButton = ns.getConfig("goToTopButton");
 				options.enablePageScroll = ns.getConfig("enablePageScroll");
 				options.autoBuildWidgets = ns.getConfig("autoBuildOnPageChange");
 				this.options = options;
+			};
+
+			/**
+			 * Method return heigh of space available for page content
+			 * @method getContentHeight
+			 * @return {number}
+			 * @member ns.widget.core.Page
+			 */
+			prototype.getContentHeight = function () {
+				return this._contentHeight;
 			};
 
 			/**
@@ -10369,26 +10899,35 @@ function pathToRegexp (path, keys, options) {
 					header = ui.header,
 					top = 0,
 					bottom = 0,
-					footer = ui.footer;
+					footer = ui.footer,
+					mainTab = ui.mainTab;
+
+				// Main Tab widget can be part of screen
+				if (mainTab) {
+					screenHeight = screenHeight - mainTab.getBoundingClientRect().height;
+				}
 
 				elementStyle.width = screenWidth + "px";
 				elementStyle.height = screenHeight + "px";
 
+				if (footer) {
+					bottom += footer.getBoundingClientRect().height;
+				}
+				if (header) {
+					top = utilsDOM.getElementHeight(header, null, false, true);
+				}
+				self._contentHeight = screenHeight - top - bottom;
+
 				if (content && !element.classList.contains("ui-page-flex")) {
 					contentStyle = content.style;
 					
-					if (header) {
-						top = utilsDOM.getElementHeight(header);
-					}
-
 					if (footer) {
-						bottom = footer.getBoundingClientRect().height;
 						contentStyle.marginBottom = bottom + "px";
 						contentStyle.paddingBottom = (-bottom) + "px";
 					}
 
 					if (!self.options.enablePageScroll) {
-						contentStyle.height = (screenHeight - top - bottom) + "px";
+						contentStyle.height = self._contentHeight + "px";
 					}
 				}
 
@@ -10435,7 +10974,9 @@ function pathToRegexp (path, keys, options) {
 					contentStyle = content ? content.style : {};
 
 				contentStyleAttributes.forEach(function (name) {
-					contentStyle[name] = initialContentStyle[name];
+					if (initialContentStyle[name]) {
+						contentStyle[name] = initialContentStyle[name];
+					}
 				});
 			};
 
@@ -10622,6 +11163,78 @@ function pathToRegexp (path, keys, options) {
 				self._setContent(element, self.options.content);
 			};
 
+			/**
+			 * Method tries to find mainTab
+			 * @method _findMainTab
+			 * @protected
+			 * @member ns.widget.core.Page
+			 */
+			prototype._findMainTab = function () {
+				var self = this,
+					pageContainer = utilSelectors.getClosestBySelector(self.element, "." + PageContainer.classes.pageContainer);
+
+				self._ui.mainTab = self.element.querySelector(".ui-main-tab") || // main tab assigned to page
+					pageContainer && pageContainer.querySelector(".ui-main-tab-visible") || // active main tab assigned to page container
+					null;
+			};
+
+			prototype._buildGoToTopButton = function (element) {
+				var self = this,
+					ui = self._ui;
+
+				if (self.options.goToTopButton) {
+					ui.goToTopButton = document.createElement("div");
+					ui.goToTopButton.classList.add("ui-button-go-to-top");
+					element.appendChild(ui.goToTopButton);
+				}
+			};
+
+			prototype._showGoToTopButton = function () {
+				var self = this,
+					ui = self._ui,
+					goToTopButton = ui.goToTopButton;
+
+				if (!self._requestToShowGoToTopButton) {
+					self._requestToShowGoToTopButton = setTimeout(function () {
+						goToTopButton.style.display = "block";
+						self._requestToShowGoToTopButton = null;
+					}, SHOW_GO_TO_TOP_BUTTON_TIMEOUT);
+				}
+			};
+
+			prototype._hideGoToTopButton = function () {
+				var self = this,
+					ui = self._ui,
+					goToTopButton = ui.goToTopButton;
+
+				if (self._requestToShowGoToTopButton) {
+					clearTimeout(self._requestToShowGoToTopButton);
+					self._requestToShowGoToTopButton = null;
+				}
+				goToTopButton.style.display = "none";
+			};
+
+			prototype._handleGoToTopButtonClick = function () {
+				var self = this,
+					element = self.element,
+					scroller = self.getScroller(),
+					arcListViewElement = null,
+					arcListViewWidget = null;
+
+				self._hideGoToTopButton();
+
+				arcListViewElement = element.querySelector("." + classes.uiArcListview);
+				if (arcListViewElement) {
+					arcListViewWidget = ns.engine.getBinding(arcListViewElement);
+					if (arcListViewWidget) {
+						// FIXME: according to guide, scroll should be made immediately.
+						// However, this API does not properly work without animation.
+						arcListViewWidget.scrollToPosition(0, false /* do animation */);
+					}
+				} else {
+					scroller.scrollTop = 0;
+				}
+			};
 
 			/**
 			 * Set ARIA attributes on page structure
@@ -10669,9 +11282,20 @@ function pathToRegexp (path, keys, options) {
 					header = self._ui.header,
 					pageTitle = dataPageTitle,
 					titleElements,
-					mainTitleElement;
+					mainTitleElement,
+					titleContainer;
 
 				if (header) {
+					//TODO: Create another widget for appbar
+					header.classList.add(classes.uiAppbar);
+					titleContainer = utilSelectors.getChildrenByClass(header, classes.uiAppbarTitleContainer)[0];
+
+					if (!titleContainer) {
+						titleContainer = document.createElement("div");
+						titleContainer.classList.add(classes.uiAppbarTitleContainer);
+						header.appendChild(titleContainer);
+					}
+
 					titleElements = utilSelectors.getChildrenBySelector(header, "h1, h2, h3, h4, h5, h6");
 
 					mainTitleElement = titleElements[0];
@@ -10686,7 +11310,10 @@ function pathToRegexp (path, keys, options) {
 					}
 
 					arrayUtil.forEach(titleElements, function (titleElement) {
-						titleElement.classList.add(classes.uiTitle)
+						// TODO: Create another widget for appbar on mobile
+						titleElement.classList.add(classes.uiTitle);
+						titleElement.classList.add(classes.uiAppbarTitle);
+						titleContainer.appendChild(titleElement);
 					});
 				}
 			};
@@ -10706,6 +11333,7 @@ function pathToRegexp (path, keys, options) {
 				self._buildHeader(element);
 				self._buildFooter(element);
 				self._buildContent(element);
+				self._buildGoToTopButton(element);
 				self._setTitle(element);
 				self._setAria();
 
@@ -10784,10 +11412,36 @@ function pathToRegexp (path, keys, options) {
 			 * @member ns.widget.core.Page
 			 */
 			prototype._bindEvents = function () {
-				var self = this;
+				var self = this,
+					element = self.element,
+					header = self._ui.header,
+					goToTopButton = self._ui.goToTopButton;
 
 				self._contentFillAfterResizeCallback = self._contentFill.bind(self);
 				window.addEventListener("resize", self._contentFillAfterResizeCallback, false);
+				if (header) {
+					header.addEventListener("appbarcollapsed", function () {
+						var scroller = self.getScroller(),
+							scrollview = ns.engine.getBinding(scroller);
+
+						scrollview.enableScrolling();
+					}, false);
+
+					header.addEventListener("appbarexpanded", function () {
+						var scroller = self.getScroller(),
+							scrollview = ns.engine.getBinding(scroller, "Scrollview");
+
+						if (scrollview) {
+							scrollview.disableScrolling();
+						}
+					}, false);
+				}
+
+				if (goToTopButton) {
+					element.addEventListener("showGoToTopButton", self._showGoToTopButton.bind(self), false);
+					element.addEventListener("hideGoToTopButton", self._hideGoToTopButton.bind(self), false);
+					goToTopButton.addEventListener("vclick", self._handleGoToTopButtonClick.bind(self), false);
+				}
 			};
 
 			/**
@@ -10797,6 +11451,7 @@ function pathToRegexp (path, keys, options) {
 			 * @member ns.widget.core.Page
 			 */
 			prototype._refresh = function () {
+				this._findMainTab();
 				this._restoreContentStyle();
 				this._contentFill();
 			};
@@ -10808,6 +11463,7 @@ function pathToRegexp (path, keys, options) {
 			 * @member ns.widget.core.Page
 			 */
 			prototype.layout = function () {
+				this._findMainTab();
 				this._storeContentStyle();
 				this._contentFill();
 			};
@@ -10819,13 +11475,19 @@ function pathToRegexp (path, keys, options) {
 			 * @member ns.widget.core.Page
 			 */
 			prototype.onBeforeShow = function () {
-				var self = this;
+				var self = this,
+					scroller = self.getScroller();
+
+				if (scroller) {
+					scroller.scrollTop = self._lastScrollPosition || 0;
+				}
 
 				if (typeof self.enableKeyboardSupport === "function") {
 					self.enableKeyboardSupport();
 					// add keyboard events
 					self._bindEventKey();
 				}
+
 				self.trigger(EventType.BEFORE_SHOW);
 			};
 
@@ -10846,7 +11508,12 @@ function pathToRegexp (path, keys, options) {
 			 * @member ns.widget.core.Page
 			 */
 			prototype.onBeforeHide = function () {
-				var self = this;
+				var self = this,
+					scroller = self.getScroller();
+
+				if (scroller) {
+					self._lastScrollPosition = scroller.scrollTop;
+				}
 
 				if (typeof self.disableKeyboardSupport === "function") {
 					self.disableKeyboardSupport();
@@ -10898,6 +11565,17 @@ function pathToRegexp (path, keys, options) {
 				return scroller || element.querySelector("." + classes.uiContent) || element;
 			};
 
+			/**
+			 * This method sets scroll position when page is hidden.
+			 * New page scroll position will be restored on "pagebeforeshow"
+			 * @param {number} scrollPosition last scroll position to set
+			 * @method setLastScrollPosition
+			 * @member ns.widget.core.Page
+			 */
+			prototype.setLastScrollPosition = function (scrollPosition) {
+				this._lastScrollPosition = scrollPosition;
+			}
+
 			Page.prototype = prototype;
 
 			Page.createEmptyElement = function () {
@@ -10909,7 +11587,7 @@ function pathToRegexp (path, keys, options) {
 
 			engine.defineWidget(
 				"Page",
-				"[data-role=page],.ui-page",
+				Page.selector,
 				[
 					"focus",
 					"blur",
@@ -11026,379 +11704,6 @@ function pathToRegexp (path, keys, options) {
  * @since 2.3.1
  */
 ;
-/*global window, ns, define */
-/*
- * Copyright (c) 2015 Samsung Electronics Co., Ltd
- *
- * Licensed under the Flora License, Version 1.1 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://floralicense.org/license/
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-/*jslint nomen: true, plusplus: true */
-/**
- * # PageContainer Widget
- * PageContainer is a widget, which is supposed to have multiple child pages but display only one at a time.
- *
- * @class ns.widget.core.PageContainer
- * @extends ns.widget.BaseWidget
- * @author Maciej Urbanski <m.urbanski@samsung.com>
- * @author Piotr Karny <p.karny@samsung.com>
- * @author Krzysztof Głodowski <k.glodowski@samsung.com>
- */
-(function (document, ns) {
-	"use strict";
-				var BaseWidget = ns.widget.BaseWidget,
-				util = ns.util,
-				DOM = util.DOM,
-				engine = ns.engine,
-				classes = {
-					pageContainer: "ui-page-container",
-					uiViewportTransitioning: "ui-viewport-transitioning",
-					out: "out",
-					in: "in",
-					reverse: "reverse",
-					uiPreIn: "ui-pre-in",
-					uiBuild: "ui-page-build"
-				},
-				PageContainer = function () {
-					/**
-					 * Active page.
-					 * @property {ns.widget.core.Page} [activePage]
-					 * @member ns.widget.core.PageContainer
-					 */
-					this.activePage = null;
-					this.inTransition = false;
-				},
-				EventType = {
-					/**
-					 * Triggered before the changePage() request
-					 * has started loading the page into the DOM.
-					 * @event pagebeforechange
-					 * @member ns.widget.core.PageContainer
-					 */
-					PAGE_BEFORE_CHANGE: "pagebeforechange",
-					/**
-					 * Triggered after the changePage() request
-					 * has finished loading the page into the DOM and
-					 * all page transition animations have completed.
-					 * @event pagechange
-					 * @member ns.widget.core.PageContainer
-					 */
-					PAGE_CHANGE: "pagechange",
-					PAGE_REMOVE: "pageremove"
-				},
-				animationend = "animationend",
-				webkitAnimationEnd = "webkitAnimationEnd",
-				mozAnimationEnd = "mozAnimationEnd",
-				msAnimationEnd = "msAnimationEnd",
-				oAnimationEnd = "oAnimationEnd",
-				animationEndNames = [
-					animationend,
-					webkitAnimationEnd,
-					mozAnimationEnd,
-					msAnimationEnd,
-					oAnimationEnd
-				],
-				prototype = new BaseWidget();
-			//When resolved deferred function is responsible for triggering events related to page change as well as
-			//destroying unused widgets from last page and/or removing last page
-
-			function deferredFunction(fromPageWidget, toPageWidget, self, options) {
-				if (fromPageWidget) {
-					fromPageWidget.onHide();
-					self._removeExternalPage(fromPageWidget, options);
-				}
-				toPageWidget.onShow();
-								self.trigger(EventType.PAGE_CHANGE);
-							}
-
-			/**
-			 * Dictionary for PageContainer related event types.
-			 * @property {Object} events
-			 * @property {string} [events.PAGE_CHANGE="pagechange"]
-			 * @member ns.router.route.popup
-			 * @static
-			 */
-			PageContainer.events = EventType;
-
-			/**
-			 * Dictionary for PageContainer related css class names
-			 * @property {Object} classes
-			 * @member ns.widget.core.Page
-			 * @static
-			 * @readonly
-			 */
-			PageContainer.classes = classes;
-
-			/**
-			 * Build widget structure
-			 * @method _build
-			 * @param {HTMLElement} element
-			 * @return {HTMLElement}
-			 * @member ns.widget.core.PageContainer
-			 * @protected
-			 */
-			prototype._build = function (element) {
-				element.classList.add(classes.pageContainer);
-				return element;
-			};
-
-			/**
-			 * This method changes active page to specified element.
-			 * @method change
-			 * @param {HTMLElement} toPageElement The element to set
-			 * @param {Object} [options] Additional options for the transition
-			 * @param {string} [options.transition=none] Specifies the type of transition
-			 * @param {boolean} [options.reverse=false] Specifies the direction of transition
-			 * @member ns.widget.core.PageContainer
-			 */
-			prototype.change = function (toPageElement, options) {
-				var self = this,
-					fromPageWidget = self.getActivePage(),
-					toPageWidget,
-					calculatedOptions = options || {};
-
-				// store options to detect that option was changed before process finish
-				self._options = calculatedOptions;
-
-				calculatedOptions.widget = calculatedOptions.widget || "Page";
-
-				// The change should be made only if no active page exists
-				// or active page is changed to another one.
-				if (!fromPageWidget || (fromPageWidget.element !== toPageElement)) {
-					if (toPageElement.parentNode !== self.element) {
-						toPageElement = self._include(toPageElement);
-					}
-
-					self.trigger(EventType.PAGE_BEFORE_CHANGE);
-
-					toPageElement.classList.add(classes.uiBuild);
-
-					toPageWidget = engine.instanceWidget(toPageElement, calculatedOptions.widget, options);
-
-					// set sizes of page for correct display
-					toPageWidget.layout();
-
-					if (toPageWidget.option("autoBuildWidgets") || toPageElement.querySelector('.ui-i3d')) {
-						engine.createWidgets(toPageElement, options);
-					}
-
-					if (fromPageWidget) {
-						fromPageWidget.onBeforeHide();
-					}
-					toPageWidget.onBeforeShow();
-
-					toPageElement.classList.remove(classes.uiBuild);
-
-					// if options is different that this mean that another change page was called and we need stop
-					// previous change page
-					if (calculatedOptions === self._options) {
-						calculatedOptions.deferred = {
-							resolve: deferredFunction
-						};
-						self._transition(toPageWidget, fromPageWidget, calculatedOptions);
-					}
-				}
-			};
-
-			/**
-			 * This method performs transition between the old and a new page.
-			 * @method _transition
-			 * @param {ns.widget.core.Page} toPageWidget The new page
-			 * @param {ns.widget.core.Page} fromPageWidget The page to be replaced
-			 * @param {Object} [options] Additional options for the transition
-			 * @param {string} [options.transition=none] The type of transition
-			 * @param {boolean} [options.reverse=false] Specifies transition direction
-			 * @param {Object} [options.deferred] Deferred object
-			 * @member ns.widget.core.PageContainer
-			 * @protected
-			 */
-			prototype._transition = function (toPageWidget, fromPageWidget, options) {
-				var self = this,
-					element = self.element,
-					elementClassList = element.classList,
-					transition = !fromPageWidget || !options.transition ? "none" : options.transition,
-					deferred = options.deferred,
-					clearClasses = [classes.in, classes.out, classes.uiPreIn, transition],
-					oldDeferredResolve,
-					oneEvent;
-
-				if (options.reverse) {
-					clearClasses.push(classes.reverse);
-				}
-				self.inTransition = true;
-				elementClassList.add(classes.uiViewportTransitioning);
-				oldDeferredResolve = deferred.resolve;
-				deferred.resolve = function () {
-					var fromPageWidgetClassList = fromPageWidget && fromPageWidget.element.classList,
-						toPageWidgetClassList = toPageWidget.element.classList;
-
-					self._setActivePage(toPageWidget);
-					self._clearTransitionClasses(clearClasses, fromPageWidgetClassList, toPageWidgetClassList);
-					oldDeferredResolve(fromPageWidget, toPageWidget, self, options);
-				};
-
-				if (transition !== "none") {
-					oneEvent = function () {
-						toPageWidget.off(
-							animationEndNames,
-							oneEvent,
-							false
-						);
-						deferred.resolve();
-					};
-					toPageWidget.on(
-						animationEndNames,
-						oneEvent,
-						false
-					);
-					self._appendTransitionClasses(fromPageWidget, toPageWidget, transition, options.reverse);
-				} else {
-					window.setTimeout(deferred.resolve, 0);
-				}
-			};
-
-			/**
-			 * This method adds proper transition classes to specified page widgets.
-			 * @param {ns.widget.core.Page} fromPageWidget Page widget from which transition will occur
-			 * @param {ns.widget.core.Page} toPageWidget Destination page widget for transition
-			 * @param {string} transition Specifies the type of transition
-			 * @param {boolean} reverse Specifies the direction of transition
-			 * @member ns.widget.core.PageContainer
-			 * @protected
-			 */
-			prototype._appendTransitionClasses = function (fromPageWidget, toPageWidget, transition, reverse) {
-				var classList;
-
-				if (fromPageWidget) {
-					classList = fromPageWidget.element.classList;
-					classList.add(transition, classes.out);
-					if (reverse) {
-						classList.add(classes.reverse);
-					}
-				}
-
-				classList = toPageWidget.element.classList;
-				classList.add(transition, classes.in, classes.uiPreIn);
-				if (reverse) {
-					classList.add(classes.reverse);
-				}
-			};
-
-			/**
-			 * This method removes transition classes from classLists of page widget elements.
-			 * @param {Object} clearClasses An array containing classes to be removed
-			 * @param {Object} fromPageWidgetClassList classList object from source page element
-			 * @param {Object} toPageWidgetClassList classList object from destination page element
-			 * @member ns.widget.core.PageContainer
-			 * @protected
-			 */
-			prototype._clearTransitionClasses = function (clearClasses, fromPageWidgetClassList, toPageWidgetClassList) {
-				var self = this,
-					element = self.element,
-					elementClassList = element.classList;
-
-				elementClassList.remove(classes.uiViewportTransitioning);
-				self.inTransition = false;
-				clearClasses.forEach(function (className) {
-					toPageWidgetClassList.remove(className);
-				});
-				if (fromPageWidgetClassList) {
-					clearClasses.forEach(function (className) {
-						fromPageWidgetClassList.remove(className);
-					});
-				}
-			};
-
-			/**
-			 * This method adds an element as a page.
-			 * @method _include
-			 * @param {HTMLElement} page an element to add
-			 * @return {HTMLElement}
-			 * @member ns.widget.core.PageContainer
-			 * @protected
-			 */
-			prototype._include = function (page) {
-				var element = this.element;
-
-				if (!page.parentNode || page.ownerDocument !== document) {
-					page = util.importEvaluateAndAppendElement(page, element);
-				}
-				return page;
-			};
-
-			/**
-			 * This method sets currently active page.
-			 * @method _setActivePage
-			 * @param {ns.widget.core.Page} page a widget to set as the active page
-			 * @member ns.widget.core.PageContainer
-			 * @protected
-			 */
-			prototype._setActivePage = function (page) {
-				var self = this;
-
-				if (self.activePage) {
-					self.activePage.setActive(false);
-				}
-
-				self.activePage = page;
-
-				page.setActive(true);
-			};
-
-			/**
-			 * This method returns active page widget.
-			 * @method getActivePage
-			 * @member ns.widget.core.PageContainer
-			 * @return {ns.widget.core.Page} Currently active page
-			 */
-			prototype.getActivePage = function () {
-				return this.activePage;
-			};
-
-			/**
-			 * This method removes page element from the given widget and destroys it.
-			 * @method _removeExternalPage
-			 * @param {ns.widget.core.Page} fromPageWidget the widget to destroy
-			 * @param {Object} [options] transition options
-			 * @param {boolean} [options.reverse=false] specifies transition direction
-			 * @member ns.widget.core.PageContainer
-			 * @protected
-			 */
-			prototype._removeExternalPage = function (fromPageWidget, options) {
-				var fromPageElement = fromPageWidget.element;
-
-				if (options && options.reverse && DOM.hasNSData(fromPageElement, "external") &&
-					fromPageElement.parentNode) {
-					fromPageWidget.destroy();
-					fromPageElement.parentNode.removeChild(fromPageElement);
-					this.trigger(EventType.PAGE_REMOVE);
-				}
-			};
-
-			PageContainer.prototype = prototype;
-
-			// definition
-			ns.widget.core.PageContainer = PageContainer;
-
-			engine.defineWidget(
-				"pagecontainer",
-				"",
-				["change", "getActivePage"],
-				PageContainer,
-				"core"
-			);
-			}(window.document, ns));
-
 /*global define, ns */
 /*jslint nomen: true, plusplus: true, bitwise: false */
 /*
@@ -11574,6 +11879,7 @@ function pathToRegexp (path, keys, options) {
 			 */
 			function render(path, data, callback, engineName) {
 				var templateFunction = templateFunctions[engineName || get("default") || ""],
+					targetPath,
 					targetCallback = function (status, element) {
 						// add current patch
 						status.absUrl = targetPath;
@@ -11588,8 +11894,7 @@ function pathToRegexp (path, keys, options) {
 							targetPath = getAbsUrl(path, false);
 							templateFunction(globalOptions, targetPath, data || {}, targetCallback);
 						}
-					},
-					targetPath;
+					};
 
 				// if template engine name and default name is not given then we
 				// take first registered engine
@@ -13087,7 +13392,12 @@ function pathToRegexp (path, keys, options) {
 						}
 					);
 
+					if (options.volatileRecord) {
+						history.enableVolatileMode();
+					}
 					history.replace(state, pageTitle, url);
+
+					history.disableVolatileMode();
 				}
 
 				// write base element
@@ -13904,7 +14214,14 @@ function pathToRegexp (path, keys, options) {
 				 */
 				Router = ns.router && ns.router.Router,
 
+				/**
+				 * Alias for BaseKeyBoard Support
+				 * @property {ns.widget.core.BaseKeyboardSupport} BaseKeyboardSupport
+				 * @member ns.widget.core.Popup
+				 * @private
+				 */
 				BaseKeyboardSupport = ns.widget.core.BaseKeyboardSupport,
+
 				/**
 				 * Alias for class ns.widget.core.Page
 				 * @property {ns.router.Router} Router
@@ -13915,34 +14232,6 @@ function pathToRegexp (path, keys, options) {
 
 				POPUP_SELECTOR = "[data-role='popup'], .ui-popup",
 
-				Popup = function () {
-					var self = this,
-						ui = {};
-
-					BaseKeyboardSupport.call(self);
-
-					self.selectors = selectors;
-					self.options = objectUtils.merge({}, Popup.defaults);
-					self.storedOptions = null;
-					/**
-					 * Popup state flag
-					 * @property {0|1|2|3} [state=null]
-					 * @member ns.widget.core.Popup
-					 * @private
-					 */
-					self.state = states.CLOSED;
-
-					ui.overlay = null;
-					ui.header = null;
-					ui.footer = null;
-					ui.content = null;
-					ui.container = null;
-					ui.wrapper = null;
-					self._ui = ui;
-
-					// event callbacks
-					self._callbacks = {};
-				},
 				/**
 				 * Object with default options
 				 * @property {Object} defaults
@@ -14109,6 +14398,33 @@ function pathToRegexp (path, keys, options) {
 					 */
 					before_hide: EVENTS_PREFIX + "beforehide"
 					/* eslint-enable camelcase */
+				},
+
+				Popup = function () {
+					var self = this,
+						ui = {};
+
+					self.selectors = selectors;
+					self.options = objectUtils.merge({}, Popup.defaults);
+					self.storedOptions = null;
+					/**
+					 * Popup state flag
+					 * @property {0|1|2|3} [state=null]
+					 * @member ns.widget.core.Popup
+					 * @private
+					 */
+					self.state = states.CLOSED;
+
+					ui.overlay = null;
+					ui.header = null;
+					ui.footer = null;
+					ui.content = null;
+					ui.container = null;
+					ui.wrapper = null;
+					self._ui = ui;
+
+					// event callbacks
+					self._callbacks = {};
 				},
 
 				prototype = new BaseWidget();
@@ -14436,7 +14752,33 @@ function pathToRegexp (path, keys, options) {
 					// set state of popup
 					self.state = states.CLOSED;
 				}
+
+				if (self._ui.content.scrollHeight > self._ui.content.clientHeight) {
+					self._ui.footer.classList.add("bottomDivider");
+				}
 			};
+
+			/**
+			 * Scroll event
+			 * @method _onScroll
+			 * @protected
+			 * @member ns.widget.core.Popup
+			 */
+			prototype._onScroll = function () {
+				var self = this,
+					content = self._ui.content;
+
+				if (content.scrollTop === 0) {
+					self._ui.header.classList.remove("topDivider");
+					self._ui.footer.classList.add("bottomDivider");
+				} else if (content.scrollHeight - content.clientHeight === content.scrollTop) {
+					self._ui.header.classList.add("topDivider");
+					self._ui.footer.classList.remove("bottomDivider");
+				} else {
+					self._ui.header.classList.add("topDivider");
+					self._ui.footer.classList.add("bottomDivider");
+				}
+			}
 
 			/**
 			 * Bind events
@@ -14450,6 +14792,7 @@ function pathToRegexp (path, keys, options) {
 				eventUtils.on(self._ui.page, "pagebeforehide", self, false);
 				eventUtils.on(window, "resize", self, false);
 				eventUtils.on(document, "vclick", self, false);
+				eventUtils.on(self._ui.content, "scroll", self, false);
 			};
 
 
@@ -14465,6 +14808,7 @@ function pathToRegexp (path, keys, options) {
 				eventUtils.off(self._ui.page, "pagebeforehide", self, false);
 				eventUtils.off(window, "resize", self, false);
 				eventUtils.off(document, "vclick", self, false);
+				eventUtils.off(self._ui.content, "scroll", self, false);
 			};
 
 			/**
@@ -14628,7 +14972,7 @@ function pathToRegexp (path, keys, options) {
 				if (self.isKeyboardSupport) {
 					self.disableFocusableElements(this._ui.page);
 					self.enableDisabledFocusableElements(this.element);
-					ns.widget.core.BaseKeyboardSupport.focusElement(this.element);
+					BaseKeyboardSupport.focusElement(this.element);
 				}
 				self.trigger(events.show);
 			};
@@ -14719,6 +15063,9 @@ function pathToRegexp (path, keys, options) {
 						if (event.target === self._ui.overlay) {
 							self._onClickOverlay(event);
 						}
+						break;
+					case "scroll":
+						self._onScroll(event);
 						break;
 				}
 			};
@@ -15563,6 +15910,9 @@ function pathToRegexp (path, keys, options) {
  *
  * - left (left position, default)
  * - right (right position)
+ * @since 1.2
+ * - down (bottom position)
+ * - up (top position)
  *
  * ##Opening / Closing Drawer
  * To open / close Drawer one can use open() and close() methods.
@@ -15622,6 +15972,7 @@ function pathToRegexp (path, keys, options) {
 				 */
 				DEFAULT = {
 					WIDTH: 240,
+					HEIGHT: 360,
 					DURATION: 300,
 					POSITION: "left"
 				},
@@ -15633,7 +15984,7 @@ function pathToRegexp (path, keys, options) {
 					var self = this;
 					/**
 					 * Drawer field containing options
-					 * @property {string} options.position Position of Drawer ("left" or "right")
+					 * @property {string} options.position Position of Drawer ("left", "right" or "bottom")
 					 * @property {number} options.width Width of Drawer
 					 * @property {number} options.duration Duration of Drawer entrance animation
 					 * @property {boolean} options.closeOnClick If true Drawer will be closed on overlay
@@ -15647,6 +15998,7 @@ function pathToRegexp (path, keys, options) {
 					self.options = {
 						position: DEFAULT.POSITION,
 						width: DEFAULT.WIDTH,
+						height: DEFAULT.HEIGHT,
 						duration: DEFAULT.DURATION,
 						closeOnClick: true,
 						overlay: true,
@@ -15661,6 +16013,7 @@ function pathToRegexp (path, keys, options) {
 					self._state = STATE.CLOSED;
 					self._settlingType = STATE.CLOSED;
 					self._translatedX = 0;
+					self._translatedY = 0;
 
 					self._ui = {};
 
@@ -15695,6 +16048,18 @@ function pathToRegexp (path, keys, options) {
 					 * @member ns.widget.core.Drawer
 					 */
 					right: "ui-drawer-right",
+					/**
+					 * Drawer appears from the top side.
+					 * @style ui-drawer-up
+					 * @member ns.widget.core.Drawer
+					 */
+					up: "ui-drawer-up",
+					/**
+					 * Drawer appears from the bottom side.
+					 * @style ui-drawer-down
+					 * @member ns.widget.core.Drawer
+					 */
+					down: "ui-drawer-down",
 					/**
 					 * Set the drawer overlay when the drawer is opened.
 					 * @style ui-drawer-overlay
@@ -15731,14 +16096,13 @@ function pathToRegexp (path, keys, options) {
 			 * @param {Object} self
 			 * @param {HTMLElement} element
 			 * @member ns.widget.core.Drawer
-			 * @private
-			 * @static
+			 * @protected
 			 */
-			function unbindDragEvents(self, element) {
+			prototype._unbindDragEvents = function (self, element) {
 				var overlayElement = self._ui.drawerOverlay;
 
 				events.disableGesture(element);
-				events.off(element, "drag dragstart dragend dragcancel swipe swipeleft swiperight vmouseup", self, false);
+				events.off(element, "drag dragstart dragend dragcancel swipe swipeleft swiperight swipe vmouseup", self, false);
 				events.prefixedFastOff(self.element, "transitionEnd", self, false);
 				events.off(window, "resize", self, false);
 				if (overlayElement) {
@@ -15752,10 +16116,9 @@ function pathToRegexp (path, keys, options) {
 			 * @param {Object} self
 			 * @param {HTMLElement} element
 			 * @member ns.widget.core.Drawer
-			 * @private
-			 * @static
+			 * @protected
 			 */
-			function bindDragEvents(self, element) {
+			prototype._bindDragEvents = function (self, element) {
 				var overlayElement = self._ui.drawerOverlay;
 
 				self._eventBoundElement = element;
@@ -15765,11 +16128,14 @@ function pathToRegexp (path, keys, options) {
 
 					new Gesture.Drag(),
 					new Gesture.Swipe({
-						orientation: Gesture.Orientation.HORIZONTAL
+						orientation: (self.options.position === "left" || self.options.position === "right") ?
+							Gesture.Orientation.HORIZONTAL : Gesture.Orientation.VERTICAL
 					})
 				);
 
-				events.on(element, "drag dragstart dragend dragcancel swipe swipeleft swiperight vmouseup", self, false);
+				events.on(element,
+					"drag dragstart dragend dragcancel swipe swipeleft swiperight swipeup swipedown vmouseup",
+					self, false);
 				events.prefixedFastOn(self.element, "transitionEnd", self, false);
 				events.on(window, "resize", self, false);
 				if (overlayElement) {
@@ -15805,6 +16171,8 @@ function pathToRegexp (path, keys, options) {
 					case "swipe":
 					case "swipeleft":
 					case "swiperight":
+					case "swipeup":
+					case "swipedown":
 						self._onSwipe(event);
 						break;
 					case "vclick":
@@ -15909,12 +16277,26 @@ function pathToRegexp (path, keys, options) {
 
 				// Now mobile has two swipe event
 				if (event.detail) {
-					direction = event.detail.direction === "left" ? "right" : "left";
+					switch (event.detail.direction) {
+						case "left" : direction = "right";
+							break;
+						case "right" : direction = "left";
+							break;
+						case "up" : direction = "down";
+							break;
+						case "down" : direction = "up";
+							break;
+					}
 				} else if (event.type === "swiperight") {
 					direction = "left";
 				} else if (event.type === "swipeleft") {
 					direction = "right";
+				} else if (event.type === "swipeup") {
+					direction = "down";
+				} else if (event.type === "swipedown") {
+					direction = "up";
 				}
+
 				if (options.enable && self._isDrag && options.position === direction) {
 					self.open();
 					self._isDrag = false;
@@ -15949,21 +16331,39 @@ function pathToRegexp (path, keys, options) {
 			prototype._onDrag = function (event) {
 				var self = this,
 					deltaX = event.detail.deltaX,
+					deltaY = event.detail.deltaY,
 					options = self.options,
 					translatedX = self._translatedX,
-					movedX;
+					translatedY = self._translatedY,
+					movedX,
+					movedY;
 
 				if (options.enable && self._isDrag && self._state !== STATE.SETTLING) {
-					if (options.position === "left") {
-						movedX = -options.width + deltaX + translatedX;
-						if (movedX < 0) {
-							self._translate(movedX, 0);
-						}
-					} else {
-						movedX = window.innerWidth + deltaX - translatedX;
-						if (movedX > 0 && movedX > window.innerWidth - options.width) {
-							self._translate(movedX, 0);
-						}
+					switch (options.position) {
+						case "left":
+							movedX = -options.width + deltaX + translatedX;
+							if (movedX < 0) {
+								self._translate(movedX, 0, 0);
+							}
+							break;
+						case "right":
+							movedX = window.innerWidth + deltaX - translatedX;
+							if (movedX > 0 && movedX > window.innerWidth - options.width) {
+								self._translate(movedX, 0, 0);
+							}
+							break;
+						case "up":
+							movedY = -options.height + deltaY + translatedY;
+							if (movedY < 0) {
+								self._translate(0, movedY, 0);
+							}
+							break;
+						case "down":
+							movedY = window.innerHeight + deltaY - translatedY;
+							if (movedY > 0 && movedY > window.innerHeight - options.height) {
+								self._translate(0, movedY, 0);
+							}
+							break;
 					}
 				}
 			};
@@ -15980,10 +16380,19 @@ function pathToRegexp (path, keys, options) {
 					detail = event.detail;
 
 				if (options.enable && self._isDrag) {
-					if (Math.abs(detail.deltaX) > options.width / 2) {
-						self.open();
-					} else if (self._state !== STATE.SETTLING) {
-						self.close();
+					if (options.position === "left" || options.position === "right") {
+						if (Math.abs(detail.deltaX) > options.width / 2) {
+							self.open();
+						} else if (self._state !== STATE.SETTLING) {
+							self.close();
+						}
+					}
+					if (options.position === "up" || options.position === "down") {
+						if (Math.abs(detail.deltaY) > options.height / 2) {
+							self.open();
+						} else if (self._state !== STATE.SETTLING) {
+							self.close();
+						}
 					}
 				}
 				self._isDrag = false;
@@ -16003,6 +16412,7 @@ function pathToRegexp (path, keys, options) {
 				}
 				self._isDrag = false;
 			};
+
 			/**
 			 * Drawer translate function
 			 * @method _translate
@@ -16011,7 +16421,7 @@ function pathToRegexp (path, keys, options) {
 			 * @member ns.widget.core.Drawer
 			 * @protected
 			 */
-			prototype._translate = function (x, duration) {
+			prototype._translate = function (x, y, duration) {
 				var self = this,
 					element = self.element;
 
@@ -16024,9 +16434,9 @@ function pathToRegexp (path, keys, options) {
 				}
 
 				// there should be a helper for this :(
-				utilDOM.setPrefixedStyle(element, "transform", "translate3d(" + x + "px, 0px, 0px)");
+				utilDOM.setPrefixedStyle(element, "transform", "translate3d(" + x + "px, " + y + "px, 0px)");
 				if (self.options.overlay) {
-					self._setOverlay(x);
+					self._setOverlay(x, y);
 				}
 				if (!duration) {
 					self._onTransitionEnd();
@@ -16035,26 +16445,74 @@ function pathToRegexp (path, keys, options) {
 			};
 
 			/**
-			 * Set overlay opacity and visibility
-			 * @method _setOverlay
-			 * @param {number} x
+			 * Set overlay opacity
+			 * @method _setOverlayOpacity
+			 * @param {number} ratio
 			 * @member ns.widget.core.Drawer
 			 * @protected
 			 */
-			prototype._setOverlay = function (x) {
-				var self = this,
-					options = self.options,
-					overlay = self._ui.drawerOverlay,
-					overlayStyle = overlay.style,
-					absX = Math.abs(x),
-					ratio = options.position === "right" ? absX / window.innerWidth : absX / options.width;
+			prototype._setOverlayOpacity = function (ratio) {
+				this._ui.drawerOverlay.style.opacity = 1 - ratio;
+			};
+
+			/**
+			 * Set overlay visibility
+			 * @method _setOverlayVisibility
+			 * @param {number} ratio
+			 * @member ns.widget.core.Drawer
+			 * @protected
+			 */
+			prototype._setOverlayVisibility = function (ratio) {
+				var overlayStyle = this._ui.drawerOverlay.style;
 
 				if (ratio < 1) {
 					overlayStyle.visibility = "visible";
 				} else {
 					overlayStyle.visibility = "hidden";
 				}
-				overlayStyle.opacity = 1 - ratio;
+			};
+
+			/**
+			 * Calculation of overlay position and opacity
+			 * depending to touch move
+			 * @method _calcOverlay
+			 * @param {number} x
+			 * @param {number} y
+			 * @member ns.widget.core.Drawer
+			 * @protected
+			 */
+			prototype._calcOverlay = function (x, y) {
+				var ratio,
+					options = this.options,
+					absX = Math.abs(x),
+					absY = Math.abs(y);
+
+				if (options.position === "right") {
+					ratio = absX / window.innerWidth;
+				} else if (options.position === "left") {
+					ratio = absX / options.width;
+				} else if (options.position === "down") {
+					ratio = absY / window.innerHeight;
+				} else if (options.position === "up") {
+					ratio = absY / options.height;
+				}
+				return ratio;
+			};
+
+			/**
+			 * Set overlay visibility
+			 * @method _setOverlay
+			 * @param {number} x
+			 * @param {number} y
+			 * @member ns.widget.core.Drawer
+			 * @protected
+			 */
+			prototype._setOverlay = function (x, y) {
+				var self = this,
+					ratio = self._calcOverlay(x, y);
+
+				self._setOverlayVisibility(ratio);
+				self._setOverlayOpacity(ratio);
 			};
 
 			/**
@@ -16140,14 +16598,13 @@ function pathToRegexp (path, keys, options) {
 					element = self.element,
 					elementStyle = element.style,
 					ui = self._ui,
-					overlayStyle = ui.drawerOverlay ? ui.drawerOverlay.style : null,
-					height;
+					overlayStyle = ui.drawerOverlay ? ui.drawerOverlay.style : null;
 
 				options.width = options.width || ui.targetElement.offsetWidth;
-				height = ui.targetElement.offsetHeight;
+				options.height = options.height || ui.targetElement.offsetHeight;
 
 				elementStyle.width = (options.width !== 0) ? options.width + "px" : "100%";
-				elementStyle.height = (height !== 0) ? height + "px" : "100%";
+				elementStyle.height = (options.height !== 0) ? options.height + "px" : "100%";
 				elementStyle.top = "0";
 
 				if (overlayStyle) {
@@ -16157,11 +16614,16 @@ function pathToRegexp (path, keys, options) {
 				}
 				if (options.position === "right") {
 					element.classList.add(classes.right);
-					self._translate(window.innerWidth, 0);
-				} else {
-					// left or default
+					self._translate(window.innerWidth, 0, 0);
+				} else if (options.position === "left") {
 					element.classList.add(classes.left);
-					self._translate(-options.width, 0);
+					self._translate(-options.width, 0, 0);
+				} else if (options.position === "up") {
+					element.classList.add(classes.up);
+					self._translate(0, -window.innerHeight, 0);
+				} else if (options.position === "down") {
+					element.classList.add(classes.down);
+					self._translate(0, options.height, 0);
 				}
 
 				self._state = STATE.CLOSED;
@@ -16181,10 +16643,10 @@ function pathToRegexp (path, keys, options) {
 					// If drawer position is right, drawer should be moved right side
 					if (self._state === STATE.OPENED) {
 						// drawer opened
-						self._translate(window.innerWidth - options.width, 0);
+						self._translate(window.innerWidth - options.width, 0, 0);
 					} else {
 						// drawer closed
-						self._translate(window.innerWidth, 0);
+						self._translate(window.innerWidth, 0, 0);
 					}
 				}
 			};
@@ -16200,16 +16662,25 @@ function pathToRegexp (path, keys, options) {
 				var self = this,
 					detail = event.detail,
 					eventClientX = detail.pointer.clientX - detail.estimatedDeltaX,
+					eventClientY = detail.pointer.clientY - detail.estimatedDeltaY,
 					options = self.options,
 					position = options.position,
 					boundElement = self._eventBoundElement,
 					boundElementOffsetWidth = boundElement.offsetWidth,
+					boundElementOffsetHeight = boundElement.offsetHeight,
 					boundElementRightEdge = boundElement.offsetLeft + boundElementOffsetWidth,
-					dragStartArea = boundElementOffsetWidth * options.dragEdge;
+					boundElementDownEdge = boundElement.offsetTop + boundElementOffsetHeight,
+					dragStartAreaWidth = boundElementOffsetWidth * options.dragEdge,
+					dragStartAreaHeight = boundElementOffsetHeight * options.dragEdge;
 
-				return ((position === "left" && eventClientX > 0 && eventClientX < dragStartArea) ||
-				(position === "right" && eventClientX > boundElementRightEdge - dragStartArea &&
-				eventClientX < boundElementRightEdge));
+				return (
+					(position === "left" && eventClientX > 0 && eventClientX < dragStartAreaWidth) ||
+					(position === "right" && eventClientX > boundElementRightEdge - dragStartAreaWidth &&
+						eventClientX < boundElementRightEdge) ||
+					(position === "up" && eventClientY > 0 && eventClientY < dragStartAreaHeight) ||
+					(position === "down" && eventClientY > boundElementDownEdge - dragStartAreaHeight &&
+						eventClientY < boundElementDownEdge)
+				);
 			};
 			/**
 			 * Refreshes Drawer widget
@@ -16250,7 +16721,20 @@ function pathToRegexp (path, keys, options) {
 				var self = this,
 					targetElement = self._ui.targetElement;
 
-				bindDragEvents(self, targetElement);
+				self._bindDragEvents(self, targetElement);
+			};
+
+			/**
+			 * Unbinds events to a Drawer widget
+			 * @method _unbindEvents
+			 * @member ns.widget.core.Drawer
+			 * @protected
+			 */
+			prototype._unbindEvents = function () {
+				var self = this,
+					targetElement = self._ui.targetElement;
+
+				self._unbindDragEvents(self, targetElement);
 			};
 
 			/**
@@ -16305,9 +16789,13 @@ function pathToRegexp (path, keys, options) {
 					drawerClassList.remove(classes.close);
 					drawerClassList.add(classes.open);
 					if (options.position === "left") {
-						self._translate(0, duration);
-					} else {
-						self._translate(window.innerWidth - options.width, duration);
+						self._translate(0, 0, duration);
+					} else if (options.position === "right") {
+						self._translate(window.innerWidth - options.width, 0, duration);
+					} else if (options.position === "up") {
+						self._translate(0, 0, duration);
+					} else if (options.position === "down") {
+						self._translate(0, window.innerHeight - options.height, duration);
 					}
 				}
 			};
@@ -16339,10 +16827,15 @@ function pathToRegexp (path, keys, options) {
 					duration = duration !== undefined ? duration : selfOptions.duration;
 					drawerClassList.remove(classes.open);
 					drawerClassList.add(classes.close);
+
 					if (selfOptions.position === "left") {
-						self._translate(-selfOptions.width, duration);
-					} else {
-						self._translate(window.innerWidth, duration);
+						self._translate(-selfOptions.width, 0, duration);
+					} else if (selfOptions.position === "right") {
+						self._translate(window.innerWidth, 0, duration);
+					} else if (selfOptions.position === "up") {
+						self._translate(0, -selfOptions.height, duration);
+					} else if (selfOptions.position === "down") {
+						self._translate(0, window.innerHeight, duration);
 					}
 				}
 			};
@@ -16358,8 +16851,8 @@ function pathToRegexp (path, keys, options) {
 				var self = this;
 
 				self.options.dragEdge = 1;
-				unbindDragEvents(self, self._eventBoundElement);
-				bindDragEvents(self, element);
+				self._unbindDragEvents(self, self._eventBoundElement);
+				self._bindDragEvents(self, element);
 			};
 
 			/**
@@ -16374,11 +16867,19 @@ function pathToRegexp (path, keys, options) {
 					options = self.options;
 
 				if (options.position === "left") {
-					self._translate(-options.width + position, options.duration);
-				} else {
-					self._translate(options.width - position, options.duration);
+					self._translate(-options.width + position, 0, options.duration);
+					self._translatedX = position;
+				} else if (options.position === "right") {
+					self._translate(options.width - position, 0, options.duration);
+					self._translatedX = position;
 				}
-				self._translatedX = position;
+				if (options.position === "up") {
+					self._translate(0, -options.height + position, options.duration);
+					self._translatedY = position;
+				} else if (options.position === "down") {
+					self._translate(0, options.height - position, options.duration);
+					self._translatedY = position;
+				}
 			};
 
 			/**
@@ -16407,8 +16908,10 @@ function pathToRegexp (path, keys, options) {
 				if (drawerOverlay) {
 					drawerOverlay.removeEventListener("vclick", self._onClickBound, false);
 				}
-				unbindDragEvents(self, self._eventBoundElement);
+				self._unbindEvents();
 			};
+
+			Drawer.STATE = STATE;
 
 			ns.widget.core.Drawer = Drawer;
 
@@ -16672,13 +17175,13 @@ function pathToRegexp (path, keys, options) {
 					 */
 					HEADER_BUTTON: "ui-header-btn",
 					/**
-					 * Class used to select anchor in tabbar widget
-					 * @property {string} [classes.TABBAR_ANCHOR="ui-tabbar-anchor"] anchor
+					 * Class used to select anchor in sub-tab widget
+					 * @property {string} [classes.SUBTAB_ANCHOR="ui-sub-tab-anchor"] anchor
 					 * @member ns.util.anchorHighlight
 					 * @private
 					 * @static
 					 */
-					TABBAR_ANCHOR: "ui-tabbar-anchor",
+					SUBTAB_ANCHOR: "ui-sub-tab-anchor",
 					/**
 					 * Class used to select navigation item
 					 * @property {string} [classes.NAVIGATION_BUTTON="ui-navigation-item"] btn
@@ -16791,7 +17294,7 @@ function pathToRegexp (path, keys, options) {
 
 			/**
 			 * Get closest button element
-			 * @method detectLiElement
+			 * @method detectBtnElement
 			 * @param {HTMLElement} target
 			 * @return {HTMLElement}
 			 * @member ns.util.anchorHighlight
@@ -16802,7 +17305,7 @@ function pathToRegexp (path, keys, options) {
 				return selectors.getClosestByClass(target, classes.BUTTON) ||
 					selectors.getClosestByClass(target, classes.HEADER_BUTTON) ||
 					selectors.getClosestByClass(target, classes.NAVIGATION_BUTTON) ||
-					selectors.getClosestByClass(target, classes.TABBAR_ANCHOR);
+					selectors.getClosestByClass(target, classes.SUBTAB_ANCHOR);
 			}
 
 			/**
@@ -16905,12 +17408,14 @@ function pathToRegexp (path, keys, options) {
 						anchorHighlight._target = detectHighlightTarget(anchorHighlight._target);
 						if (!anchorHighlight._didScroll) {
 							anchorHighlight._liTarget = anchorHighlight._detectLiElement(anchorHighlight._target);
-							if (anchorHighlight._liTarget) {
-								anchorHighlight._liTarget.classList.add(classes.ACTIVE_LI);
-								eventUtil.trigger(anchorHighlight._liTarget, events.ACTIVE_LI, {});
-							}
-							anchorHighlight._liTarget = null;
-							if (anchorHighlight._buttonTarget) {
+							if (!anchorHighlight._buttonTarget) {
+								// add press effect to LI element
+								if (anchorHighlight._liTarget) {
+									anchorHighlight._liTarget.classList.add(classes.ACTIVE_LI);
+									eventUtil.trigger(anchorHighlight._liTarget, events.ACTIVE_LI, {});
+								}
+							} else {
+								// add press effect to button
 								btnTargetClassList = anchorHighlight._buttonTarget.classList;
 								btnTargetClassList.remove(classes.ACTIVE_BTN);
 								btnTargetClassList.remove(classes.INACTIVE_BTN);
@@ -17065,11 +17570,9 @@ function pathToRegexp (path, keys, options) {
 			anchorHighlight._clearActiveClass = clearActiveClass;
 			anchorHighlight._detectHighlightTarget = detectHighlightTarget;
 			anchorHighlight._detectBtnElement = detectBtnElement;
-			anchorHighlight._clearBtnActiveClass = clearBtnActiveClass;
 			anchorHighlight._removeActiveClassLoop = removeActiveClassLoop;
 			anchorHighlight._addButtonInactiveClass = addButtonInactiveClass;
 			anchorHighlight._addButtonActiveClass = addButtonActiveClass;
-			anchorHighlight._hideClear = hideClear;
 			anchorHighlight._addActiveClass = addActiveClass;
 			anchorHighlight._detectLiElement = detectLiElement;
 			anchorHighlight._touchmoveHandler = touchmoveHandler;
@@ -17517,6 +18020,7 @@ function pathToRegexp (path, keys, options) {
 				// current state of scroll position
 				scrollPosition = 0,
 				lastScrollPosition = 0,
+				baseScrollPosition = 0,
 				moveToPosition = 0,
 				lastRenderedPosition = 0,
 				lastTime = Date.now(),
@@ -17548,6 +18052,7 @@ function pathToRegexp (path, keys, options) {
 				// that's why normal css values cannot be applied
 				// margin needs to be subtracted from position
 				SCROLL_MARGIN = 11,
+				OVERSCROLL_SIZE = 0,
 
 				// ScrollBar variables
 				scrollBar = null,
@@ -17561,6 +18066,10 @@ function pathToRegexp (path, keys, options) {
 				fromAPI = false,
 				virtualMode = false,
 				snapSize = null,
+				snapPoints = null,
+				currentIndex = 0,
+				previousIndex = 0,
+				containerSize = 0,
 				requestAnimationFrame = window.requestAnimationFrame || window.webkitRequestAnimationFrame;
 
 			/**
@@ -17628,6 +18137,7 @@ function pathToRegexp (path, keys, options) {
 				fromAPI = false;
 				// calculate difference between touch start and current position
 				lastScrollPosition = clientPosition - startPosition;
+
 				if (!bounceBack) {
 					// normalize value to be in bound [0, maxScroll]
 					if (scrollPosition + lastScrollPosition > 0) {
@@ -17686,14 +18196,68 @@ function pathToRegexp (path, keys, options) {
 				}
 			}
 
+			/**
+			 * Get position of scroll for indicated index
+			 * @method getScrollPositionByIndex
+			 * @param {number} index
+			 * @member ns.util.scrolling
+			 * @return {number}
+			 */
+			function getScrollPositionByIndex(index) {
+				if (snapPoints) {
+					index = max(min(snapPoints.length - 1, index), 0); // validate index value
+					return snapPoints[index].position - snapPoints[0].position;
+				}
+				return 0;
+			}
+
+			/**
+			 * Find index of snap point by given scroll position
+			 * @method getSnapPointIndexByScrollPosition
+			 * @param {number} position scroll position (usually negative value)
+			 * @member ns.util.scrolling
+			 * @return {number}
+			 */
+			function getSnapPointIndexByScrollPosition(position) {
+				var current = null,
+					next = null,
+					len,
+					i;
+
+				if (snapPoints) {
+					position -= containerSize / 2; // half of screen
+					position = -position;
+					if (snapPoints[0].position > position) { // before first position
+						return 0;
+					}
+					for (i = 0, len = snapPoints.length; i < len; i++) {
+						current = snapPoints[i];
+						next = snapPoints[i + 1];
+						if (!next || // this is last snap point
+							current.position < position && next.position > position) {
+							return i;
+						}
+					}
+				}
+				return -1;
+			}
+
 			function touchEndCalculateSpeed(inBounds) {
-				var diffTime = Date.now() - lastTime;
+				var diffTime = Date.now() - lastTime,
+					snapPoint = null;
 
 				if (inBounds && abs(lastScrollPosition / diffTime) > 1) {
 					// if it was fast move, we start animation of scrolling after touch end
 					moveToPosition = max(min(round(scrollPosition + 1000 * lastScrollPosition / diffTime),
 						0), -maxScrollPosition);
-					if (snapSize) {
+
+					if (snapPoints) {
+						currentIndex = getSnapPointIndexByScrollPosition(scrollPosition + 1000 * lastScrollPosition / diffTime);
+						snapPoint = snapPoints[currentIndex];
+						if (snapPoint) {
+							moveToPosition = -getScrollPositionByIndex(currentIndex);
+						}
+					} else if (snapSize) {
 						moveToPosition = snapSize * round(moveToPosition / snapSize);
 					}
 					if (abs(lastScrollPosition / diffTime) > 1) {
@@ -17706,7 +18270,14 @@ function pathToRegexp (path, keys, options) {
 					requestAnimationFrame(moveTo);
 				} else {
 					// touch move was slow
-					if (snapSize) {
+					if (snapPoints) {
+						currentIndex = getSnapPointIndexByScrollPosition(scrollPosition);
+						snapPoint = snapPoints[currentIndex];
+						if (snapPoint) {
+							moveToPosition = -getScrollPositionByIndex(currentIndex);
+							requestAnimationFrame(moveTo);
+						}
+					} else if (snapSize) {
 						moveToPosition = snapSize * round(scrollPosition / snapSize);
 						requestAnimationFrame(moveTo);
 					}
@@ -17780,6 +18351,24 @@ function pathToRegexp (path, keys, options) {
 				}
 			}
 
+			function getSnapSize(index) {
+				if (snapPoints) {
+					return Math.abs(snapPoints[previousIndex].position - snapPoints[index].position);
+				} else {
+					return snapSize;
+				}
+			}
+
+			/**
+			 * Check visible state of the element
+			 * @param {Element} elm
+			 */
+			function _isVisible(elm) {
+				var rect = elm.getBoundingClientRect();
+
+				return direction ? rect.width : rect.height;
+			}
+
 			/**
 			 * Handler for rotary event
 			 * @param {Event} event
@@ -17787,13 +18376,36 @@ function pathToRegexp (path, keys, options) {
 			function rotary(event) {
 				var eventDirection = event.detail && event.detail.direction;
 
+				if (scrollingElement && !_isVisible(scrollingElement)) {
+					return;
+				}
+
+				previousIndex = currentIndex;
+
+				if (isTouch) {
+					lastScrollPosition = 0;
+					isTouch = false;
+				}
+
 				// update position by snapSize
 				if (eventDirection === "CW") {
-					moveToPosition -= snapSize || 50;
+					currentIndex++;
+					if (snapPoints && currentIndex >= snapPoints.length) {
+						currentIndex = snapPoints.length - 1;
+					}
+					snapSize = -1 * getSnapSize(currentIndex);
+
 				} else {
-					moveToPosition += snapSize || 50;
+					currentIndex--;
+					if (snapPoints && currentIndex < 0) {
+						currentIndex = 0;
+					}
+					snapSize = getSnapSize(currentIndex);
 				}
-				if (snapSize) {
+
+				moveToPosition += snapSize;
+
+				if (!snapPoints && snapSize) {
 					moveToPosition = snapSize * round(moveToPosition / snapSize);
 				}
 				if (moveToPosition < -maxScrollPosition) {
@@ -17802,6 +18414,7 @@ function pathToRegexp (path, keys, options) {
 				if (moveToPosition > 0) {
 					moveToPosition = 0;
 				}
+
 				requestAnimationFrame(moveTo);
 				requestAnimationFrame(render);
 				eventUtil.trigger(scrollingElement, EVENTS.SCROLL_START, {
@@ -17856,6 +18469,7 @@ function pathToRegexp (path, keys, options) {
 					} else {
 						scrollTop = -scrollPosition;
 					}
+
 					// trigger event scroll
 					eventUtil.trigger(scrollingElement, EVENTS.SCROLL, {
 						scrollLeft: scrollLeft,
@@ -17897,7 +18511,7 @@ function pathToRegexp (path, keys, options) {
 			 */
 			function render() {
 				// calculate ne position of scrolling as sum of last scrolling state + move
-				var newRenderedPosition = scrollPosition + lastScrollPosition;
+				var newRenderedPosition = scrollPosition + lastScrollPosition + baseScrollPosition;
 				// is position was changed
 
 				if (newRenderedPosition !== lastRenderedPosition) {
@@ -17931,6 +18545,7 @@ function pathToRegexp (path, keys, options) {
 				lastScrollPosition = 0;
 				moveToPosition = 0;
 				lastRenderedPosition = 0;
+				baseScrollPosition = 0;
 				lastTime = Date.now();
 			}
 
@@ -17958,6 +18573,9 @@ function pathToRegexp (path, keys, options) {
 					// detect direction
 					direction = (setDirection === "x") ? 1 : 0;
 
+					// reset current index for new list element
+					currentIndex = 0;
+
 					existingContainerElement = element.querySelector("div." + classes.container);
 					if (existingContainerElement) {
 						childElement = existingContainerElement;
@@ -17980,6 +18598,7 @@ function pathToRegexp (path, keys, options) {
 					}
 					// setting scrolling element
 					scrollingElement = element;
+
 					// calculate maxScroll
 					parentRectangle = element.getBoundingClientRect();
 					contentRectangle = childElement.getBoundingClientRect();
@@ -18163,69 +18782,120 @@ function pathToRegexp (path, keys, options) {
 				return maxScrollPosition;
 			}
 
+			function scrollToIndex(index, from) {
+				currentIndex = index;
+
+				// Set the scroll position by index
+				baseScrollPosition = from;
+				scrollPosition = -getScrollPositionByIndex(index);
+				moveToPosition = scrollPosition;
+
+				// Enforce redraw to apply selected effect
+				requestAnimationFrame(moveTo);
+				render();
+			}
+
+			/**
+			 * Update max scrolling position
+			 * @method setMaxScroll
+			 * @param {number} maxValue
+			 * @member ns.util.scrolling
+			 */
+			function setMaxScroll(maxValue) {
+				var boundingRect = scrollingElement.getBoundingClientRect(),
+					directionDimension = direction ? "width" : "height",
+					directionSize = boundingRect[directionDimension],
+					tempMaxPosition = max(maxValue - directionSize, 0);
+
+				// Change size of thumb only when necessary
+				if (tempMaxPosition !== maxScrollPosition) {
+					maxScrollPosition = tempMaxPosition || Number.POSITIVE_INFINITY;
+					if (scrollBar) {
+						if (circularScrollBar) {
+							// Calculate new thumb size based on max scrollbar size
+							circularScrollThumbSize = max((directionSize / (maxScrollPosition + directionSize)) *
+								CIRCULAR_SCROLL_BAR_SIZE, CIRCULAR_SCROLL_MIN_THUMB_SIZE);
+							maxScrollBarPosition = CIRCULAR_SCROLL_BAR_SIZE - circularScrollThumbSize;
+							polarUtil.updatePosition(svgScrollBar, "." + classes.thumb, {
+								arcStart: scrollBarPosition,
+								arcEnd: scrollBarPosition + circularScrollThumbSize,
+								r: RADIUS
+							});
+						} else {
+							directionSize -= 2 * SCROLL_MARGIN;
+							scrollThumb.style[directionDimension] =
+								(directionSize / (maxScrollPosition + directionSize) * directionSize) + "px";
+							// Cannot use direct value from style here because CSS may override the minimum
+							// size of thumb here
+							maxScrollBarPosition = directionSize -
+								scrollThumb.getBoundingClientRect()[directionDimension];
+						}
+					}
+				}
+			}
+
+			/**
+			 * Method sets snap points for scroll
+			 * @param {Array} _snapPoints
+			 * @method setSnapSize
+			 * @member ns.util.scrolling
+			 */
+			function setSnapPoints(_snapPoints) {
+				var numberOfSnapPoints = _snapPoints.length;
+
+				snapPoints = _snapPoints;
+				snapSize = null;
+				if (numberOfSnapPoints) {
+					maxScrollPosition = snapPoints[numberOfSnapPoints - 1].position	- snapPoints[0].position +
+						OVERSCROLL_SIZE;
+				}
+			}
+
+			/**
+			 * Method sets snap size for scroll or array of snap points
+			 * @param {number|Array} _snapSize
+			 * @method setSnapSize
+			 * @member ns.util.scrolling
+			 */
+			function setSnapSize(_snapSize) {
+				containerSize = (direction) ? scrollingElement.getBoundingClientRect().height :
+					scrollingElement.getBoundingClientRect().width;
+
+				if (Array.isArray(_snapSize)) {
+					setSnapPoints(_snapSize);
+				} else {
+					snapPoints = null;
+					snapSize = _snapSize;
+					if (snapSize) {
+						maxScrollPosition = snapSize * round(maxScrollPosition / snapSize);
+					}
+				}
+			}
+
+			/**
+			 * Return true is given element is current scrolling element
+			 * @method isElement
+			 * @param {HTMLElement} element element to check
+			 * @return {boolean}
+			 * @member ns.util.scrolling
+			 */
+			function isElement(element) {
+				return scrollingElement === element;
+			}
+
 			ns.util.scrolling = {
 				getScrollPosition: getScrollPosition,
+				getScrollPositionByIndex: getScrollPositionByIndex,
 				enable: enable,
 				disable: disable,
 				enableScrollBar: enableScrollBar,
 				disableScrollBar: disableScrollBar,
 				scrollTo: scrollTo,
-				/**
-				 * Return true is given element is current scrolling element
-				 * @method isElement
-				 * @param {HTMLElement} element element to check
-				 * @return {boolean}
-				 * @member ns.util.scrolling
-				 */
-				isElement: function (element) {
-					return scrollingElement === element;
-				},
-
-				/**
-				 * Update max scrolling position
-				 * @method setMaxScroll
-				 * @param {number} maxValue
-				 * @member ns.util.scrolling
-				 */
-				setMaxScroll: function (maxValue) {
-					var boundingRect = scrollingElement.getBoundingClientRect(),
-						directionDimension = direction ? "width" : "height",
-						directionSize = boundingRect[directionDimension],
-						tempMaxPosition = max(maxValue - directionSize, 0);
-
-					// Change size of thumb only when necessary
-					if (tempMaxPosition !== maxScrollPosition) {
-						maxScrollPosition = tempMaxPosition || Number.POSITIVE_INFINITY;
-						if (scrollBar) {
-							if (circularScrollBar) {
-								// Calculate new thumb size based on max scrollbar size
-								circularScrollThumbSize = max((directionSize / (maxScrollPosition + directionSize)) *
-									CIRCULAR_SCROLL_BAR_SIZE, CIRCULAR_SCROLL_MIN_THUMB_SIZE);
-								maxScrollBarPosition = CIRCULAR_SCROLL_BAR_SIZE - circularScrollThumbSize;
-								polarUtil.updatePosition(svgScrollBar, "." + classes.thumb, {
-									arcStart: scrollBarPosition,
-									arcEnd: scrollBarPosition + circularScrollThumbSize,
-									r: RADIUS
-								});
-							} else {
-								directionSize -= 2 * SCROLL_MARGIN;
-								scrollThumb.style[directionDimension] =
-									(directionSize / (maxScrollPosition + directionSize) * directionSize) + "px";
-								// Cannot use direct value from style here because CSS may override the minimum
-								// size of thumb here
-								maxScrollBarPosition = directionSize -
-									scrollThumb.getBoundingClientRect()[directionDimension];
-							}
-						}
-					}
-				},
+				setMaxScroll: setMaxScroll,
 				getMaxScroll: getMaxScroll,
-				setSnapSize: function (setSnapSize) {
-					snapSize = setSnapSize;
-					if (snapSize) {
-						maxScrollPosition = snapSize * round(maxScrollPosition / snapSize);
-					}
-				},
+				setSnapSize: setSnapSize,
+				scrollToIndex: scrollToIndex,
+				isElement: isElement,
 				setBounceBack: function (setBounceBack) {
 					bounceBack = setBounceBack;
 				}
@@ -18274,10 +18944,12 @@ function pathToRegexp (path, keys, options) {
 			 * @param {Event} event Event object
 			 */
 			function rotaryDetentHandler(event) {
-				if (event.detail.direction === "CW") {
-					element.scrollTop += scrollStep;
-				} else {
-					element.scrollTop -= scrollStep;
+				if (element.getAttribute("data-lock-rotary-scroll") !== "true") {
+					if (event.detail.direction === "CW") {
+						element.scrollTop += scrollStep;
+					} else {
+						element.scrollTop -= scrollStep;
+					}
 				}
 			}
 
@@ -18304,6 +18976,25 @@ function pathToRegexp (path, keys, options) {
 			function disable() {
 				scrollStep = 40;
 				document.removeEventListener("rotarydetent", rotaryDetentHandler);
+				element = null;
+			}
+
+			/**
+			 * Lock rotary scrolling for current scrolling container
+			 * @method lock
+			 * @memberof ns.util.rotaryScrolling
+			 */
+			function lock() {
+				element && element.setAttribute("data-lock-rotary-scroll", true);
+			}
+
+			/**
+			 * Unlock rotary scrolling for current scrolling container
+			 * @method unlock
+			 * @memberof ns.util.rotaryScrolling
+			 */
+			function unlock() {
+				element && element.removeAttribute("data-lock-rotary-scroll");
 			}
 
 			/**
@@ -18328,6 +19019,8 @@ function pathToRegexp (path, keys, options) {
 
 			rotaryScrolling.enable = enable;
 			rotaryScrolling.disable = disable;
+			rotaryScrolling.lock = lock;
+			rotaryScrolling.unlock = unlock;
 			rotaryScrolling.setScrollStep = setScrollStep;
 			rotaryScrolling.getScrollStep = getScrollStep;
 
@@ -18702,9 +19395,9 @@ function pathToRegexp (path, keys, options) {
 
 				if (embed) {
 					// Load and replace old styles or append new styles
-					cssSync(path, function onSuccess(styleElement) {
+					cssSync(path, function (styleElement) {
 						addNodeAsTheme(styleElement, themeName, previousElement);
-					}, function onFailure(xhrObj, xhrStatus) {
+					}, function (xhrObj, xhrStatus) {
 						ns.warn("There was a problem when loading '" + themeName + "', status: " + xhrStatus);
 					});
 				} else {
@@ -18911,6 +19604,7 @@ function pathToRegexp (path, keys, options) {
 (function (document, ns) {
 	"use strict";
 				var BaseWidget = ns.widget.BaseWidget,
+				Page = ns.widget.core.Page,
 				BaseKeyboardSupport = ns.widget.core.BaseKeyboardSupport,
 				engine = ns.engine,
 				/**
@@ -18959,6 +19653,9 @@ function pathToRegexp (path, keys, options) {
 					BTN_NOBG: "ui-btn-nobg",
 					BTN_ICON_ONLY: "ui-btn-icon-only",
 					BTN_TEXT: "ui-btn-text",
+					BTN_FAB: "ui-btn-fab",
+					BTN_FLAT: "ui-btn-flat",
+					BTN_CONTAINED: "ui-btn-contained",
 					/**
 					 * Creates a button widget with light text
 					 * @style ui-btn-text-light
@@ -19009,17 +19706,29 @@ function pathToRegexp (path, keys, options) {
 					 * @style ui-btn-text-middle
 					 * @member ns.widget.core.Button
 					 */
-					BTN_ICON_MIDDLE: "ui-btn-icon-middle"
+					BTN_ICON_MIDDLE: "ui-btn-icon-middle",
+					BUTTON_CONTENT: "ui-btn-content",
+					HIDDEN: "ui-hidden"
 				},
 				MIN_SIZE = 32,
 				MAX_SIZE = 230,
+				buttonStyle = {
+					CIRCLE: "circle",
+					TEXTLIGHT: "light",
+					TEXTDARK: "dark",
+					NOBG: "nobg",
+					ICON_MIDDLE: "icon-middle",
+					FLOATING: "fab",
+					FLAT: "flat",
+					CONTAINED: "contained"
+				},
 				defaultOptions = {
 					// common options
 					inline: true,
 					icon: null,
 					disabled: false,
 					// mobile options
-					style: null,
+					style: buttonStyle.CONTAINED,
 					iconpos: "left",
 					size: null,
 					middle: false,
@@ -19031,14 +19740,13 @@ function pathToRegexp (path, keys, options) {
 
 					BaseKeyboardSupport.call(self);
 					self.options = {};
+					self._ui = {
+						fab: null
+					};
+					self._callbacks = {
+						onFABClick: null
+					}
 					self._classesPrefix = classes.BTN + "-";
-				},
-				buttonStyle = {
-					CIRCLE: "circle",
-					TEXTLIGHT: "light",
-					TEXTDARK: "dark",
-					NOBG: "nobg",
-					ICON_MIDDLE: "icon-middle"
 				},
 
 				prototype = new BaseWidget();
@@ -19066,7 +19774,7 @@ function pathToRegexp (path, keys, options) {
 				/**
 				 * "circle" Make circle button
 				 * "nobg" Make button without background
-				 * @property {null|"circle"|"nobg"} [options.style=null] Set style of button
+				 * @property {string} [options.style="flat"] Set style of button
 				 * @member ns.widget.core.Button
 				 * @static
 				 */
@@ -19107,16 +19815,25 @@ function pathToRegexp (path, keys, options) {
 			 * @member ns.widget.core.Button
 			 */
 			prototype._setStyle = function (element, style) {
-				var options = this.options,
+				var self = this,
+					options = self.options,
 					buttonClassList = element.classList,
-					change = false;
+					change = false,
+					ui = self._ui;
 
 				style = style || options.style;
+
+				if (style !== buttonStyle.FLOATING && // new button style
+					ui.fab !== null) { // and current button doesn't have fab element
+					self._revertFromFAB(element); // then revert FAB html structure
+				}
 
 				buttonClassList.remove(classes.BTN_CIRCLE);
 				buttonClassList.remove(classes.BTN_NOBG);
 				buttonClassList.remove(classes.BTN_TEXT_LIGHT);
 				buttonClassList.remove(classes.BTN_TEXT_DARK);
+				buttonClassList.remove(classes.BTN_FLAT);
+				buttonClassList.remove(classes.BTN_CONTAINED);
 
 				switch (style) {
 					case buttonStyle.CIRCLE:
@@ -19135,13 +19852,25 @@ function pathToRegexp (path, keys, options) {
 						buttonClassList.add(classes.BTN_TEXT_DARK);
 						change = true;
 						break;
+					case buttonStyle.FLOATING:
+						this._changeToFAB(element);
+						change = true;
+						break;
+					case buttonStyle.FLAT:
+						buttonClassList.add(classes.BTN_FLAT);
+						change = true;
+						break;
+					case buttonStyle.CONTAINED:
+						buttonClassList.add(classes.BTN_CONTAINED);
+						change = true;
+						break;
 					default:
 				}
 
 				if (change) {
 					options.style = style;
 
-					this._saveOption("style", style);
+					self._saveOption("style", style);
 				}
 			};
 
@@ -19158,6 +19887,9 @@ function pathToRegexp (path, keys, options) {
 
 				if (inline === undefined) {
 					inline = element.getAttribute("data-inline");
+					if (inline === null) {
+						inline = this._readCommonOptionFromElementClassname(element, "inline");
+					}
 					inline = (inline === "false") ? false : !!inline;
 				}
 
@@ -19225,6 +19957,31 @@ function pathToRegexp (path, keys, options) {
 				}
 			};
 
+			prototype._removeIconposClass = function (element) {
+				var self = this;
+
+				element = element || self.element;
+				element.classList.remove(classes.BTN_ICON_POSITION_PREFIX + "left");
+				element.classList.remove(classes.BTN_ICON_POSITION_PREFIX + "top");
+				element.classList.remove(classes.BTN_ICON_ONLY);
+			};
+
+			prototype._addIconposClass = function (element) {
+				var self = this,
+					innerTextLength;
+
+				element = element || self.element;
+
+				innerTextLength = element.textContent.trim().length ||
+					(element.value ? element.value.length : 0);
+
+				if (innerTextLength > 0) {
+					element.classList.add(classes.BTN_ICON_POSITION_PREFIX + self.options.iconpos);
+				} else {
+					element.classList.add(classes.BTN_ICON_ONLY);
+				}
+			};
+
 			/**
 			 * Set iconpos option
 			 * @method _setIconpos
@@ -19234,24 +19991,19 @@ function pathToRegexp (path, keys, options) {
 			 * @member ns.widget.core.Button
 			 */
 			prototype._setIconpos = function (element, iconpos) {
-				var options = this.options,
-					style = options.style,
-					innerTextLength = element.textContent.trim().length || (element.value ? element.value.length : 0);
+				var self = this,
+					options = self.options,
+					style = options.style;
 
-				element.classList.remove(classes.BTN_ICON_POSITION_PREFIX + options.iconpos);
-				element.classList.remove(classes.BTN_ICON_ONLY);
+				self._removeIconposClass(element);
 
 				iconpos = iconpos || options.iconpos;
 
-				if (options.icon && style !== buttonStyle.CIRCLE && style !== buttonStyle.NOBG) {
-					if (innerTextLength > 0) {
-						element.classList.add(classes.BTN_ICON_POSITION_PREFIX + iconpos);
-					} else {
-						element.classList.add(classes.BTN_ICON_ONLY);
-					}
+				if (options.icon && style !== buttonStyle.CIRCLE && style !== buttonStyle.NOBG && style !== buttonStyle.FLOATING) {
 					options.iconpos = iconpos;
 
-					this._saveOption("iconpos", iconpos);
+					self._addIconposClass(element);
+					self._saveOption("iconpos", iconpos);
 				}
 			};
 
@@ -19318,6 +20070,27 @@ function pathToRegexp (path, keys, options) {
 
 				self._saveOption("disabled", options.disabled);
 			};
+
+			function wrapButtonContent(element) {
+				var content = null;
+
+				if (element.children.length > 1 ||
+					(element.children.length === 1 && // don't wrap himself
+						!element.firstElementChild.classList.contains(classes.BUTTON_CONTENT))) {
+					content = document.createElement("div");
+					content.classList.add(classes.BUTTON_CONTENT);
+
+					// move button content to the content element
+					[].slice.call(element.children).forEach(function (child) {
+						content.appendChild(child);
+					});
+
+					element.appendChild(content);
+				}
+
+				return content;
+			}
+
 			/**
 			 * Build Button
 			 * @method _build
@@ -19333,6 +20106,8 @@ function pathToRegexp (path, keys, options) {
 				if (!buttonClassList.contains(classes.BTN)) {
 					buttonClassList.add(classes.BTN);
 				}
+
+				self._content = wrapButtonContent(element);
 
 				self._setStyle(element);
 				self._setInline(element);
@@ -19532,6 +20307,66 @@ function pathToRegexp (path, keys, options) {
 				return defaultOptions[optionName];
 			}
 
+			function onFABClick(self, e) {
+				ns.event.trigger(self.element, "vclick", e);
+			}
+
+			prototype._bindEventsFAB = function () {
+				var self = this,
+					fab = self._ui.fab;
+
+				self._callbacks.onFABClick = onFABClick.bind(null, self);
+				fab.addEventListener("vclick", self._callbacks.onFABClick);
+			}
+
+			prototype._unbindEventsFAB = function () {
+				var self = this,
+					fab = self._ui.fab;
+
+				fab.removeEventListener("vclick", self._callbacks.onFABClick);
+				self._callbacks.onFABClick = null;
+			}
+
+			prototype._changeToFAB = function (element) {
+				var self = this,
+					ui = self._ui,
+					fab = document.createElement("button"),
+					pageContainer = ns.util.selectors.getClosestBySelector(element, Page.selector);
+
+				ui.fab = fab;
+				fab.classList.add(classes.BTN);
+				fab.classList.add(classes.BTN_FAB);
+				if (self.options.icon) {
+					fab.classList.add(classes.BTN_ICON);
+					fab.classList.add(classes.ICON_PREFIX + self.options.icon);
+				}
+
+				// hide element
+				element.classList.add(classes.HIDDEN);
+
+				if (pageContainer) {
+					pageContainer.appendChild(fab);
+				}
+				// bind events to FAB
+				self._bindEventsFAB();
+			}
+
+			prototype._revertFromFAB = function (element) {
+				var self = this,
+					fab = self._ui.fab;
+
+				// unbind FAB events
+				self._unbindEventsFAB();
+
+				// remove element from DOM
+				if (fab) {
+					fab.parentElement.removeChild(fab);
+					self._ui.fab = null;
+				}
+				// show element
+				element.classList.remove(classes.HIDDEN);
+			}
+
 			ns.widget.core.Button = Button;
 
 			Button.defaultOptions = defaultOptions;
@@ -19628,7 +20463,9 @@ function pathToRegexp (path, keys, options) {
 				},
 				classes = {
 					checkbox: "ui-checkbox",
-					focus: "ui-checkbox-focus"
+					focus: "ui-checkbox-focus",
+					active: "ui-checkbox-active",
+					backwardAnimation: "ui-checkbox-backward-animation"
 				},
 				prototype = new BaseWidget();
 
@@ -19729,6 +20566,26 @@ function pathToRegexp (path, keys, options) {
 			};
 
 			/**
+			 * Checkbox element touch start callback
+			 * @method _onTouchStart
+			 * @member ns.widget.core.Checkbox
+			 * @protected
+			 */
+			prototype._onTouchStart = function () {
+				this.element.classList.add(classes.active);
+			};
+
+			/**
+			 * Checkbox element touch end callback
+			 * @method _onTouchEnd
+			 * @member ns.widget.core.Checkbox
+			 * @protected
+			 */
+			prototype._onTouchEnd = function () {
+				this.element.classList.remove(classes.active);
+			};
+
+			/**
 			 * Checkbox element keyup callback
 			 * @method _onKeyUp
 			 * @param {Event} event
@@ -19746,6 +20603,10 @@ function pathToRegexp (path, keys, options) {
 				}
 			}
 
+			prototype._onAnimationEnd = function (event) {
+				event.target.classList.toggle(classes.backwardAnimation, event.target.checked);
+			};
+
 			/**
 			 * Bind events to widgets
 			 * @method _bindEvents
@@ -19759,10 +20620,15 @@ function pathToRegexp (path, keys, options) {
 				self._focusCallbackBound = self._onFocus.bind(self);
 				self._blurCallbackBound = self._onBlur.bind(self);
 				self._keyupCallbackBound = self._onKeyUp.bind(self);
+				self._onTouchStart = self._onTouchStart.bind(self);
+				self._onTouchEnd = self._onTouchEnd.bind(self);
 
 				element.addEventListener("focus", self._focusCallbackBound, false);
 				element.addEventListener("blur", self._blurCallbackBound, false);
 				element.addEventListener("keyup", self._keyupCallbackBound, false);
+				element.addEventListener("vmousedown", self._onTouchStart, false);
+				element.addEventListener("vmouseup", self._onTouchEnd, false);
+				eventUtils.on(element, "animationend animationEnd webkitAnimationEnd", self._onAnimationEnd, false);
 			}
 
 			/**
@@ -19777,7 +20643,9 @@ function pathToRegexp (path, keys, options) {
 
 				element.removeEventListener("focus", self._focusCallbackBound, false);
 				element.removeEventListener("blur", self._blurCallbackBound, false);
-				element.reEventListener("keyup", self._keyupCallbackBound, false);
+				element.removeEventListener("keyup", self._keyupCallbackBound, false);
+				element.removeEventListener("vmousedown", self._onTouchStart, false);
+				element.removeEventListener("vmouseup", self._onTouchEnd, false);
 			}
 
 			// definition
@@ -19787,8 +20655,8 @@ function pathToRegexp (path, keys, options) {
 
 			engine.defineWidget(
 				"Checkbox",
-				"input[type='checkbox']:not(.ui-slider-switch-input):not([data-role='toggleswitch'])" +
-				":not(.ui-toggleswitch):not(.ui-toggle-switch), input.ui-checkbox",
+				"input[type='checkbox']:not(.ui-slider-switch-input):not([data-role='toggleswitch']):not([data-role='on-off-switch'])" +
+				":not(.ui-toggleswitch):not(.ui-toggle-switch):not(.ui-on-off-switch), input.ui-checkbox",
 				[],
 				Checkbox,
 				"core",
@@ -19845,7 +20713,8 @@ function pathToRegexp (path, keys, options) {
 					 * @member ns.widget.core.Radio
 					 */
 					radio: "ui-radio",
-					focus: "ui-radio-focus"
+					focus: "ui-radio-focus",
+					backwardAnimation: "ui-radio-backward-animation"
 				},
 				events = ns.event,
 				prototype = new BaseWidget();
@@ -19931,8 +20800,17 @@ function pathToRegexp (path, keys, options) {
 					case "keyup":
 						self._onKeyUp(event);
 						break;
+					case "animationend":
+					case "animationEnd":
+					case "webkitAnimationEnd":
+						self._onAnimationEnd(event);
+						break;
 				}
 			}
+
+			prototype._onAnimationEnd = function (event) {
+				event.target.classList.toggle(classes.backwardAnimation, event.target.checked);
+			};
 
 			/**
 			 * Binds events to a Radio widget
@@ -19941,7 +20819,7 @@ function pathToRegexp (path, keys, options) {
 			 * @protected
 			 */
 			prototype._bindEvents = function (element) {
-				events.on(element, "focus blur keyup", this, false);
+				events.on(element, "focus blur keyup animationend animationEnd webkitAnimationEnd", this, false);
 			}
 
 			/**
@@ -19951,7 +20829,7 @@ function pathToRegexp (path, keys, options) {
 			 * @protected
 			 */
 			prototype._unbindEvents = function (element) {
-				events.off(element, "focus blur keyup", this, false);
+				events.off(element, "focus blur keyup animationend animationEnd webkitAnimationEnd", this, false);
 			};
 
 			/**
@@ -20241,7 +21119,7 @@ function pathToRegexp (path, keys, options) {
 				waitingFrames = [];
 
 				while (currentFrameFunction) {
-					currentFrameFunction();
+					currentFrameFunction(loopTime);
 					if (performance.now() - loopTime < 15) {
 						currentFrameFunction = loopWaitingFrames.shift();
 					} else {
@@ -20298,6 +21176,39 @@ function pathToRegexp (path, keys, options) {
 				// probably wont work if there is any more than 1
 				// active animationFrame but we are trying anyway
 				window.clearTimeout(currentFrame);
+			};
+
+			/**
+			 * Remove animation callbacks added by requestAnimationFrame
+			 * @method cancelAnimationFrames
+			 * @static
+			 * @member ns.util
+			 * @param {*} animationId value for identify animation in queue
+			 */
+			util.cancelAnimationFrames = function (animationId) {
+				var found = 0,
+					len = waitingFrames.length,
+					i = 0;
+
+				if (animationId) {
+					// remove selected requests
+					while (len > 0 && found > -1) {
+						found = -1;
+						for (; i < len; i++) {
+							if (waitingFrames[i].animationId === animationId) {
+								found = i;
+								break;
+							}
+						}
+
+						if (found > -1) {
+							waitingFrames.splice(found, 1);
+							len--;
+						}
+					}
+				} else {
+					ns.warn("cancelAnimationFrames() require one parameter for request identify");
+				}
 			};
 
 			util._getCancelAnimationFrame = function () {
@@ -20448,11 +21359,15 @@ function pathToRegexp (path, keys, options) {
 				var result = [],
 					script;
 
-				[].slice.call(element.querySelectorAll(
+				slice.call(element.querySelectorAll(
 					"script:not([data-src]):not([type]):not([id]):not([src])"
 					)).forEach(function (item) {
 						script = document.createElement("script");
 						script.innerText = item.textContent;
+						// move attributes from original script element
+						slice.call(item.attributes).forEach(function (attribute) {
+							script.setAttribute(attribute.name, item.getAttribute(attribute.name));
+						});
 						item.parentNode.removeChild(item);
 						result.push(script);
 					});
@@ -21082,6 +21997,8 @@ function pathToRegexp (path, keys, options) {
 				} else {
 					self._animationTimeout = self._calculateAnimate.bind(self, callback);
 				}
+				self._animationId = Math.random() + Date.now();
+				self._animationTimeout.animationId = self._animationId;
 				self._calculateAnimate(callback);
 				return self;
 			};
@@ -21097,7 +22014,9 @@ function pathToRegexp (path, keys, options) {
 				self._animate.chainIndex = 0;
 				// reset current animation config
 				self._animateConfig = null;
-			// clear timeout
+
+				ns.util.cancelAnimationFrames(self._animationId);
+				// clear timeout
 				self._animationTimeout = null;
 				return self;
 			};
@@ -21112,11 +22031,51 @@ function pathToRegexp (path, keys, options) {
 				}
 			};
 
+			/**
+			 * Method resets startTime for each animations to current time
+			 * @private
+			 * @param {*} animateConfig
+			 */
+			function resetStartTimeForAnimateConfig(animateConfig) {
+				var i,
+					len;
+
+				if (animateConfig) {
+					len = animateConfig.length;
+					for (i = 0; i < len; i++) {
+						animateConfig[i].startTime = Date.now();
+					}
+				}
+			}
+
+			/**
+			 * Reset animations to initial position
+			 */
+			prototype.reset = function () {
+				var self = this,
+					restart = self.active;
+
+				if (restart) {
+					self.stop();
+				}
+
+				self._initAnimate();
+				resetStartTimeForAnimateConfig(self._animateConfig);
+				self._pausedTimeDiff = 0;
+				self._animate.chainIndex = 0;
+
+				self._calculateAnimate();
+
+				if (restart) {
+					self.start();
+				}
+			}
+
 			function calculateOption(option, time) {
 				var timeDiff,
 					current = null;
 
-				if (option && option.startTime < time) {
+				if (option && option.startTime <= time) {
 				// if option is not delayed
 					timeDiff = time - option.startTime;
 
@@ -21203,7 +22162,7 @@ function pathToRegexp (path, keys, options) {
 						self._tickFunction(self._object);
 					}
 					if (notFinishedAnimationsCount) {
-					// setting next loop state
+						// setting next loop state
 						if (self._animationTimeout) {
 							requestAnimationFrame(self._animationTimeout);
 						}
@@ -21317,6 +22276,9 @@ function pathToRegexp (path, keys, options) {
 					this.options = objectUtils.copy(Marquee.defaults);
 					// event callbacks
 					this._callbacks = {};
+					this._ui = {
+						content: null
+					};
 				},
 
 				prototype = new BaseWidget(),
@@ -21395,7 +22357,7 @@ function pathToRegexp (path, keys, options) {
 
 				ellipsisEffect = {
 					GRADIENT: "gradient",
-					ELLIPSIS: "ellipsis",
+					ELLIPSIS: "ellipsis", // deprecated effect
 					NONE: "none"
 				},
 
@@ -21406,7 +22368,7 @@ function pathToRegexp (path, keys, options) {
 				/**
 				 * Options for widget
 				 * @property {Object} options
-				 * @property {string|"slide"|"scroll"|"alternate"} [options.marqueeStyle="slide"] Sets the
+				 * @property {string|"slide"|"scroll"|"alternate|"endToEnd""} [options.marqueeStyle="slide"] Sets the
 				 * default style for the marquee
 				 * @property {number} [options.speed=60] Sets the speed(px/sec) for the marquee
 				 * @property {number|"infinite"} [options.iteration=1] Sets the iteration count number for
@@ -21414,7 +22376,7 @@ function pathToRegexp (path, keys, options) {
 				 * @property {number} [options.delay=2000] Sets the delay(ms) for marquee
 				 * @property {"linear"|"ease"|"ease-in"|"ease-out"|"cubic-bezier(n,n,n,n)"}
 				 * [options.timingFunction="linear"] Sets the timing function for marquee
-				 * @property {"gradient"|"ellipsis"|"none"} [options.ellipsisEffect="gradient"] Sets the
+				 * @property {"gradient"|"none"} [options.ellipsisEffect="gradient"] Sets the
 				 * end-effect(gradient) of marquee
 				 * @property {boolean} [options.autoRun=true] Sets the status of autoRun
 				 * @member ns.widget.core.Marquee
@@ -21423,7 +22385,7 @@ function pathToRegexp (path, keys, options) {
 				defaults = {
 					marqueeStyle: style.SLIDE,
 					speed: 60,
-					iteration: 1,
+					iteration: "1",
 					currentIteration: 1,
 					delay: 0,
 					timingFunction: "linear",
@@ -21449,7 +22411,7 @@ function pathToRegexp (path, keys, options) {
 					var value = from + state * diff,
 						returnValue;
 
-					returnValue = "translateX(-" + round100(value) + "px)";
+					returnValue = "translateX(" + (-1 * round100(value) || 0) + "px)";
 					if (current === returnValue) {
 						return null;
 					}
@@ -21460,10 +22422,13 @@ function pathToRegexp (path, keys, options) {
 						containerWidth = stateDOM.offsetWidth,
 						textWidth = stateDOM.children[0].offsetWidth,
 						value,
+						excludeValue,
 						returnValue;
 
-					value = state * (textWidth - containerWidth);
-					returnValue = "translateX(-" + round100(value) + "px)";
+					// RIGHT gradient is 85% spec.
+					excludeValue = (containerWidth * 15 / 100) / 2;
+					value = state * (textWidth - containerWidth + excludeValue);
+					returnValue = "translateX(" + (-1 * round100(value) || 0) + "px)";
 					if (current === returnValue) {
 						return null;
 					}
@@ -21482,26 +22447,17 @@ function pathToRegexp (path, keys, options) {
 						value *= 2;
 					}
 					value = value / textWidth * (textWidth - containerWidth);
-					returnValue = "translateX(-" + round100(value) + "px)";
+					returnValue = "translateX(" + (-1 * round100(value) || 0) + "px)";
 					if (current === returnValue) {
 						return null;
 					}
 					return returnValue;
 				},
 				endToEnd: function (self, state, diff, from, current) {
-					var stateDOM = self._stateDOM,
-						textWidth = stateDOM.children[0].offsetWidth,
-						containerWidth = stateDOM.offsetWidth,
-						value,
+					var value = from + state * diff,
 						returnValue;
 
-					value = state * (textWidth + containerWidth);
-					if (value > textWidth) {
-						value = containerWidth - value + textWidth;
-					} else {
-						value = -value;
-					}
-					returnValue = "translateX(" + round100(value) + "px)";
+					returnValue = "translateX(" + (-1 * round100(value) || 0) + "px)";
 					if (current === returnValue) {
 						return null;
 					}
@@ -21509,32 +22465,30 @@ function pathToRegexp (path, keys, options) {
 				}
 			};
 
-			prototype._calculateEndToEndGradient = function (state, diff, from, current) {
+			prototype._calculateEndToEndGradient = function (state) {
 				var self = this,
 					stateDOM = self._stateDOM,
 					textWidth = stateDOM.children[0].offsetWidth,
-					containerWidth = stateDOM.offsetWidth,
-					returnTimeFrame = (textWidth / (textWidth + containerWidth)),
+					returnTimeFrame = ((textWidth - 50) / textWidth),
 					returnValue;
 
 				if (self.options.ellipsisEffect === "none") {
 					return null;
 				}
-				if (state > returnTimeFrame) {
+				if (state > 0 && self.options.currentIteration < self.options.iteration) {
+					// don't change gradient between iterations only for lastpass
+					returnValue = GRADIENTS.BOTH;
+				} else if (state > returnTimeFrame) {
 					returnValue = GRADIENTS.RIGHT;
 				} else if (state > 0) {
 					returnValue = GRADIENTS.BOTH;
 				} else {
 					returnValue = GRADIENTS.LEFT;
 				}
-
-				if (current === returnValue) {
-					return null;
-				}
 				return returnValue;
 			};
 
-			prototype._calculateStandardGradient = function (state, diff, from, current) {
+			prototype._calculateStandardGradient = function (state) {
 				var returnValue;
 
 				if (isNaN(state)) {
@@ -21550,10 +22504,6 @@ function pathToRegexp (path, keys, options) {
 				} else {
 					returnValue = GRADIENTS.RIGHT;
 				}
-
-				if (current === returnValue) {
-					return null;
-				}
 				return returnValue;
 			};
 
@@ -21568,6 +22518,15 @@ function pathToRegexp (path, keys, options) {
 			prototype._build = function (element) {
 				var marqueeInnerElement = element.querySelector("." + classes.MARQUEE_CONTENT);
 
+				element.classList.add(CLASSES_PREFIX);
+
+				// check deprecated class
+				if (element.classList.contains(classes.MARQUEE_ELLIPSIS)) {
+					ns.warn("Class '" + classes.MARQUEE_ELLIPSIS +
+						"' for option 'ellipsisEffect' in Marquee widget has been deprecated. " +
+						"Allowed values: none, '" + classes.MARQUEE_GRADIENT + "' (default)");
+				}
+
 				if (!marqueeInnerElement) {
 					marqueeInnerElement = document.createElement("div");
 
@@ -21577,6 +22536,9 @@ function pathToRegexp (path, keys, options) {
 					marqueeInnerElement.classList.add(classes.MARQUEE_CONTENT);
 					element.appendChild(marqueeInnerElement);
 				}
+
+				this._ui.content = marqueeInnerElement;
+
 				return element;
 			};
 
@@ -21602,7 +22564,8 @@ function pathToRegexp (path, keys, options) {
 				var self = this,
 					stateDOM = self._stateDOM,
 					stateDOMfirstChild = stateDOM.children[0],
-					width = stateDOMfirstChild.offsetWidth,
+					width = stateDOMfirstChild.offsetWidth +
+						((self.options.marqueeStyle === style.ENDTOEND) ? 100 : 0),
 					animation = new Animation({}),
 					state = {
 						hasEllipsisText: (width > 0),
@@ -21652,6 +22615,9 @@ function pathToRegexp (path, keys, options) {
 			};
 
 			prototype._setEllipsisEffect = function (element, value) {
+				if (value === "ellipsis") {
+					ns.warn("Marquee: option value 'ellipsis' for 'ellipsisEffect' is deprecated. Allowed values: 'none', 'gradient' (default)");
+				}
 				return this._togglePrefixedClass(this._stateDOM, CLASSES_PREFIX + "-", value);
 			};
 
@@ -21682,11 +22648,15 @@ function pathToRegexp (path, keys, options) {
 				var animation = self._animation,
 					state = self.state;
 
-				if (self.options.currentIteration++ < self.options.iteration) {
+				if (self.options.currentIteration++ < self.options.iteration || self.options.iteration === "infinite") {
 					animation.set(state.animation, state.animationConfig);
 					animation.stop();
 					animation.start();
 				} else {
+					if (self.options.marqueeStyle === style.ENDTOEND) {
+						self._ui.content.classList.remove("ui-visible");
+					}
+					self.reset();
 					self.options.animation = states.STOPPED;
 					self.trigger(eventType.MARQUEE_END);
 				}
@@ -21710,7 +22680,7 @@ function pathToRegexp (path, keys, options) {
 					animationConfig.callback = animationIterationCallback.bind(null, self);
 				}
 				self._animation.set(state.animation, animationConfig);
-				self.options.loop = value;
+				self.options.iteration = value;
 				return false;
 			};
 
@@ -21754,16 +22724,24 @@ function pathToRegexp (path, keys, options) {
 
 				if (value !== options.animation) {
 					if (value === states.RUNNING) {
-						if ((runOnlyOnEllipsisText && width) || (!runOnlyOnEllipsisText)) {
-							self.options.currentIteration = 1;
+						if ((runOnlyOnEllipsisText && width > 0) || (!runOnlyOnEllipsisText)) {
+							// copy of text content to title and after pseudo element
+							self._ui.content.setAttribute("title", self._ui.content.textContent.trim());
+							if (self.options.marqueeStyle === style.ENDTOEND) {
+								self._ui.content.classList.add("ui-visible");
+							}
 							animation.start();
+							options.animation = value;
 							self.trigger(eventType.MARQUEE_START);
 						}
 					} else {
+						if (self.options.marqueeStyle === style.ENDTOEND) {
+							self._ui.content.classList.remove("ui-visible");
+						}
 						animation.pause();
+						options.animation = value;
 						self.trigger(eventType.MARQUEE_STOPPED);
 					}
-					options.animation = value;
 				}
 				return false;
 			};
@@ -21793,10 +22771,11 @@ function pathToRegexp (path, keys, options) {
 					marqueeInnerElement;
 
 				self.state = null;
-				self._animation.stop();
-				self._animation.destroy();
-				self._animation = null;
-				self.element.classList.remove(classes.MARQUEE_GRADIENT);
+				if (self._animation) {
+					self._animation.stop();
+					self._animation.destroy();
+					self._animation = null;
+				}
 				self.element.style.webkitMaskImage = "";
 
 				marqueeInnerElement = self.element.querySelector("." + classes.MARQUEE_CONTENT);
@@ -21805,7 +22784,9 @@ function pathToRegexp (path, keys, options) {
 						self.element.appendChild(marqueeInnerElement.removeChild(marqueeInnerElement.firstChild));
 					}
 					self._stateDOM.children = [];
-					self.element.removeChild(marqueeInnerElement);
+					if (marqueeInnerElement.parentElement === self.element) {
+						self.element.removeChild(marqueeInnerElement);
+					}
 				}
 				self._stateDOM = null;
 			};
@@ -21848,10 +22829,6 @@ function pathToRegexp (path, keys, options) {
 			 * @member ns.widget.core.Marquee
 			 */
 			prototype.stop = function () {
-				var self = this,
-					animation = self._animation;
-
-				animation.pause();
 				this.option("animation", "stopped");
 			};
 
@@ -21873,12 +22850,12 @@ function pathToRegexp (path, keys, options) {
 			 */
 			prototype.reset = function () {
 				var self = this,
-					stateDOM = self._stateDOM;
+					animation = self._animation;
 
-				this.option("animation", "stopped");
-				stateDOM.style.webkitMaskImage = (this.options.ellipsisEffect === "none") ? "" : GRADIENTS.RIGHT;
-				stateDOM.children[0].style.webkitTransform = "translateX(0)";
-				self._render();
+				animation.reset();
+
+				self.element.style.webkitMaskImage = (self.options.ellipsisEffect === "none") ?
+					"" : GRADIENTS.RIGHT;
 			};
 
 			Marquee.prototype = prototype;
@@ -22879,7 +23856,7 @@ function pathToRegexp (path, keys, options) {
 				var self = this,
 					items = element.children,
 					numberOfDots = items.length,
-					intervalAngle = self.options.intervalAngle - "0",
+					intervalAngle = parseFloat(self.options.intervalAngle),
 					translatePixel,
 					style,
 					i;
@@ -23035,7 +24012,7 @@ function pathToRegexp (path, keys, options) {
  * Contains helper function to gesture support.
  * @class ns.event.gesture.utils
  */
-(function (ns, Math) {
+(function (ns, math) {
 	"use strict";
 	
 		/**
@@ -23069,8 +24046,8 @@ function pathToRegexp (path, keys, options) {
 					});
 
 					return {
-						clientX: (Math.min.apply(Math, valuesX) + Math.max.apply(Math, valuesX)) / 2,
-						clientY: (Math.min.apply(Math, valuesY) + Math.max.apply(Math, valuesY)) / 2
+						clientX: (math.min.apply(math, valuesX) + math.max.apply(math, valuesX)) / 2,
+						clientY: (math.min.apply(math, valuesY) + math.max.apply(math, valuesY)) / 2
 					};
 				},
 
@@ -23087,8 +24064,8 @@ function pathToRegexp (path, keys, options) {
 				 */
 				getVelocity: function (deltaTime, deltaX, deltaY) {
 					return {
-						x: Math.abs(deltaX / deltaTime) || 0,
-						y: Math.abs(deltaY / deltaTime) || 0
+						x: math.abs(deltaX / deltaTime) || 0,
+						y: math.abs(deltaY / deltaTime) || 0
 					};
 				},
 
@@ -23104,7 +24081,7 @@ function pathToRegexp (path, keys, options) {
 					var y = touch2.clientY - touch1.clientY,
 						x = touch2.clientX - touch1.clientX;
 
-					return Math.atan2(y, x) * 180 / Math.PI;
+					return math.atan2(y, x) * 180 / math.PI;
 				},
 
 			/**
@@ -23116,8 +24093,8 @@ function pathToRegexp (path, keys, options) {
 				 * @member ns.event.gesture.utils
 				 */
 				getDirection: function (touch1, touch2) {
-					var x = Math.abs(touch1.clientX - touch2.clientX),
-						y = Math.abs(touch1.clientY - touch2.clientY);
+					var x = math.abs(touch1.clientX - touch2.clientX),
+						y = math.abs(touch1.clientY - touch2.clientY);
 
 					if (x >= y) {
 						return touch1.clientX - touch2.clientX > 0 ? gesture.Direction.LEFT : gesture.Direction.RIGHT;
@@ -23137,7 +24114,7 @@ function pathToRegexp (path, keys, options) {
 					var x = touch2.clientX - touch1.clientX,
 						y = touch2.clientY - touch1.clientY;
 
-					return Math.sqrt((x * x) + (y * y));
+					return math.sqrt((x * x) + (y * y));
 				},
 
 			/**
@@ -23622,11 +24599,14 @@ function pathToRegexp (path, keys, options) {
 					var self = this;
 
 					self._orientation = null;
-					self._maxValue = null;
-
+					self._maxScrollValue = null;
 					self._container = null;
-					self._minEffectElement = null;
-					self._maxEffectElement = null;
+					self._effectElement = {
+						top: null,
+						bottom: null,
+						left: null,
+						right: null
+					}
 
 					self.options = utilsObject.merge({}, Bouncing.defaults, {scrollEndEffectArea: ns.getConfig("scrollEndEffectArea", Bouncing.defaults.scrollEndEffectArea)});
 					/**
@@ -23645,7 +24625,8 @@ function pathToRegexp (path, keys, options) {
 				},
 				Orientation = {
 					VERTICAL: "vertical",
-					HORIZONTAL: "horizontal"
+					HORIZONTAL: "horizontal",
+					VERTICAL_HORIZONTAL: "vertical-horizontal"
 				},
 				endEffectAreaType = {
 					content: "content",
@@ -23681,39 +24662,72 @@ function pathToRegexp (path, keys, options) {
 					}
 
 					self._orientation = options.orientation;
-					self._maxValue = self._getValue(options.maxScrollX, options.maxScrollY);
+
+					if (self._orientation === Orientation.HORIZONTAL || self._orientation == Orientation.VERTICAL) {
+						self._maxScrollValue = self._getValue(options.maxScrollX, options.maxScrollY);
+					} else {
+						self._maxScrollValue = {
+							x: options.maxScrollX,
+							y: options.maxScrollY
+						}
+					}
 
 					self._initLayout();
 				},
 
+				_createDivElement: function () {
+					return document.createElement("DIV");
+				},
+
 				_initLayout: function () {
 					var self = this,
-						minElement = self._minEffectElement = document.createElement("DIV"),
-						maxElement = self._maxEffectElement = document.createElement("DIV"),
+						leftEffectElement = null,
+						rightEffectElement = null,
+						topEffectElement = null,
+						bottomEffectElement = null,
 						className = classes.bouncingEffect;
 
-					if (self._orientation === Orientation.HORIZONTAL) {
-						minElement.className = className + " " + classes.left;
-						maxElement.className = className + " " + classes.right;
-					} else {
-						minElement.className = className + " " + classes.top;
-						maxElement.className = className + " " + classes.bottom;
+					if (self._orientation === Orientation.HORIZONTAL || self._orientation == Orientation.VERTICAL_HORIZONTAL) {
+						leftEffectElement = self._createDivElement();
+						rightEffectElement = self._createDivElement();
+						leftEffectElement.className = className + " " + classes.left;
+						rightEffectElement.className = className + " " + classes.right;
+						self._container.appendChild(leftEffectElement);
+						self._container.appendChild(rightEffectElement);
+						self._registerAnimationEnd(leftEffectElement);
+						self._registerAnimationEnd(rightEffectElement);
+						self._effectElement.left = leftEffectElement;
+						self._effectElement.right = rightEffectElement;
 					}
 
-					self._container.appendChild(minElement);
-					self._container.appendChild(maxElement);
+					if (self._orientation === Orientation.VERTICAL || self._orientation == Orientation.VERTICAL_HORIZONTAL) {
+						topEffectElement = self._createDivElement();
+						bottomEffectElement = self._createDivElement();
+						topEffectElement.className = className + " " + classes.top;
+						bottomEffectElement.className = className + " " + classes.bottom;
+						self._container.appendChild(topEffectElement);
+						self._container.appendChild(bottomEffectElement);
+						self._registerAnimationEnd(topEffectElement);
+						self._registerAnimationEnd(bottomEffectElement);
+						self._effectElement.top = topEffectElement;
+						self._effectElement.bottom = bottomEffectElement;
+					}
+				},
 
-					minElement.addEventListener("animationEnd", this);
-					minElement.addEventListener("webkitAnimationEnd", this);
-					minElement.addEventListener("mozAnimationEnd", this);
-					minElement.addEventListener("msAnimationEnd", this);
-					minElement.addEventListener("oAnimationEnd", this);
+				_registerAnimationEnd: function (element) {
+					element.addEventListener("animationEnd", this);
+					element.addEventListener("webkitAnimationEnd", this);
+					element.addEventListener("mozAnimationEnd", this);
+					element.addEventListener("msAnimationEnd", this);
+					element.addEventListener("oAnimationEnd", this);
+				},
 
-					maxElement.addEventListener("animationEnd", this);
-					maxElement.addEventListener("webkitAnimationEnd", this);
-					maxElement.addEventListener("mozAnimationEnd", this);
-					maxElement.addEventListener("msAnimationEnd", this);
-					maxElement.addEventListener("oAnimationEnd", this);
+				_unregisterAnimationEnd: function (element) {
+					element.removeEventListener("animationEnd", this);
+					element.removeEventListener("webkitAnimationEnd", this);
+					element.removeEventListener("mozAnimationEnd", this);
+					element.removeEventListener("msAnimationEnd", this);
+					element.removeEventListener("oAnimationEnd", this);
 				},
 
 				/**
@@ -23766,8 +24780,7 @@ function pathToRegexp (path, keys, options) {
 					var self = this;
 
 					if (self._isShow) {
-						self._minEffectElement.style.display = "none";
-						self._maxEffectElement.style.display = "none";
+						self._targetElement.style.display = "none";
 						self._targetElement.classList.remove(classes.hide);
 						self._targetElement.classList.remove(classes.show);
 					}
@@ -23779,24 +24792,57 @@ function pathToRegexp (path, keys, options) {
 
 				_checkAndShow: function (x, y) {
 					var self = this,
-						val = self._getValue(x, y);
+						val = null;
 
 					if (!self._isShow) {
-						if (val >= 0) {
-							self._targetElement = self._minEffectElement;
-							self.show();
-						} else if (val <= self._maxValue) {
-							self._targetElement = self._maxEffectElement;
-							self.show();
+						if (self._orientation === Orientation.HORIZONTAL || self._orientation === Orientation.VERTICAL) {
+							val = self._getValue(x, y);
+							if (val >= 0) {
+								self._targetElement = self._getMinEffectElement();
+							} else if (val <= self._maxScrollValue) {
+								self._targetElement = self._getMaxEffectElement();
+							}
+						} else {
+							// Handle bouncing in both orientations.
+							if (y == 0) {
+								self._targetElement = self._effectElement.top;
+							} else if (y == -self._maxScrollValue.y) {
+								self._targetElement = self._effectElement.bottom;
+							} else if (x == 0) {
+								self._targetElement = self._effectElement.left;
+							} else if (x == -self._maxScrollValue.x) {
+								self._targetElement = self._effectElement.right;
+							}
 						}
-
+						self.show();
 					} else if (self._isShow && !self._isDrag && !self._isShowAnimating && !self._isHideAnimating) {
 						self._beginHide();
 					}
 				},
 
 				_getValue: function (x, y) {
+					if (this._orientation === Orientation.VERTICAL_HORIZONTAL) {
+						return null;
+					}
 					return this._orientation === Orientation.HORIZONTAL ? x : y;
+				},
+
+				_getMinEffectElement: function () {
+					var self = this;
+
+					if (self._orientation === Orientation.VERTICAL_HORIZONTAL) {
+						return null;
+					}
+					return self._orientation === Orientation.HORIZONTAL ? self._effectElement.left : self._effectElement.top;
+				},
+
+				_getMaxEffectElement: function () {
+					var self = this;
+
+					if (self._orientation === Orientation.VERTICAL_HORIZONTAL) {
+						return null;
+					}
+					return self._orientation === Orientation.HORIZONTAL ? self._effectElement.right : self._effectElement.bottom;
 				},
 
 				_beginShow: function () {
@@ -23871,32 +24917,38 @@ function pathToRegexp (path, keys, options) {
 				 */
 				destroy: function () {
 					var self = this,
-						maxEffectElement = this._maxEffectElement,
-						minEffectElement = this._minEffectElement;
+						topEffectElement = self._effectElement.top,
+						bottomEffectElement = self._effectElement.bottom,
+						leftEffectElement = self._effectElement.left,
+						rightEffectElement = self._effectElement.right;
 
-					minEffectElement.removeEventListener("animationEnd", this);
-					minEffectElement.removeEventListener("webkitAnimationEnd", this);
-					minEffectElement.removeEventListener("mozAnimationEnd", this);
-					minEffectElement.removeEventListener("msAnimationEnd", this);
-					minEffectElement.removeEventListener("oAnimationEnd", this);
+					if (topEffectElement) {
+						self._unregisterAnimationEnd(topEffectElement);
+						self._container.removeChild(topEffectElement);
+					}
 
-					maxEffectElement.removeEventListener("animationEnd", this);
-					maxEffectElement.removeEventListener("webkitAnimationEnd", this);
-					maxEffectElement.removeEventListener("mozAnimationEnd", this);
-					maxEffectElement.removeEventListener("msAnimationEnd", this);
-					maxEffectElement.removeEventListener("oAnimationEnd", this);
+					if (bottomEffectElement) {
+						self._unregisterAnimationEnd(bottomEffectElement);
+						self._container.removeChild(bottomEffectElement);
+					}
 
-					self._container.removeChild(minEffectElement);
-					self._container.removeChild(maxEffectElement);
+					if (leftEffectElement) {
+						self._unregisterAnimationEnd(leftEffectElement);
+						self._container.removeChild(leftEffectElement);
+					}
+
+					if (rightEffectElement) {
+						self._unregisterAnimationEnd(rightEffectElement);
+						self._container.removeChild(rightEffectElement);
+					}
 
 					self._container = null;
-					self._minEffectElement = null;
-					self._maxEffectElement = null;
+					self._effectElement = null;
 					self._targetElement = null;
 
 					self._isShow = null;
 					self._orientation = null;
-					self._maxValue = null;
+					self._maxScrollValue = null;
 				}
 			};
 
@@ -24109,9 +25161,6 @@ function pathToRegexp (path, keys, options) {
 			prototype._resetLayout = function () {
 				var elementStyle = this.element.style,
 					scrollerStyle = this.scrollerStyle;
-
-				elementStyle.overflow = "";
-				elementStyle.position = "";
 
 				elementStyle.overflow = "hidden";
 				elementStyle.position = "relative";
@@ -24902,7 +25951,7 @@ function pathToRegexp (path, keys, options) {
 				var self = this;
 
 				self._clear();
-				self._init();
+				self._init(self.element);
 				self.translate(self.lastScrollPosition);
 			};
 
@@ -25870,7 +26919,6 @@ function pathToRegexp (path, keys, options) {
 				var self = this,
 					ui = self._ui,
 					view = selectors.getChildrenByClass(element, classes.view)[0] || document.createElement("div"),
-					clipStyle = element.style,
 					node,
 					child = element.firstChild,
 					options = self.options,
@@ -25900,17 +26948,7 @@ function pathToRegexp (path, keys, options) {
 				// Adding ui-content class for the proper styling with CE
 				element.classList.add("ui-content");
 
-				switch (direction) {
-					case "x":
-						clipStyle.overflowX = "scroll";
-						break;
-					case "xy":
-						clipStyle.overflow = "scroll";
-						break;
-					default:
-						clipStyle.overflowY = "auto";
-						break;
-				}
+				self._setClipOverflowStyle(element);
 
 				if (options.scrollJump) {
 					if (direction.indexOf("x") > -1) {
@@ -25959,6 +26997,60 @@ function pathToRegexp (path, keys, options) {
 
 				return element;
 			};
+
+			/**
+			 * Sets overflow property for clip element accordingly to scrolling direction
+			 * @method _setClipOverflowHidden
+			 * @protected
+			 * @member ns.widget.core.Scrollview
+			 */
+			Scrollview.prototype._setClipOverflowStyle = function (element) {
+				var self = this,
+					direction = self.options.scroll,
+					clipStyle;
+
+				element = element || self.element;
+				clipStyle = element.style;
+
+				switch (direction) {
+					case "x":
+						clipStyle.overflowX = "scroll";
+						break;
+					case "xy":
+						clipStyle.overflow = "scroll";
+						break;
+					default:
+						clipStyle.overflowY = "auto";
+						break;
+				}
+			}
+
+			/**
+			 * Sets overflow hidden style for clip element
+			 * @method _setClipOverflowHidden
+			 * @protected
+			 * @member ns.widget.core.Scrollview
+			 */
+			Scrollview.prototype._setClipOverflowHidden = function (element) {
+				var self = this,
+					direction = self.options.scroll,
+					clipStyle;
+
+				element = element || self.element;
+				clipStyle = element.style;
+
+				switch (direction) {
+					case "x":
+						clipStyle.overflowX = "hidden";
+						break;
+					case "xy":
+						clipStyle.overflow = "hidden";
+						break;
+					default:
+						clipStyle.overflowY = "hidden";
+						break;
+				}
+			}
 
 			/**
 			 * Inits widget
@@ -26263,6 +27355,8 @@ function pathToRegexp (path, keys, options) {
 						if (id && ["input", "textarea", "button"].indexOf(tagName) > -1) {
 							return input.parentNode.querySelector("label[for=" + id + "]");
 						}
+
+						return null;
 					},
 					_true = true;
 
@@ -26431,11 +27525,12 @@ function pathToRegexp (path, keys, options) {
 					repositionJumpsCallback,
 					jumpTopCallback,
 					jumpLeftCallback,
-					callbacks = self._callbacks;
+					callbacks = self._callbacks,
+					scrollDirection = self.options.scroll;
 
 				if (page) {
-					if (this.options.scrollJump) {
-						repositionJumpsCallback = repositionJumps.bind(null, this);
+					if (self.options.scrollJump) {
+						repositionJumpsCallback = repositionJumps.bind(null, self);
 						jumpTopCallback = function () {
 							self.scrollTo(element.scrollLeft, 0, 250);
 						};
@@ -26461,6 +27556,19 @@ function pathToRegexp (path, keys, options) {
 						} else {
 							eventUtils.trigger(element, "scrollstart");
 						}
+
+						if (scrollDirection === "y" &&
+							(element.scrollTop === 0 || element.scrollTop + element.clientHeight === element.scrollHeight)) {
+							eventUtils.trigger(element, "scrollboundary", {
+								direction: (element.scrollTop === 0) ? "top" : "bottom"
+							});
+						} else if (scrollDirection === "x" &&
+							(element.scrollLeft === 0 || element.scrollLeft + element.clientWidth === element.scrollWidth)) {
+							eventUtils.trigger(element, "scrollboundary", {
+								direction: (element.scrollLeft === 0) ? "left" : "right"
+							});
+						}
+
 						scrollTimer = window.setTimeout(notifyScrolled, 100);
 						eventUtils.trigger(element, "scrollupdate");
 					}, false);
@@ -26515,6 +27623,26 @@ function pathToRegexp (path, keys, options) {
 				}
 
 			};
+
+			/**
+			 * Enables scrollview action
+			 * @method enableScrolling
+			 * @public
+			 * @member ns.widget.core.Scrollview
+			 */
+			Scrollview.prototype.enableScrolling = function () {
+				this._setClipOverflowStyle();
+			}
+
+			/**
+			 * Disables scrollview action
+			 * @method disableScrolling
+			 * @public
+			 * @member ns.widget.core.Scrollview
+			 */
+			Scrollview.prototype.disableScrolling = function () {
+				this._setClipOverflowHidden();
+			}
 
 			ns.widget.core.Scrollview = Scrollview;
 			}(window, window.document, ns));
@@ -26967,8 +28095,7 @@ function pathToRegexp (path, keys, options) {
 			utilsObject.inherit(SectionChanger, Scroller, {
 				_build: function (element) {
 					var self = this,
-						options = self.options,
-						offsetHeight;
+						options = self.options;
 
 					self.tabIndicatorElement = null;
 					self.tabIndicator = null;
@@ -26984,17 +28111,6 @@ function pathToRegexp (path, keys, options) {
 					element.classList.add(classes.uiSectionChanger);
 
 					self.scroller.style.position = "absolute";
-					offsetHeight = element.offsetHeight;
-
-					if (offsetHeight === 0) {
-						offsetHeight = element.parentNode.offsetHeight;
-						element.style.height = offsetHeight + "px";
-					}
-
-					self._sectionChangerWidth = element.offsetWidth;
-					self._sectionChangerHeight = offsetHeight;
-					self._sectionChangerHalfWidth = self._sectionChangerWidth / 2;
-					self._sectionChangerHalfHeight = self._sectionChangerHeight / 2;
 					self.orientation = options.orientation === "horizontal" ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 
 					return element;
@@ -27022,7 +28138,7 @@ function pathToRegexp (path, keys, options) {
 						if (dataItem.hasOwnProperty(itemName)) {
 							dataBoundElement = element.querySelector("[data-bind='" + itemName + "']");
 							if (dataBoundElement) {
-								if (typeof directive[itemName] === "function") {
+								if (directive && typeof directive[itemName] === "function") {
 									directive[itemName].call(dataBoundElement, dataItem[itemName]);
 								} else {
 									dataBoundElement.innerText = dataItem[itemName];
@@ -27030,6 +28146,11 @@ function pathToRegexp (path, keys, options) {
 							}
 						}
 					}
+				},
+
+				_setModel: function (element, value) {
+					this.options.model = value;
+					this._findDataBinding();
 				},
 
 				/**
@@ -27164,27 +28285,35 @@ function pathToRegexp (path, keys, options) {
 				_prepareLayout: function () {
 					var o = this.options,
 						sectionLength = this.sections.length,
-						width = this._sectionChangerWidth,
-						height = this._sectionChangerHeight,
 						orientation = this.orientation,
 						scrollerStyle = this.scroller.style,
+						offsetHeight = this.element.offsetHeight,
 						tabHeight;
+
+					if (offsetHeight === 0) {
+						offsetHeight = this.element.parentNode.offsetHeight;
+						this.element.style.height = offsetHeight + "px";
+					}
+
+					this._sectionChangerWidth = this.element.offsetWidth;
+					this._sectionChangerHeight = offsetHeight;
+					this._sectionChangerHalfWidth = this._sectionChangerWidth / 2;
+					this._sectionChangerHalfHeight = this._sectionChangerHeight / 2;
 
 					if (o.useTab) {
 						this._initTabIndicator();
 						tabHeight = this.tabIndicatorElement.offsetHeight;
-						height -= tabHeight;
-						this._sectionChangerHalfHeight = height / 2;
-						this.element.style.height = height + "px";
-						this._sectionChangerHeight = height;
+						this._sectionChangerHeight -= tabHeight;
+						this._sectionChangerHalfHeight = this._sectionChangerHeight / 2;
+						this.element.style.height = this._sectionChangerHeight + "px";
 					}
 
 					if (orientation === Orientation.HORIZONTAL) {
-						scrollerStyle.width = (o.fillContent ? width * sectionLength : calculateCustomLayout(orientation, this.sections)) + "px";
-						scrollerStyle.height = height + "px"; //set Scroller width
+						scrollerStyle.width = (o.fillContent ? this._sectionChangerWidth * sectionLength : calculateCustomLayout(orientation, this.sections)) + "px";
+						scrollerStyle.height = this._sectionChangerHeight + "px";
 					} else {
-						scrollerStyle.width = width + "px"; //set Scroller width
-						scrollerStyle.height = (o.fillContent ? height * sectionLength : calculateCustomLayout(orientation, this.sections)) + "px";
+						scrollerStyle.width = this._sectionChangerWidth + "px";
+						scrollerStyle.height = (o.fillContent ? this._sectionChangerHeight * sectionLength : calculateCustomLayout(orientation, this.sections)) + "px";
 					}
 
 				},
@@ -27333,6 +28462,9 @@ function pathToRegexp (path, keys, options) {
 						}
 					}
 
+					// disable tau rotaryScroller, this widget has own support for rotary event
+					ns.util.rotaryScrolling && ns.util.rotaryScrolling.lock();
+
 					document.addEventListener("rotarydetent", self, true);
 				},
 
@@ -27351,6 +28483,9 @@ function pathToRegexp (path, keys, options) {
 					}
 
 					document.removeEventListener("rotarydetent", self, true);
+
+					// disable tau rotaryScroller, this widget has own support for rotary event
+					ns.util.rotaryScrolling && ns.util.rotaryScrolling.unlock();
 				},
 
 				/**
@@ -27364,9 +28499,11 @@ function pathToRegexp (path, keys, options) {
 
 					switch (event.type) {
 						case "swipe":
-						case "rotarydetent" :
 						case "taufocusborder":
 							this._change(event);
+							break;
+						case "rotarydetent" :
+							this._change(event, true);
 							break;
 						case "webkitTransitionEnd":
 						case "mozTransitionEnd":
@@ -27403,17 +28540,28 @@ function pathToRegexp (path, keys, options) {
 				 * Changes the currently active section element.
 				 * @method setActiveSection
 				 * @param {number} index
-				 * @param {number} duration For smooth scrolling,
+				 * @param {number} [duration=0] For smooth scrolling,
 				 * the duration parameter must be in milliseconds.
-				 * @param {number} [direct=false]
+				 * @param {boolean} [direct=false] Whether section is set once directly (e.g. with bezel)
+				 *  or with touch events
+				 * @param {boolean} [reposition=true] Whether sections should be repositioned
 				 * @member ns.widget.core.SectionChanger
 				 */
-				setActiveSection: function (index, duration, direct) {
+				setActiveSection: function (index, duration, direct, reposition) {
 					var position = this.sectionPositions[index],
-						scrollbarDuration = duration,
+						scrollbarDuration,
 						oldActiveIndex = this.activeIndex,
 						newX = 0,
 						newY = 0;
+
+					//default parameters
+					duration = duration || 0;
+					direct = !!direct;
+					if (reposition == undefined) {
+						reposition = true;
+					}
+
+					scrollbarDuration = duration;
 
 					if (this.orientation === Orientation.HORIZONTAL) {
 						newX = this._sectionChangerHalfWidth - calculateCenter(this.orientation, this.sections, position);
@@ -27450,6 +28598,11 @@ function pathToRegexp (path, keys, options) {
 					if (this.activeIndex !== oldActiveIndex) {
 						this._notifyChangedSection(this.activeIndex);
 					}
+
+					if (reposition) {
+						this._repositionSections(true);
+					}
+
 				},
 
 				/**
@@ -27506,12 +28659,19 @@ function pathToRegexp (path, keys, options) {
 							self.bouncingEffect.dragEnd();
 						}
 
-						self.setActiveSection(self.activeIndex, self.options.animateDuration, false);
+						self.setActiveSection(self.activeIndex, self.options.animateDuration, false, false);
 						self.dragging = false;
 					}
 				},
 
-				_change: function (event) {
+				/**
+				 * Changes the currently active section element.
+				 * @method _change
+				 * @param {event} event
+				 * @param {boolean} [direct=false]
+				 * @private
+				 */
+				_change: function (event, direct) {
 					var self = this,
 						direction = event.detail.direction,
 						offset = direction === gesture.Direction.UP ||
@@ -27524,6 +28684,8 @@ function pathToRegexp (path, keys, options) {
 					}
 
 					newIndex = self._calculateIndex(self.beforeIndex + offset);
+
+					direct = !!direct;
 
 					if (self.enabled && !self.scrollCanceled) {
 						// bouncing effect
@@ -27541,8 +28703,7 @@ function pathToRegexp (path, keys, options) {
 							self._notifyChangedSection(newIndex);
 						}
 
-						self.setActiveSection(newIndex, self.options.animateDuration, false);
-
+						self.setActiveSection(newIndex, self.options.animateDuration, direct, false);
 						self.dragging = false;
 					}
 				},
@@ -28317,6 +29478,7 @@ function pathToRegexp (path, keys, options) {
 
 			prototype._refresh = function () {
 				var self = this;
+
 				self._setValue(self.options.value);
 			}
 
@@ -28563,6 +29725,7 @@ function pathToRegexp (path, keys, options) {
 						}
 					}
 				}
+				return false;
 			}
 
 			prototype._setValue = function (element, value) {
@@ -28655,6 +29818,37 @@ function pathToRegexp (path, keys, options) {
 (function (window, document, ns) {
 	"use strict";
 				var utilsObject = ns.util.object,
+				MODE_INTERMITTENT = "intermittent",
+				MODE_CONTINUOUS = "continuous",
+
+				xAxis = "x",
+				yAxis = "y",
+
+				TIME_AXIS_X = xAxis,
+				TIME_AXIS_Y = yAxis,
+				TIME_AXIS_NONE = "none",
+
+				graphTypes = {
+					stackedBar: "stacked-bar",
+					line: "line",
+					stackedArea: "stacked-area",
+					scatterplot: "scatterplot",
+					bar: "bar"
+				},
+
+				defaults = {
+					graph: graphTypes.line,
+					color: "#0097D8",
+					xlabel: "",
+					ylabel: "",
+					axisXType: "time",
+					axisYType: "linear",
+					mode: MODE_INTERMITTENT,
+					value: [],
+					timeAxis: TIME_AXIS_X, // only when one value supplied
+					groupKey: "label",
+					legend: false
+				},
 
 				Graph = function () {
 					var self = this;
@@ -28698,44 +29892,9 @@ function pathToRegexp (path, keys, options) {
 
 				addLibText = "Please, include tauCharts library (https://www.taucharts.com/).",
 
-				MODE_INTERMITTENT = "intermittent",
-				MODE_CONTINUOUS = "continuous",
-
-				xAxis = "x",
-				yAxis = "y",
-
-				TIME_AXIS_X = xAxis,
-				TIME_AXIS_Y = yAxis,
-				TIME_AXIS_NONE = "none",
-
-				graphTypes = {
-					stackedBar: "stacked-bar",
-					line: "line",
-					stackedArea: "stacked-area",
-					scatterplot: "scatterplot",
-					bar: "bar"
-				},
-
-				defaults = {
-					graph: graphTypes.line,
-					color: "#0097D8",
-					xlabel: "",
-					ylabel: "",
-					xinit: 0,
-					yinit: 0,
-					axisXType: "time",
-					axisYType: "linear",
-					mode: MODE_INTERMITTENT,
-					value: [],
-					timeAxis: TIME_AXIS_X, // only when one value supplied
-					groupKey: "label",
-					legend: false
-				},
-
 				classes = {
 					graphContainer: "ui-graph"
 				},
-
 
 				BaseWidget = ns.widget.BaseWidget,
 				prototype = new BaseWidget();
@@ -28779,8 +29938,8 @@ function pathToRegexp (path, keys, options) {
 
 			prototype._setChartAxis = function (identifier) {
 				var self = this,
-				    axisDimensions = self.dimensions[identifier],
-				    axisType = self.options["axis" + identifier.toUpperCase() + "Type"];
+					axisDimensions = self.dimensions[identifier],
+					axisType = self.options["axis" + identifier.toUpperCase() + "Type"];
 
 				axisDimensions.type = "order";
 				switch (axisType) {
@@ -28788,13 +29947,13 @@ function pathToRegexp (path, keys, options) {
 					case "index":
 						axisDimensions.scale = "time";
 						self.guide[identifier].tickFormat = "day";
-					break;
+						break;
 					case "order":
 						axisDimensions.scale = "ordinal";
-					break;
+						break;
 					case "linear":
 						axisDimensions.scale = "linear";
-					break;
+						break;
 				}
 			}
 
@@ -28803,7 +29962,9 @@ function pathToRegexp (path, keys, options) {
 					oldData = [],
 					guide = self.guide;
 
-				self.options.color = self.options.color.split(",")
+				self.options.color = (typeof self.options.color === "string") ?
+					self.options.color.split(",") :
+					self.options.color;
 				guide.color.brewer = self.options.color;
 				guide.x.label.text = self.options.xlabel;
 				guide.y.label.text = self.options.ylabel;
@@ -28839,13 +30000,13 @@ function pathToRegexp (path, keys, options) {
 			prototype._build = function (element) {
 				var self = this;
 
-				if (window.tauCharts) {
-					self._createDivElement(
-						element, classes.graphContainer);
-					return element;
-				} else {
+				if (!window.tauCharts) {
 					console.warn(addLibText);
+					return null;
 				}
+
+				self._createDivElement(element, classes.graphContainer);
+				return element;
 			};
 
 			prototype._addData = function (value) {
@@ -29010,7 +30171,9 @@ function pathToRegexp (path, keys, options) {
 
 				self.guide = {
 					color: {
-						brewer: self.options.color
+						brewer: (typeof self.options.color === "string") ?
+							self.options.color.split(",") :
+							self.options.color
 					},
 					x: {
 						label: {
@@ -29036,6 +30199,1011 @@ function pathToRegexp (path, keys, options) {
 				"core"
 			);
 			}(window, window.document, ns));
+
+/*global window, define, ns */
+/*
+ * Copyright (c) 2015 Samsung Electronics Co., Ltd
+ *
+ * Licensed under the Flora License, Version 1.1 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://floralicense.org/license/
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/*jslint nomen: true */
+/**
+ * # Scroll Handler
+ * Extension for Scroll View Widget, adds scroll handler.
+ *
+ * ## Default selectors
+ * All scrollview selectors with have a class _.ui-scrollhandler_
+ * or _data-handler=[DIRECTION]_ will become be enhanced
+ *
+ * ### HTML examples
+ *
+ * #### Enhanced scrollview using data-handler attribute
+ *
+ *		@example
+ *		<div data-role="page">
+ *			<div data-role="content" data-handler="true">
+ *				page content
+ *			</div>
+ *		</div>
+ *
+ * #### Enhanced scrollview using css .ui-scrollhandler class
+ *
+ *		@example
+ *		<div data-role="page">
+ *			<div data-role="content" class="ui-scrollhandler">
+ *				page content
+ *			</div>
+ *		</div>
+ *
+ * ## Manual constructor
+ * To create the widget manually you can use 2 different APIs, the TAU
+ * API or jQuery API
+ *
+ * ### Enhanced scrollview by using TAU API
+ *
+ *		@example
+ *		<div data-role="page" id="myPage">
+ *			<div data-role="content">
+ *				page content
+ *			<div>
+ *		</div>
+ *		<script>
+ *			var handlerElement = document.getElementById("myPage")
+ *						.querySelector("[data-role=content]");
+ *			tau.widget.ScrollHandler(handlerElement);
+ *		</script>
+ *
+ * ### Enhanced scrollview by using jQuery API
+ *
+ *		@example
+ *		<div data-role="page" id="myPage">
+ *			<div data-role="content">
+ *				page content
+ *			<div>
+ *		</div>
+ *		<script>
+ *			$("#myPage > div[data-role=content]").scrollhandler();
+ *		</script>
+ *
+ * ## Options for ScrollHandler
+ *
+ * Options can be set by using data-* attributes or by passing them to
+ * the constructor.
+ *
+ * There is also a method **option** for changing them after widget
+ * creation
+ *
+ * jQuery mobile API is also supported.
+ *
+ * ### Enable handler
+ *
+ * This option sets the handler status. The default value is true.
+ *
+ * You can change this option by all available methods for options
+ * changing
+ *
+ * #### By data-handler attribute
+ *
+ *		@example
+ *		<div data-role="page" id="myPage">
+ *			<div data-role="content" data-handler="true">
+ *				page content
+ *			<div>
+ *		</div>
+ *
+ * #### By passing object to constructor
+ *
+ *		@example
+ *		<div data-role="page" id="myPage">
+ *			<div data-role="content">
+ *				page content
+ *			<div>
+ *		</div>
+ *		<script>
+ *			var handlerElement = document.getElementById("myPage")
+ *						.querySelector("[data-role=content]");
+ *			tau.widget.ScrollHandler(handlerElement, {
+ *				"handler": true
+ *			});
+ *		</script>
+ *
+ * #### By using jQuery API
+ *
+ *		@example
+ *		<div data-role="page" id="myPage">
+ *			<div data-role="content">
+ *				page content
+ *			<div>
+ *		</div>
+ *		<script>
+ *			$("#myPage > div[data-role=content]").scrollhandler({
+ *				"handler": "true"
+ *			});
+ *		</script>
+ *
+ * ### handlerTheme
+ *
+ * This option sets the handler theme. The default value is inherited
+ * or "s" if none found.
+ *
+ * You can change this option by all available methods for options
+ * changing
+ *
+ * #### By data-handler-theme attribute
+ *
+ *		@example
+ *		<div data-role="page" id="myPage">
+ *			<div data-role="content" data-handler-theme="s" handler="true">
+ *				page content
+ *			<div>
+ *		</div>
+ *
+ *
+ * #### By passing object to constructor
+ *
+ *		@example
+ *		<div data-role="page" id="myPage">
+ *			<div data-role="content">
+ *				page content
+ *			<div>
+ *		</div>
+ *		<script>
+ *			var handlerElement = document.getElementById("myPage")
+ *						.querySelector("[data-role=content]");
+ *			tau.widget.ScrollHandler(handlerElement, {
+ *				"handlerTheme": "s"
+ *			});
+ *		</script>
+ *
+ * #### By using jQuery API
+ *
+ *		@example
+ *		<div data-role="page" id="myPage">
+ *			<div data-role="content">
+ *				page content
+ *			<div>
+ *		</div>
+ *		<script>
+ *			$("#myPage > div[data-role=content]").scrollhandler({
+ *				"handlerTheme": "s"
+ *			});
+ *		</script>
+ *
+ * ### direction
+ *
+ * This option sets the the direction of which the handler is presented.
+ * The default value is "y" meaning vertical scroll button.
+ *
+ * You can change this option by all available methods for options
+ * changing
+ *
+ * #### By data-handler-direction attribute
+ *
+ *		@example
+ *		<div data-role="page" id="myPage">
+ *			<div data-role="content" data-direction="y" handler="true">
+ *				page content
+ *			<div>
+ *		</div>
+ *
+ * #### By passing object to constructor
+ *
+ *		@example
+ *		<div data-role="page" id="myPage">
+ *			<div data-role="content">
+ *				page content
+ *			<div>
+ *		</div>
+ *		<script>
+ *			var handlerElement = document.getElementById("myPage")
+ *						.querySelector("[data-role=content]"),
+ *			tau.widget.ScrollHandler(handlerElement, {
+ *				"scroll": "y"
+ *			});
+ *		</script>
+ *
+ * #### By using jQuery API
+ *
+ *		@example
+ *		<div data-role="page" id="myPage">
+ *			<div data-role="content">
+ *				page content
+ *			<div>
+ *		</div>
+ *		<script>
+ *			$("#myPage > div[data-role=content]").scrollhandler({
+ *				"scroll": "y"
+ *			});
+ *		</script>
+ *
+ * ### scroll
+ *
+ * This option sets the the direction of which the handler is scrolling.
+ * The default value is "y" which means vertical.
+ *
+ * You can change this option by all available methods for options
+ * changing
+ *
+ * #### By data-handler-scroll attribute
+ *
+ *		@example
+ *		<div data-role="page" id="myPage">
+ *			<div data-role="content" data-scroll="x" handler="true">
+ *				page content
+ *			<div>
+ *		</div>
+ *
+ * #### By passing object to constructor
+ *
+ *		@example
+ *		<div data-role="page" id="myPage">
+ *			<div data-role="content">
+ *				page content
+ *			<div>
+ *		</div>
+ *		<script>
+ *			var handlerElement = document.getElementById("myPage")
+ *						.querySelector("[data-role=content]"),
+ *			tau.widget.ScrollHandler(handlerElement, {
+ *				"scroll": "x"
+ *			});
+ *		</script>
+ *
+ * #### By using jQuery API
+ *
+ *		@example
+ *		<div data-role="page" id="myPage">
+ *			<div data-role="content">
+ *				page content
+ *			<div>
+ *		</div>
+ *		<script>
+ *			$("#myPage > div[data-role=content]").scrollhandler({
+ *				"scroll": "x"
+ *			});
+ *		</script>
+ *
+ * ## Methods
+ *
+ * ScrollHandler methods can be called through 2 APIs: TAU API and jQuery
+ * API (jQuery Mobile-like API). Since this widget extends Scrollview,
+ * all the Scrollview methods can be called also.
+ *
+ * @class ns.widget.core.ScrollHandler
+ * @extends ns.widget.core.Scrollview
+ *
+ * @author Krzysztof Antoszek <k.antoszek@samsung.com>
+ * @author Piotr Karny <p.karny@samsung.com>
+ * @author Hyunkook Cho <hk0713.cho@samsung.com>
+ * @author Junhyeon Lee <juneh.lee@samsung.com>
+ * @author Maciej Urbanski <m.urbanski@samsung.com>
+ */
+(function (window, document, ns) {
+	"use strict";
+				var ScrollHandler = function () {
+					var self = this;
+					/**
+					 * Widget options
+					 * @property {Object} options
+					 * @property {boolean} [options.handler=true] Enabled flag
+					 * @property {string} [options.handlerTheme="s"] Handler theme
+					 * @property {"x"|"y"} [options.direction="y"] The direction of the handler
+					 * @property {"x"|"y"|"xy"} [options.scroll="y"] The direction of scrolling
+					 * @property {number} [options.delay=1500] Time in ms after which the scrollhandler disappears.
+					 * @member ns.widget.core.ScrollHandler
+					 */
+
+					self.options = {
+						handler: true,
+						handlerTheme: "s",
+						direction: "y",
+						scroll: "y",
+						delay: 1500
+					};
+					/**
+					 * A collection of handler UI elements
+					 * @property {Object} ui
+					 * @member ns.widget.core.ScrollHandler
+					 * @instance
+					 */
+					self.ui = {
+						handler: null,
+						thumb: null,
+						track: null,
+						handle: null,
+						expander: null,
+						page: null
+					};
+					/**
+					 * Event listeners for various events
+					 * @property {Object} _callbacks
+					 * @property {Function} _callbacks.scrollstart Start handler
+					 * @property {Function} _callbacks.scrollupdate Scrolling handler
+					 * @property {Function} _callbacks.scrollend Scroll end handler
+					 * @property {Function} _callbacks.touchstart Start handler
+					 * @property {Function} _callbacks.touchmove Touch move  handler
+					 * @property {Function} _callbacks.touchend Touch end handler
+					 * @property {Function} _callbacks.resize Window resize handler
+					 * @member ns.widget.core.ScrollHandler
+					 * @protected
+					 */
+					self._callbacks = {
+						scrolstart: null,
+						scrollupdate: null,
+						scrollend: null,
+						touchstart: null,
+						touchmove: null,
+						touchend: null,
+						resize: null
+					};
+					/**
+					 * A drag indicator flag
+					 * @property {boolean} [_dragging=false]
+					 * @member ns.widget.core.ScrollHandler
+					 * @protected
+					 */
+					self._dragging = false;
+					/**
+					 * Collection of scroll bounds params
+					 * @property {Object} _offsets
+					 * @member ns.widget.core.ScrollHandler
+					 * @protected
+					 */
+					self._offsets = {
+						x: 0,
+						y: 0,
+						maxX: 0,
+						maxY: 0
+					};
+					/**
+					 * Holds original pointer events state
+					 * @property {string} [_lastPointerEvents=""]
+					 * @member ns.widget.core.ScrollHandler
+					 * @protected
+					 */
+					self._lastPointerEvents = "";
+					/**
+					 * Holds information about scrollviews available offset
+					 * @property {number} [_availableOffsetX=0]
+					 * @member ns.widget.core.ScrollHandler
+					 * @protected
+					 */
+					self._availableOffsetX = 0;
+					/**
+					 * Holds information about scrollviews available offset
+					 * @property {number} [_availableOffsetX=0]
+					 * @member ns.widget.core.ScrollHandler
+					 * @protected
+					 */
+					self._availableOffsetY = 0;
+					/**
+					 * @property {?number} [_hideTimer=null]
+					 * Holds timer ID
+					 * @member ns.widget.core.ScrollHandler
+					 * @protected
+					 */
+					self._hideTimer = null;
+					/**
+					 * Holds last mouse position
+					 * @property {Object} _lastMouse
+					 * @member ns.widget.core.ScrollHandler
+					 * @protected
+					 */
+					self._lastMouse = {
+						x: 0,
+						y: 0
+					};
+				},
+				engine = ns.engine,
+				tauEvent = ns.event,
+				CSSUtils = ns.util.DOM,
+				selectors = ns.util.selectors,
+				PageClasses = ns.widget.core.Page.classes,
+				Scrollview = ns.widget.core.Scrollview,
+				ScrollviewPrototype = Scrollview.prototype,
+				ScrollviewBuild = ScrollviewPrototype._build,
+				ScrollviewInit = ScrollviewPrototype._init,
+				ScrollviewBindEvents = ScrollviewPrototype._bindEvents,
+				ScrollviewDestroy = ScrollviewPrototype._destroy,
+				CIRCULAR_ANGLE_RANGE = 60, // degree
+				max = Math.max,
+				min = Math.min,
+				floor = Math.floor,
+				/**
+				 * A collection of ScrollHandlers classes
+				 * @property {Object} classes
+				 * @property {string} [classes.handler="ui-handler"] Handler main class
+				 * @property {string} [classes.directionPrefix="ui-handler-direction"] Direction class prefix
+				 * @property {string} [classes.track="ui-handler-track"] Handler track class
+				 * @property {string} [classes.thumb="ui-handler-thumb"] Handler thumb button prefix
+				 * @property {string} [classes.themePrefix="ui-handler-"] Handler theme class prefix
+				 * @property {string} [classes.scrollbarDisabled="scrollbar-disabled"] Scrollview scrollbar disabled class
+				 * @property {string} [classes.disabled="disabled"] Disabled class
+				 * @property {string} [classes.hideNativeScrollbar="ui-hide-scrollbar"] Hides native scrollbar in scrollview
+				 * @member ns.widget.core.ScrollHandler
+				 * @static
+				 * @readonly
+				 */
+				classes = {
+					handler: "ui-handler",
+					directionPrefix: "ui-handler-direction-",
+					track: "ui-handler-track",
+					handle: "ui-handler-handle",
+					thumb: "ui-handler-thumb",
+					expander: "ui-handler-expander",
+					visible: "ui-handler-visible",
+					themePrefix: "ui-handler-",
+					scrollbarDisabled: "scrollbar-disabled",
+					disabled: "disabled",
+					hideNativeScrollbar: "ui-hide-scrollbar"
+				},
+				prototype = new Scrollview();
+
+			ScrollHandler.classes = classes;
+
+			/**
+			 * Translates objects position to a new position
+			 * @param {ns.widget.core.ScrollHandler} self
+			 * @param {number} xOffset
+			 * @param {number} yOffset
+			 * @member ns.widget.core.ScrollHandler
+			 * @private
+			 * @static
+			 */
+			function translate(self, xOffset, yOffset) {
+				var style = null,
+					offsets,
+					translateString = null;
+
+				if (self.options.handler) {
+					style = self.ui.handle.style;
+					if (ns.support.shape.circle) {
+						offsets = self._offsets,
+						translateString = "rotateZ(" +
+							(((yOffset / offsets.maxY) * CIRCULAR_ANGLE_RANGE - CIRCULAR_ANGLE_RANGE / 2) || 0) +
+							"deg)";
+					} else {
+						translateString = "translate3d(" + (xOffset || 0) + "px, " + (yOffset || 0) + "px, 0px)";
+					}
+					style.webkitTransform = translateString;
+					style.mozTransform = translateString;
+					style.msTransform = translateString;
+					style.oTransform = translateString;
+					style.transform = translateString;
+				}
+			}
+
+			/**
+			 * Sets handler position according to scrollviews position
+			 * @param {ns.widget.core.ScrollHandler} self
+			 * @member ns.widget.core.ScrollHandler
+			 * @private
+			 * @static
+			 */
+			function syncHandleWithScroll(self) {
+				var position = self.getScrollPosition(),
+					offsets = self._offsets,
+					direction = self.options.direction,
+					x = floor(min(position.x, self._availableOffsetX) / self._availableOffsetX * offsets.maxX),
+					y = floor(min(position.y, self._availableOffsetY) / self._availableOffsetY * offsets.maxY);
+
+				if (isNaN(x) === true) {
+					x = offsets.x;
+				}
+
+				if (isNaN(y) === true) {
+					y = offsets.y;
+				}
+
+				translate(
+					self,
+					direction === "y" ? 0 : x,
+					direction === "x" ? 0 : y
+				);
+
+				offsets.x = x;
+				offsets.y = y;
+			}
+
+			/**
+			 * Handles scroll start event
+			 * @param {ns.widget.core.ScrollHandler} self
+			 * @member ns.widget.core.ScrollHandler
+			 * @private
+			 * @static
+			 */
+			function handleScrollstart(self) {
+				if (self._dragging === false) {
+					syncHandleWithScroll(self);
+					if (self._hideTimer) {
+						window.clearTimeout(self._hideTimer);
+					}
+					self.ui.handler.classList.add(classes.visible);
+				}
+			}
+
+			/**
+			 * Handles scroll update event
+			 * @param {ns.widget.core.ScrollHandler} self
+			 * @member ns.widget.core.ScrollHandler
+			 * @private
+			 * @static
+			 */
+			function handleScrollupdate(self) {
+				if (self._dragging === false) {
+					if (self._hideTimer) {
+						window.clearTimeout(self._hideTimer);
+					}
+					syncHandleWithScroll(self);
+				}
+			}
+
+			/**
+			 * Handles scroll stop event
+			 * @param {ns.widget.core.ScrollHandler} self
+			 * @member ns.widget.core.ScrollHandler
+			 * @private
+			 * @static
+			 */
+			function handleScrollstop(self) {
+				if (self._dragging === false) {
+					syncHandleWithScroll(self);
+					if (self._hideTimer) {
+						window.clearTimeout(self._hideTimer);
+					}
+					self._hideTimer = window.setTimeout(function () {
+						self.ui.handler.classList.remove(classes.visible);
+					}, self.options.delay);
+				}
+			}
+
+			/**
+			 * Handles dragging
+			 * @param {ns.widget.core.ScrollHandler} self
+			 * @param {number} x
+			 * @param {number} y
+			 * @member ns.widget.core.ScrollHandler
+			 * @private
+			 * @static
+			 */
+			function handleDragging(self, x, y) {
+				var lastMouse = self._lastMouse,
+					offsets = self._offsets,
+					direction = self.options.direction,
+					diffX = lastMouse.x - x,
+					diffY = lastMouse.y - y;
+
+				lastMouse.x = x;
+				lastMouse.y = y;
+
+				// translate with direction locking
+				offsets.x += -diffX;
+				offsets.y += -diffY;
+
+				// cap to between limits
+				offsets.x = max(0, offsets.x);
+				offsets.y = max(0, offsets.y);
+				offsets.x = min(offsets.maxX, offsets.x);
+				offsets.y = min(offsets.maxY, offsets.y);
+
+				translate(
+					self,
+					direction === "y" ? 0 : offsets.x,
+					direction === "x" ? 0 : offsets.y
+				);
+
+				self.scrollTo(
+					direction === "y" ? 0 : offsets.x / offsets.maxX * self._availableOffsetX,
+					direction === "x" ? 0 : offsets.y / offsets.maxY * self._availableOffsetY
+				);
+
+				if (self._hideTimer) {
+					window.clearTimeout(self._hideTimer);
+				}
+			}
+
+			/**
+			 * Handles touch start event
+			 * @param {ns.widget.core.ScrollHandler} self
+			 * @param {MouseEvent|TouchEvent} event
+			 * @member ns.widget.core.ScrollHandler
+			 * @private
+			 * @static
+			 */
+			function handleTouchstart(self, event) {
+				var lastMouse = self._lastMouse,
+					touches = event.touches,
+					touch = touches && touches[0];
+
+				// remove timer
+				if (self._hideTimer) {
+					window.clearTimeout(self._hideTimer);
+				}
+
+				self._dragging = true;
+				lastMouse.x = touch ? touch.clientX : event.clientX;
+				lastMouse.y = touch ? touch.clientY : event.clientY;
+
+				self.ui.handle.classList.add("ui-active");
+				// disable scroll indicator
+				if (self.options.direction === "y") {
+					self.element.style.overflowY = "hidden";
+				} else {
+					self.element.style.overflowX = "hidden";
+				}
+
+				tauEvent.stopImmediatePropagation(event);
+				tauEvent.preventDefault(event);
+			}
+
+			/**
+			 * Handles touch move events
+			 * @param {ns.widget.core.ScrollHandler} self
+			 * @param {MouseEvent|TouchEvent} event
+			 * @member ns.widget.core.ScrollHandler
+			 * @private
+			 * @static
+			 */
+			function handleTouchmove(self, event) {
+				var touches = event.touches,
+					touch = touches && touches[0],
+					x = 0,
+					y = 0;
+				// check for exactly 1 touch event
+				// or a mouse event
+
+				if (self._dragging && (touches === undefined || touches.length <= 1)) {
+					tauEvent.stopImmediatePropagation(event);
+					tauEvent.preventDefault(event);
+
+					x = touch ? touch.clientX : event.clientX;
+					y = touch ? touch.clientY : event.clientY;
+					handleDragging(self, x, y);
+				}
+			}
+
+			/**
+			 * Handles touch end event
+			 * @param {ns.widget.core.ScrollHandler} self
+			 * @param {MouseEvent|TouchEvent} event
+			 * @member ns.widget.core.ScrollHandler
+			 * @private
+			 * @static
+			 */
+			function handleTouchend(self, event) {
+				var ui = self.ui;
+
+				if (self._dragging) {
+					self._dragging = false;
+
+					tauEvent.stopImmediatePropagation(event);
+					tauEvent.preventDefault(event);
+
+					// disable scroll indicator
+					if (self.options.direction === "y") {
+						self.element.style.overflowY = "auto";
+					} else {
+						self.element.style.overflowX = "auto";
+					}
+
+					ui.handle.classList.remove("ui-active");
+
+					if (self._hideTimer) {
+						window.clearTimeout(self._hideTimer);
+					}
+					self._hideTimer = window.setTimeout(function () {
+						ui.handler.classList.remove(classes.visible);
+					}, self.options.delay);
+				}
+			}
+
+			/**
+			 * Build the scrollhander and scrollview DOM
+			 * @param {HTMLElement} element
+			 * @return {HTMLElement}
+			 * @method _build
+			 * @member ns.widget.core.ScrollHandler
+			 * @protected
+			 */
+			prototype._build = function (element) {
+				var node,
+					nodeStyle,
+					scrollviewViewStyle,
+					handler = document.createElement("div"),
+					handle = document.createElement("a"),
+					expander = document.createElement("span"),
+					track = document.createElement("div"),
+					thumb = document.createElement("span"),
+					options = this.options,
+					ui = this.ui;
+
+				// Set scroll option for scrollview
+				options.scroll = options.direction === "y" ? "y" : "x";
+				node = ScrollviewBuild.call(this, element);
+
+				handler.className = classes.handler + " " + classes.themePrefix + options.handlerTheme + " " + classes.directionPrefix + options.direction;
+				expander.className = classes.expander;
+				handle.className = classes.handle;
+				thumb.className = classes.thumb;
+				track.className = classes.track;
+
+				handle.setAttribute("aria-label", (options.direction === "y" ? "Vertical" : "Horizontal") + " handler, double tap and move to scroll");
+
+				expander.appendChild(thumb);
+				handle.appendChild(expander);
+				track.appendChild(handle);
+				handler.appendChild(track);
+
+				node.appendChild(handler);
+
+				// Force scrollview to be full width of container
+				nodeStyle = node.style;
+				scrollviewViewStyle = node.firstElementChild.style;
+
+				// NOTE: to hide native scrollbar, make sure that theme includes
+				// *display* property set to *none* for
+				// .ui-content.ui-scrollview-clip.ui-hide-scrollbar::-webkit-scrollbar
+				element.classList.add(classes.hideNativeScrollbar);
+
+				if (options.direction === "x") {
+					scrollviewViewStyle.display = "inline-block";
+					scrollviewViewStyle.minWidth = "100%";
+				}
+				if (options.direction === "y") {
+					scrollviewViewStyle.display = "block";
+					nodeStyle.minWidth = "100%";
+				}
+
+				ui.handler = handler;
+				ui.handle = handle;
+				ui.expander = expander;
+				ui.track = track;
+				ui.thumb = thumb;
+
+				return node;
+			};
+
+			/**
+			 * Init the scrollhander and scrollview
+			 * @param {HTMLElement} element
+			 * @method _init
+			 * @protected
+			 * @member ns.widget.core.ScrollHandler
+			 */
+			prototype._init = function (element) {
+				var self = this,
+					ui = self.ui,
+					page = ui.page;
+
+				ScrollviewInit.call(self, element);
+
+				if (ui.handler === null) {
+					ui.handler = element.querySelector("." + classes.handler);
+				}
+
+				if (ui.track === null) {
+					ui.track = element.querySelector("." + classes.track);
+				}
+
+				if (ui.handle === null) {
+					ui.handle = element.querySelector("." + classes.handle);
+				}
+
+				if (ui.thumb === null) {
+					ui.thumb = element.querySelector("." + classes.thumb);
+				}
+
+				if (page === null) {
+					page = selectors.getClosestByClass(element, PageClasses.uiPage);
+				}
+				ui.page = page;
+
+				self.enableHandler(true);
+			};
+
+			/**
+			 * Refreshes the scrollhander bounds and dimensions
+			 * @method _refresh
+			 * @protected
+			 * @member ns.widget.core.ScrollHandler
+			 */
+			prototype._refresh = function () {
+				var self = this,
+					element = self.element,
+					offsets = self._offsets,
+					ui = self.ui,
+					handle = ui.handle,
+					handleStyle = handle.style,
+					trackRect = ui.track.getBoundingClientRect(),
+					clipHeight = trackRect.height,
+					clipWidth = trackRect.width,
+					view = element.querySelector("." + Scrollview.classes.view),
+					viewRect = view.getBoundingClientRect(),
+					viewHeight = viewRect.height,
+					viewWidth = viewRect.width;
+
+
+				if (self.options.direction === "y") {
+					handleStyle.height = floor(clipHeight / viewHeight * clipHeight) + "px";
+				} else {
+					handleStyle.width = floor(clipWidth / viewWidth * clipWidth) + "px";
+				}
+
+				offsets.maxX = floor(max(0, clipWidth - CSSUtils.getElementWidth(handle, "inner", true)));
+				offsets.maxY = floor(max(0, clipHeight - CSSUtils.getElementHeight(handle, "inner", true)));
+
+				self._availableOffsetX = max(0, viewWidth - clipWidth);
+				self._availableOffsetY = max(0, viewHeight - clipHeight);
+			};
+
+			/**
+			 * Binds the scrollhander and scrollview events
+			 * @param {HTMLElement} element
+			 * @method _bindEvents
+			 * @protected
+			 * @member ns.widget.core.ScrollHandler
+			 */
+			prototype._bindEvents = function (element) {
+				var self = this,
+					callbacks = self._callbacks,
+					ui = self.ui;
+
+				ScrollviewBindEvents.call(self, element);
+
+				callbacks.scrollstart = handleScrollstart.bind(null, self);
+				callbacks.scrollupdate = handleScrollupdate.bind(null, self);
+				callbacks.scrollstop = handleScrollstop.bind(null, self);
+				callbacks.touchstart = handleTouchstart.bind(null, self);
+				callbacks.touchmove = handleTouchmove.bind(null, self);
+				callbacks.touchend = handleTouchend.bind(null, self);
+				callbacks.resize = self._refresh.bind(self);
+
+				element.addEventListener("scrollstart", callbacks.scrollstart, false);
+				element.addEventListener("scrollupdate", callbacks.scrollupdate, false);
+				element.addEventListener("scrollstop", callbacks.scrollstop, false);
+				ui.handle.addEventListener("vmousedown", callbacks.touchstart, false);
+				ui.page.addEventListener("pageshow", callbacks.resize, false);
+				document.addEventListener("vmousemove", callbacks.touchmove, false);
+				document.addEventListener("vmouseup", callbacks.touchend, false);
+				window.addEventListener("throttledresize", callbacks.resize, false);
+				document.addEventListener("touchcancel", callbacks.touchend, true);
+
+			};
+
+			/**
+			 * Enables/disables handler
+			 *
+			 * #### TAU API
+			 *
+			 *		@example
+			 *		<div data-role="page" id="myPage">
+			 *			<div data-role="content">
+			 *				page content
+			 *			<div>
+			 *		</div>
+			 *		<script>
+			 *			var handlerElement = document.getElementById("myPage")
+			 *						.querySelector("[data-role=content]"),
+			 *				scrollhandler = tau.widget.ScrollHandler(handlerElement);
+			 *			scrollhandler.enableHandler(true);
+			 *		</script>
+			 *
+			 * #### jQuery API
+			 *
+			 *		@example
+			 *		<div data-role="page" id="myPage">
+			 *			<div data-role="content">
+			 *				page content
+			 *			<div>
+			 *		</div>
+			 *		<script>
+			 *			#("#myPage > div[data-role=content]).scrollhandler("enableHandler", true);
+			 *		</script>
+			 *
+			 * @param {boolean} enable
+			 * @return {boolean}
+			 * @method enableHandler
+			 * @member ns.widget.core.ScrollHandler
+			 */
+			prototype.enableHandler = function (enable) {
+				var self = this,
+					scrollBarDisabledClass = classes.scrollbarDisabled,
+					disabledClass = classes.disabled,
+					element = self.element,
+					parentClassList = element.parentNode.classList,
+					elementClassList = element.classList;
+
+				if (enable !== undefined) {
+					self.options.handler = enable;
+					if (enable) {
+						parentClassList.add(scrollBarDisabledClass);
+						elementClassList.remove(disabledClass);
+						self._refresh();
+					} else {
+						parentClassList.remove(scrollBarDisabledClass);
+						elementClassList.add(disabledClass);
+					}
+				}
+
+				return self.options.handler;
+			};
+
+			/**
+			 * Sets the handlers theme
+			 * @param {string} theme
+			 * @method _setHandlerTheme
+			 * @protected
+			 * @member ns.widget.core.ScrollHandler
+			 */
+			prototype._setHandlerTheme = function (theme) {
+				var elementClassList = this.element.classList,
+					themePrefix = classes.themePrefix,
+					themeClass = themePrefix + theme;
+
+				if (elementClassList.contains(themeClass) === false) {
+					elementClassList.remove(themePrefix + this.options.handlerTheme);
+					elementClassList.add(themeClass);
+				}
+			};
+
+			/**
+			 * Destroys the scrollhander and scrollview DOM
+			 * @method _destroy
+			 * @protected
+			 * @member ns.widget.core.ScrollHandler
+			 */
+			prototype._destroy = function () {
+				var self = this,
+					ui = self.ui,
+					callbacks = self._callbacks,
+					element = self.element;
+
+				// Restore native scrollbar
+				element.classList.remove(classes.hideNativeScrollbar);
+				element.removeEventListener("scrollstart", callbacks.scrollstart, false);
+				element.removeEventListener("scroll", callbacks.scrollupdate, false);
+				element.removeEventListener("scrollstop", callbacks.scrollstop, false);
+				ui.handle.removeEventListener("vmousedown", callbacks.touchstart, false);
+				ui.page.removeEventListener("pageshow", callbacks.touchstart, false);
+				document.removeEventListener("vmousemove", callbacks.touchmove, false);
+				document.removeEventListener("vmouseup", callbacks.touchend, false);
+				document.removeEventListener("touchcancel", callbacks.touchend, true);
+				window.removeEventListener("throttledresize", callbacks.resize, false);
+
+				ScrollviewDestroy.call(self);
+			};
+
+			ScrollHandler.prototype = prototype;
+
+			ns.widget.core.ScrollHandler = ScrollHandler;
+			engine.defineWidget(
+				"ScrollHandler",
+				"[data-role='content'][data-handler='true']:not([data-scroll='none']):not(.ui-scrollview-clip):not(.ui-scrolllistview),[data-handler='true'], .ui-scrollhandler",
+				[
+					"enableHandler",
+					"scrollTo",
+					"ensureElementIsVisible",
+					"centerToElement",
+					"getScrollPosition",
+					"skipDragging",
+					"translateTo"
+				],
+				ScrollHandler,
+				"tizen"
+			);
+			}(window, window.document, ns));
+
+
 /*
  * Copyright (c) 2015 Samsung Electronics Co., Ltd
  *
@@ -29580,7 +31748,7 @@ function pathToRegexp (path, keys, options) {
 				/**
 				 * Alias for {@link ns.engine}
 				 * @property {Object} engine
-				 * @member ns.widget.wearable.Page
+				 * @member ns.widget.wearable.Scrollview
 				 * @private
 				 * @static
 				 */
@@ -29589,7 +31757,7 @@ function pathToRegexp (path, keys, options) {
 				/**
 				 * Alias for {@link ns.util}
 				 * @property {Object} util
-				 * @member ns.widget.wearable.Page
+				 * @member ns.widget.wearable.Scrollview
 				 * @private
 				 * @static
 				 */
@@ -29598,7 +31766,7 @@ function pathToRegexp (path, keys, options) {
 				/**
 				 * Alias for {@link ns.util.DOM}
 				 * @property {Object} doms
-				 * @member ns.widget.wearable.Page
+				 * @member ns.widget.wearable.Scrollview
 				 * @private
 				 * @static
 				 */
@@ -29606,15 +31774,23 @@ function pathToRegexp (path, keys, options) {
 				/**
 				 * Alias for {@link ns.util.selectors}
 				 * @property {Object} selectors
-				 * @member ns.widget.wearable.Page
+				 * @member ns.widget.wearable.Scrollview
 				 * @private
 				 * @static
 				 */
 				selectors = util.selectors,
 				/**
+				 * Alias for method {@link Math.abs}
+				 * @property {Function} abs
+				 * @memberof ns.widget.wearable.Scrollview
+				 * @private
+				 * @static
+				 */
+				abs = Math.abs,
+				/**
 				 * Alias for {@link ns.util.object}
 				 * @property {Object} object
-				 * @member ns.widget.wearable.Page
+				 * @member ns.widget.wearable.Scrollview
 				 * @private
 				 * @static
 				 */
@@ -29622,6 +31798,7 @@ function pathToRegexp (path, keys, options) {
 					CIRCLE: "tizen-circular-scrollbar"
 				},
 				EffectBouncing = ns.widget.core.scroller.effect.Bouncing,
+				BOUNCING_THRESHOLD = 20,
 				Scrollview = function () {
 					this.options = {
 						bouncingEffect: true
@@ -29714,17 +31891,14 @@ function pathToRegexp (path, keys, options) {
 				self.maxScrollX = 0;
 				self.maxScrollY = 0;
 				if (scroller) {
-					self.maxScrollY = scroller.scrollHeight - window.innerHeight;
+					self.maxScrollX = scroller.scrollWidth;
+					self.maxScrollY = scroller.scrollHeight;
 				}
-				self.minScrollX = 0;
-				self.minScrollY = 0;
 				self.bouncingEffect = new EffectBouncing(self.element, {
 					maxScrollX: self.maxScrollX,
 					maxScrollY: self.maxScrollY,
-					orientation: "vertical"
+					orientation: "vertical-horizontal"
 				});
-				self.scrollerOffsetX = 0;
-				self.scrollerOffsetY = 0;
 				self._setBouncingEffect(self.element, self.options.bouncingEffect);
 			};
 
@@ -29735,8 +31909,6 @@ function pathToRegexp (path, keys, options) {
 				self.scrolled = false;
 				self.dragging = true;
 				self.scrollCanceled = false;
-				self.startScrollerOffsetX = self.scrollerOffsetX;
-				self.startScrollerOffsetY = self.scrollerOffsetY;
 			};
 
 			prototype._end = function () {
@@ -29769,6 +31941,16 @@ function pathToRegexp (path, keys, options) {
 				}
 			};
 
+			prototype._isEndOfScroll = function (currentY) {
+				var self = this,
+					scroller = self.scroller;
+
+				if (scroller.scrollHeight > window.innerHeight && currentY + window.innerHeight == scroller.scrollHeight) {
+					return true;
+				}
+				return false;
+			}
+
 			/* jshint -W086 */
 			prototype.handleEvent = function (event) {
 				switch (event.type) {
@@ -29786,31 +31968,45 @@ function pathToRegexp (path, keys, options) {
 
 			prototype._move = function (event) {
 				var self = this,
+					page = self.element,
 					scroller = self.scroller,
-					newX = self.startScrollerOffsetX,
-					newY = self.startScrollerOffsetY,
-					scrollTop,
-					maxScrollY,
+					scrollPositionX,
+					scrollPositionY,
 					deltaY = event.detail.deltaY,
+					deltaX = event.detail.deltaX,
+					clientX = event.detail.pointer.clientX,
+					clientY = event.detail.pointer.clientY,
 					bouncingEffect = self.bouncingEffect;
 
 				if (scrolling.isElement(scroller)) {
-					scrollTop = scrolling.getScrollPosition();
-					maxScrollY = scrolling.getMaxScroll();
+					// FIXME: implement getting left scroll position.
+					scrollPositionX = 0;
+					scrollPositionY = scrolling.getScrollPosition();
 				} else {
-					scrollTop = scroller.scrollTop;
-					maxScrollY = self.maxScrollY;
+					scrollPositionX = scroller.scrollLeft;
+					scrollPositionY = scroller.scrollTop;
 				}
 
-				if ((scrollTop === 0 && deltaY > 0) ||
-					(scrollTop === maxScrollY && deltaY < 0)) {
-					if (bouncingEffect) {
-						bouncingEffect.drag(0, -scrollTop);
+				// Handle bouncing (End Effect).
+				if (abs(deltaY) > BOUNCING_THRESHOLD) {
+					if (deltaY > 0) {
+						// show top bouncing.
+						bouncingEffect.drag(clientX, scrollPositionY);
+					} else if (deltaY < 0) {
+						// show bottom bouncing.
+						bouncingEffect.drag(clientX, -(scrollPositionY + window.innerHeight));
+					}
+				} else if (abs(deltaX) > BOUNCING_THRESHOLD) {
+					if (deltaX > 0) {
+						// show left bouncing.
+						bouncingEffect.drag(scrollPositionX, clientY);
+					} else {
+						// show right bouncing.
+						bouncingEffect.drag(-(scrollPositionX + window.innerWidth), clientY);
 					}
 				}
 
-				self.scrollerOffsetX = newX;
-				self.scrollerOffsetY = newY;
+				utilsEvents.trigger(page, self._isEndOfScroll(scrollPositionY) ? "showGoToTopButton" : "hideGoToTopButton");
 			};
 
 			Scrollview.prototype = prototype;
@@ -31608,8 +33804,7 @@ function pathToRegexp (path, keys, options) {
 
 			}(window.document, ns));
 
-/*global ns, window, define */
-/*jslint nomen: true */
+/*global ns, define, ns */
 /*
  * Copyright (c) 2015 Samsung Electronics Co., Ltd
  *
@@ -31626,773 +33821,269 @@ function pathToRegexp (path, keys, options) {
  * limitations under the License.
  */
 /**
- * #Gesture.Manager class
- * Main class controls all gestures.
- * @class ns.event.gesture.Manager
+ * #AssistPanel
+ * Shows a panel that in the sub-layout on the bottom edge of screen.
+ *
+ * ##Introduction
+ *
+ * The assist panel component is a panel that the application's sub layout on the bottom edge of the screen.
+ * This component is hidden most of the time, but user can be opened as swipe gesture from the edge of the screen or
+ * click the element that is added event handler, handler has assistPanel.open() method.
+ *
+ * Note!
+ * We recommend to make handler element.
+ * Because if you didn't set the handler, handler was set page element automatically.
+ * If you really want to make handler as the page element, you should notice data-drag-edge or dragEdge option value
+ * because default value, '1', is whole area of handler element.
+ *
+ * ## HTML Examples
+ *
+ *        @example
+ *        <div id="assistPanelPage" class="ui-page">
+ *          <header id="contentHeader" class="ui-header">
+ *              <h2 class="ui-title">AssistPanel</h2>
+ *          </header>
+ *          <div id = "content" class="ui-content">
+ *            AssistPanel
+ *          </div>
+ *
+ *          <!-- AssistPanel Handler -->
+ *          <a id="assistPanelHandler" href="#AssistPanel" class="assist-panel-handler">AssistPanel Button</a>
+ *          <!-- AssistPanel Widget -->
+ *          <div id="assist-panel" class="ui-assist-panel" data-assist-panel-target="#assistPanelPage" data-enable="true" data-drag-edge="1">
+ *              <header class="ui-header">
+ *                  <h2 class="ui-title">AssistPanel</h2>
+ *              </header>
+ *              <div class="ui-content">
+ *                  <p>CONTENT</p>
+ *              </div>
+ *          </div>
+ *        </div>
+ *
+ * ## Manual constructor
+ *
+ *         @example
+ *             (function() {
+ *                 var handler = document.getElementById("assistPanelHandler"),
+ *                     page = document.getElementById("assistPanelPage"),
+ *                     assistPanelElement = document.querySelector(handler.getAttribute("href")),
+ *                     assistPanel = tau.widget.AssistPanel(assistPanelElement);
+ *
+ *                 page.addEventListener( "pagebeforeshow", function() {
+ *                         assistPanel.setDragHandler(handler);
+ *                         tau.event.on(handler, "mousedown touchstart", function(e) {
+ *                             switch (e.type) {
+ *                             case "touchstart":
+ *                             case "mousedown":
+ *                             // open assist panel
+ *                             assistPanel.transition(60);
+ *                         }
+ *                 }, false);
+ *             })();
+ *
+ * ##AssistPanel state
+ * AssistPanel has four state type.
+ * - "closed" - AssistPanel closed state.
+ * - "opened" - AssistPanel opened state.
+ * - "sliding" - AssistPanel is sliding state. This state does not mean that will operate open or close.
+ * - "settling" - assist panel is settling state. 'Settle' means open or close status. So, this state means that assist panel is animating for opened or closed state.
+ *
+ * ##AssistPanel targeting
+ * You can declare to assist panel target manually. (Default is Page)
+ *
+ * If you implement data-assist-panel-target attribute value at CSS selector type, assist panel widget will be appended to target.
+ *
+ *        @example
+ *        <div class="ui-assist-panel" data-assist-panel-target="#assistPanelPage">
+ *
+ * ##AssistPanel enable
+ * You can declare for whether assist panel gesture used or not. (Default is true)
+ *
+ * If you implement data-enable attribute value is 'true', you can use the assist panel widget.
+ * This option can be changed by 'enable' or 'disable' method.
+ *
+ *        @example
+ *        <div class="ui-assist-panel" data-enable="true">
+ *
+ * ##AssistPanel drag gesture start point
+ * You can declare to drag gesture start point. (Default is 1)
+ *
+ * If you implement data-drag-edge attribute value is '0.5', you can drag gesture start in target width * 0.5 width area.
+ *
+ *        @example
+ *        <div class="ui-assist-panel" data-drag-edge="1">
+ *
+ * @since 2.3
+ * @class ns.widget.wearable.AssistPanel
+ * @component-selector .ui-assist-panel
+ * @component-type standalone-component
+ * @extends ns.widget.core.AssistPanel
+ * @author Hyeoncheol Choi <hc7.choi@samsung.com>
  */
-(function (ns, window, document) {
+(function (document, ns) {
 	"use strict";
-	
-		/**
-			 * Local alias for {@link ns.event.gesture}
-			 * @property {Object}
-			 * @member ns.event.gesture.Manager
-			 * @private
-			 * @static
-			 */
-			var gesture = ns.event.gesture,
-
-				gestureUtils = gesture.utils,
-
-				utilObject = ns.util.object,
-
-				instance = null,
-
-				touchCheck = /touch/,
-
-				Manager = function () {
+				var CoreAssistPanel = ns.widget.core.Drawer,
+				engine = ns.engine,
+				WIDGET_CLASS = "ui-assist-panel",
+				selectors = {
+					WIDGET: "." + WIDGET_CLASS
+				},
+				classes = {
+					WIDGET: WIDGET_CLASS,
+					INDICATOR: WIDGET_CLASS + "-indicator",
+					OVERLAY: WIDGET_CLASS + "-overlay"
+				},
+				AssistPanel = function () {
 					var self = this;
 
-					self.instances = [];
-					self.gestureDetectors = [];
-					self.runningDetectors = [];
-					self.detectorRequestedBlock = null;
+					CoreAssistPanel.call(self);
 
-					self.unregisterBlockList = [];
+					self._callbacks = {
+						onClick: null
+					};
+				},
+				prototype = new CoreAssistPanel();
 
-					self.gestureEvents = {};
-					self.velocity = null;
 
-					self._isReadyDetecting = false;
-					self._blockMouseEvent = false;
-					self.touchSupport = "ontouchstart" in window;
-				};
+			AssistPanel.prototype = prototype;
 
-			function sortInstances(a, b) {
-				if (a.index < b.index) {
-					return -1;
-				} else if (a.index > b.index) {
-					return 1;
+			/**
+			 * Configure AssistPanel widget
+			 * @method _configure
+			 * @protected
+			 * @member ns.widget.wearable.AssistPanel
+			 */
+			prototype._configure = function () {
+				var self = this;
+
+				/**
+				 * Widget options
+				 * @property {number} [options.width=0] If you set width is 0, assist panel width will set as the css style.
+				 */
+				self.options.width = 0;
+				self.options.position = "down";
+				self.options.overlay = false;
+			};
+
+			prototype._addIndicator = function (parentElement) {
+				var indicator = document.createElement("div");
+
+				indicator.classList.add(classes.INDICATOR);
+				parentElement.appendChild(indicator);
+
+				this._ui.indicator = indicator;
+			};
+
+			prototype._build = function (element) {
+				var self = this;
+
+				CoreAssistPanel.prototype._build.call(self, element);
+
+				if (self.options.overlay) {
+					self._ui.drawerOverlay.classList.add(classes.OVERLAY);
 				}
-				return 0;
+
+				// add assist panel indicator
+				self._addIndicator(self._ui.targetElement);
+
+				return element;
+			};
+
+			/**
+			 * Swipe event handler
+			 * @method _onSwipe
+			 * @protected
+			 * @param {Event} event
+			 * @override
+			 * @member ns.widget.wearable.AssistPanel
+			 */
+			prototype._onSwipe = function (event) {
+				var self = this;
+
+				CoreAssistPanel.prototype._onSwipe.call(self, event);
+
+				if (event.detail && event.detail.direction === "down") {
+					self.close();
+				}
 			}
 
-			Manager.prototype = {
 			/**
-				 * Bind start events
-				 * @method _bindStartEvents
-				 * @param {ns.event.gesture.Instance} _instance gesture instance
-				 * @member ns.event.gesture.Manager
-				 * @protected
-				 */
-				_bindStartEvents: function (_instance) {
-					var element = _instance.getElement();
-
-					if (this.touchSupport) {
-						element.addEventListener("touchstart", this, false);
-					} else {
-						element.addEventListener("mousedown", this, false);
-					}
-				},
-
-			/**
-				 * Bind move, end and cancel events
-				 * @method _bindEvents
-				 * @member ns.event.gesture.Manager
-				 * @protected
-				 */
-				_bindEvents: function () {
-					var self = this;
-
-					if (self.touchSupport) {
-						document.addEventListener("touchmove", self);
-						document.addEventListener("touchend", self);
-						document.addEventListener("touchcancel", self);
-					} else {
-						document.addEventListener("mousemove", self);
-						document.addEventListener("mouseup", self);
-					}
-				},
-
-			/**
-				 * Unbind start events
-				 * @method _unbindStartEvents
-				 * @param {ns.event.gesture.Instance} _instance gesture instance
-				 * @member ns.event.gesture.Manager
-				 * @protected
-				 */
-				_unbindStartEvents: function (_instance) {
-					var element = _instance.getElement();
-
-					if (this.touchSupport) {
-						element.removeEventListener("touchstart", this, false);
-					} else {
-						element.removeEventListener("mousedown", this, false);
-					}
-				},
-
-			/**
-				 * Unbind move, end and cancel events
-				 * @method _bindEvents
-				 * @member ns.event.gesture.Manager
-				 * @protected
-				 */
-				_unbindEvents: function () {
-					var self = this;
-
-					if (self.touchSupport) {
-						document.removeEventListener("touchmove", self, false);
-						document.removeEventListener("touchend", self, false);
-						document.removeEventListener("touchcancel", self, false);
-					} else {
-						document.removeEventListener("mousemove", self, false);
-						document.removeEventListener("mouseup", self, false);
-					}
-				},
-
-			/**
-				 * Detect that event should be processed by handleEvent
-				 * @param {Event} event Input event object
-				 * @return {null|string}
-				 * @member ns.event.gesture.Manager
-				 * @protected
-				 */
-				_detectEventType: function (event) {
-					var eventType = event.type;
-
-					if (eventType.match(touchCheck)) {
-						this._blockMouseEvent = true;
-					} else {
-						if (this._blockMouseEvent || event.which !== 1) {
-							return null;
-						}
-					}
-					return eventType;
-				},
-
-			/**
-				 * Handle event
-				 * @method handleEvent
-				 * @param {Event} event
-				 * @member ns.event.gesture.Manager
-				 * @protected
-				 */
-				handleEvent: function (event) {
-					var self = this,
-						eventType = self._detectEventType(event);
-
-					switch (eventType) {
-						case "mousedown":
-						case "touchstart":
-							self._start(event);
-							break;
-						case "mousemove":
-						case "touchmove":
-							self._move(event);
-							break;
-						case "mouseup":
-						case "touchend":
-							self._end(event);
-							break;
-						case "touchcancel":
-							self._cancel(event);
-							break;
-					}
-				},
-
-			/**
-				 * Handler for gesture start
-				 * @method _start
-				 * @param {Event} event
-				 * @member ns.event.gesture.Manager
-				 * @protected
-				 */
-				_start: function (event) {
-					var self = this,
-						element = event.currentTarget,
-						startEvent = {},
-						detectors = [];
-
-					if (!self._isReadyDetecting) {
-						self._resetDetecting();
-						self._bindEvents();
-
-						startEvent = self._createDefaultEventData(gesture.Event.START, event);
-
-						self.gestureEvents = {
-							start: startEvent,
-							last: startEvent
-						};
-
-						self.velocity = {
-							event: startEvent,
-							x: 0,
-							y: 0
-						};
-
-						startEvent = utilObject.fastMerge(startEvent,
-							self._createGestureEvent(gesture.Event.START, event));
-						self._isReadyDetecting = true;
-					}
-
-					self.instances.forEach(function (_instance) {
-						if (_instance.getElement() === element) {
-							detectors = detectors.concat(_instance.getGestureDetectors());
-						}
-					}, self);
-
-					detectors.sort(sortInstances);
-
-					self.gestureDetectors = self.gestureDetectors.concat(detectors);
-
-					self._detect(detectors, startEvent);
-				},
-
-			/**
-				 * Handler for gesture move
-				 * @method _move
-				 * @param {Event} event
-				 * @member ns.event.gesture.Manager
-				 * @protected
-				 */
-				_move: function (event) {
-					var newEvent,
-						self = this;
-
-					if (self._isReadyDetecting) {
-						newEvent = self._createGestureEvent(gesture.Event.MOVE, event);
-						self._detect(self.gestureDetectors, newEvent);
-						self.gestureEvents.last = newEvent;
-					}
-				},
-
-			/**
-				 * Handler for gesture end
-				 * @method _end
-				 * @param {Event} event
-				 * @member ns.event.gesture.Manager
-				 * @protected
-				 */
-				_end: function (event) {
-					var self = this,
-						newEvent = utilObject.merge(
-						{},
-							self.gestureEvents.last,
-							self._createDefaultEventData(gesture.Event.END, event)
-					);
-
-					if (newEvent.pointers.length === 0) {
-						self._detect(self.gestureDetectors, newEvent);
-
-						self.unregisterBlockList.forEach(function (_instance) {
-							this.unregister(_instance);
-						}, self);
-
-						self._resetDetecting();
-						self._blockMouseEvent = false;
-					}
-				},
-
-			/**
-				 * Handler for gesture cancel
-				 * @method _cancel
-				 * @param {Event} event
-				 * @member ns.event.gesture.Manager
-				 * @protected
-				 */
-				_cancel: function (event) {
-					var self = this;
-
-					event = utilObject.merge(
-					{},
-						self.gestureEvents.last,
-						self._createDefaultEventData(gesture.Event.CANCEL, event)
-				);
-
-					self._detect(self.gestureDetectors, event);
-
-					self.unregisterBlockList.forEach(function (_instance) {
-						this.unregister(_instance);
-					}, self);
-
-					self._resetDetecting();
-					self._blockMouseEvent = false;
-				},
-
-			/**
-				 * Detect gesture
-				 * @method _detect
-				 * @param {Array} detectors
-				 * @param {Event} event
-				 * @member ns.event.gesture.Manager
-				 * @protected
-				 */
-				_detect: function (detectors, event) {
-					var self = this,
-						finishedDetectors = [];
-
-					detectors.forEach(function (detector) {
-						var result;
-
-						if (!self.detectorRequestedBlock) {
-							result = detector.detect(event);
-							if ((result & gesture.Result.RUNNING) &&
-								self.runningDetectors.indexOf(detector) < 0) {
-								self.runningDetectors.push(detector);
-							}
-							if (result & gesture.Result.FINISHED) {
-								finishedDetectors.push(detector);
-							}
-							if (result & gesture.Result.BLOCK) {
-								self.detectorRequestedBlock = detector;
-							}
-						}
-					});
-
-				// remove finished detectors.
-					finishedDetectors.forEach(function (detector) {
-						var idx = self.gestureDetectors.indexOf(detector);
-
-						if (idx > -1) {
-							self.gestureDetectors.splice(idx, 1);
-						}
-						idx = self.runningDetectors.indexOf(detector);
-						if (idx > -1) {
-							self.runningDetectors.splice(idx, 1);
-						}
-					});
-
-				// remove all detectors except the detector that return block result
-					if (self.detectorRequestedBlock) {
-					// send to cancel event.
-						self.runningDetectors.forEach(function (detector) {
-							var cancelEvent = utilObject.fastMerge({}, event);
-
-							cancelEvent.eventType = gesture.Event.BLOCKED;
-							detector.detect(cancelEvent);
-						});
-						self.runningDetectors.length = 0;
-						self.gestureDetectors.length = 0;
-						if (finishedDetectors.indexOf(self.detectorRequestedBlock) < 0) {
-							self.gestureDetectors.push(self.detectorRequestedBlock);
-						}
-					}
-				},
-
-			/**
-				 * Reset of gesture manager detector
-				 * @method _resetDetecting
-				 * @member ns.event.gesture.Manager
-				 * @protected
-				 */
-				_resetDetecting: function () {
-					var self = this;
-
-					self._isReadyDetecting = false;
-
-					self.gestureDetectors.length = 0;
-					self.runningDetectors.length = 0;
-					self.detectorRequestedBlock = null;
-
-					self.gestureEvents = {};
-					self.velocity = null;
-
-					self._unbindEvents();
-				},
-
-			/**
-				 * Create default event data
-				 * @method _createDefaultEventData
-				 * @param {string} type event type
-				 * @param {Event} event source event
-				 * @return {Object} default event data
-				 * @return {string} return.eventType
-				 * @return {number} return.timeStamp
-				 * @return {Touch} return.pointer
-				 * @return {TouchList} return.pointers
-				 * @return {Event} return.srcEvent
-				 * @return {Function} return.preventDefault
-				 * @return {Function} return.stopPropagation
-				 * @member ns.event.gesture.Manager
-				 * @protected
-				 */
-				_createDefaultEventData: function (type, event) {
-					var pointers = event.touches;
-
-					if (!pointers) {
-						if (event.type === "mouseup") {
-							pointers = [];
-						} else {
-							event.identifier = 1;
-							pointers = [event];
-						}
-					}
-
-					return {
-						eventType: type,
-						timeStamp: Date.now(),
-						pointer: pointers[0],
-						pointers: pointers,
-
-						srcEvent: event,
-						preventDefault: event.preventDefault.bind(event),
-						stopPropagation: event.stopPropagation.bind(event)
-					};
-				},
-
-			/**
-				 * Create gesture event
-				 * @method _createGestureEvent
-				 * @param {string} type event type
-				 * @param {Event} event source event
-				 * @return {Object} gesture event consist from Event class and additional properties
-				 * @return {number} return.deltaTime
-				 * @return {number} return.deltaX
-				 * @return {number} return.deltaY
-				 * @return {number} return.velocityX
-				 * @return {number} return.velocityY
-				 * @return {number} return.estimatedX
-				 * @return {number} return.estimatedY
-				 * @return {number} return.estimatedDeltaX
-				 * @return {number} return.estimatedDeltaY
-				 * @return {number} return.distance
-				 * @return {number} return.angle
-				 * @return {number} return.direction
-				 * @return {number} return.scale
-				 * @return {number} return.rotation (deg)
-				 * @return {Event} return.startEvent
-				 * @return {Event} return.lastEvent
-				 * @member ns.event.gesture.Manager
-				 * @protected
-				 */
-				_createGestureEvent: function (type, event) {
-					var self = this,
-						defaultEvent = self._createDefaultEventData(type, event),
-						startEvent = self.gestureEvents.start,
-						lastEvent = self.gestureEvents.last,
-						velocity = self.velocity,
-						velocityEvent = velocity.event,
-						delta = {
-							time: defaultEvent.timeStamp - startEvent.timeStamp,
-							x: defaultEvent.pointer.clientX - startEvent.pointer.clientX,
-							y: defaultEvent.pointer.clientY - startEvent.pointer.clientY
-						},
-						deltaFromLast = {
-							x: defaultEvent.pointer.clientX - lastEvent.pointer.clientX,
-							y: defaultEvent.pointer.clientY - lastEvent.pointer.clientY
-						},
-					/* pause time threshold.util. tune the number to up if it is slow */
-						timeDifference = gesture.defaults.estimatedPointerTimeDifference,
-						estimated;
-
-					// reset start event for multi touch
-					if (startEvent && defaultEvent.pointers.length !== startEvent.pointers.length) {
-						startEvent.pointers = Array.prototype.slice.call(defaultEvent.pointers);
-					}
-
-					if (defaultEvent.timeStamp - velocityEvent.timeStamp >
-						gesture.defaults.updateVelocityInterval) {
-						utilObject.fastMerge(velocity, gestureUtils.getVelocity(
-							defaultEvent.timeStamp - velocityEvent.timeStamp,
-							defaultEvent.pointer.clientX - velocityEvent.pointer.clientX,
-							defaultEvent.pointer.clientY - velocityEvent.pointer.clientY
-					));
-						velocity.event = defaultEvent;
-					}
-
-					estimated = {
-						x: Math.round(defaultEvent.pointer.clientX +
-							(timeDifference * velocity.x * (deltaFromLast.x < 0 ? -1 : 1))),
-						y: Math.round(defaultEvent.pointer.clientY +
-							(timeDifference * velocity.y * (deltaFromLast.y < 0 ? -1 : 1)))
-					};
-
-				// Prevent that point goes back even though direction is not changed.
-					if ((deltaFromLast.x < 0 && estimated.x > lastEvent.estimatedX) ||
-						(deltaFromLast.x > 0 && estimated.x < lastEvent.estimatedX)) {
-						estimated.x = lastEvent.estimatedX;
-					}
-
-					if ((deltaFromLast.y < 0 && estimated.y > lastEvent.estimatedY) ||
-						(deltaFromLast.y > 0 && estimated.y < lastEvent.estimatedY)) {
-						estimated.y = lastEvent.estimatedY;
-					}
-
-					utilObject.fastMerge(defaultEvent, {
-						deltaTime: delta.time,
-						deltaX: delta.x,
-						deltaY: delta.y,
-
-						velocityX: velocity.x,
-						velocityY: velocity.y,
-
-						estimatedX: estimated.x,
-						estimatedY: estimated.y,
-						estimatedDeltaX: estimated.x - startEvent.pointer.clientX,
-						estimatedDeltaY: estimated.y - startEvent.pointer.clientY,
-
-						distance: gestureUtils.getDistance(startEvent.pointer, defaultEvent.pointer),
-
-						angle: gestureUtils.getAngle(startEvent.pointer, defaultEvent.pointer),
-
-						direction: gestureUtils.getDirection(startEvent.pointer, defaultEvent.pointer),
-
-						scale: gestureUtils.getScale(startEvent.pointers, defaultEvent.pointers),
-						rotation: gestureUtils.getRotation(startEvent.pointers, defaultEvent.pointers),
-
-						startEvent: startEvent,
-						lastEvent: lastEvent
-					});
-
-					return defaultEvent;
-				},
-
-			/**
-				 * Register instance of gesture
-				 * @method register
-				 * @param {ns.event.gesture.Instance} instance gesture instance
-				 * @member ns.event.gesture.Manager
-				 */
-				register: function (instance) {
-					var self = this,
-						idx = self.instances.indexOf(instance);
-
-					if (idx < 0) {
-						self.instances.push(instance);
-						self._bindStartEvents(instance);
-					}
-				},
-
-			/**
-				 * Unregister instance of gesture
-				 * @method unregister
-				 * @param {ns.event.gesture.Instance} instance gesture instance
-				 * @member ns.event.gesture.Manager
-				 */
-				unregister: function (instance) {
-					var idx,
-						self = this;
-
-					if (self.gestureDetectors.length) {
-						self.unregisterBlockList.push(instance);
-					} else {
-						idx = self.instances.indexOf(instance);
-						if (idx > -1) {
-							self.instances.splice(idx, 1);
-							self._unbindStartEvents(instance);
-						}
-
-						if (!self.instances.length) {
-							self._destroy();
-						}
-					}
-				},
-
-			/**
-				 * Destroy instance of Manager
-				 * @method _destroy
-				 * @member ns.event.gesture.Manager
-				 * @protected
-				 */
-				_destroy: function () {
-					var self = this;
-
-					self._resetDetecting();
-					self.instances.length = 0;
-					self.unregisterBlockList.length = 0;
-					self._blockMouseEvent = false;
-					instance = null;
-				}
-
-			};
-
-			Manager.getInstance = function () {
-				if (!instance) {
-					instance = new Manager();
-				}
-				return instance;
-			};
-
-			gesture.Manager = Manager;
-		}(ns, window, window.document));
-
-/*global ns, window, define */
-/*
- * Copyright (c) 2015 Samsung Electronics Co., Ltd
- *
- * Licensed under the Flora License, Version 1.1 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://floralicense.org/license/
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-(function (ns) {
-	"use strict";
-			/**
-			 * Local alias for {@link ns.event.gesture}
-			 * @property {Object}
-			 * @member ns.event.gesture.Instance
-			 * @private
-			 * @static
+			 * Set overlay visibility
+			 * @method _setOverlay
+			 * @override
+			 * @member ns.widget.wearable.AssistPanel
+			 * @protected
 			 */
-			var gesture = ns.event.gesture,
-			/**
-				 * Local alias for {@link ns.event.gesture.Detector}
-				 * @property {Object}
-				 * @member ns.event.gesture.Instance
-				 * @private
-				 * @static
-				 */
-				Detector = gesture.Detector,
-			/**
-				 * Local alias for {@link ns.event.gesture.Manager}
-				 * @property {Object}
-				 * @member ns.event.gesture.Instance
-				 * @private
-				 * @static
-				 */
-				Manager = gesture.Manager,
-			/**
-				 * Local alias for {@link ns.event}
-				 * @property {Object}
-				 * @member ns.event.gesture.Instance
-				 * @private
-				 * @static
-				 */
-				events = ns.event,
-			/**
-				 * Alias for method {@link ns.util.object.merge}
-				 * @property {Function} merge
-				 * @member ns.event.gesture.Instance
-				 * @private
-				 * @static
-				 */
-				merge = ns.util.object.merge,
-
-			/**
-				 * #Gesture.Instance class
-				 * Creates instance of gesture manager on element.
-				 * @param {HTMLElement} element
-				 * @param {Object} options
-				 * @class ns.event.gesture.Instance
-				 */
-				Instance = function (element, options) {
-					this.element = element;
-					this.eventDetectors = [];
-					this.options = merge({}, gesture.defaults, options);
-
-					this.gestureManager = Manager.getInstance();
-					this.eventSender = merge({}, Detector.Sender, {
-						sendEvent: this.trigger.bind(this)
-					});
-				};
-
-			Instance.prototype = {
-			/**
-				 * Set options
-				 * @method setOptions
-				 * @param {Object} options options
-				 * @return {ns.event.gesture.Instance}
-				 * @member ns.event.gesture.Instance
-				 */
-				setOptions: function (options) {
-					merge(this.options, options);
-					return this;
-				},
-
-			/**
-				 * Add detector
-				 * @method addDetector
-				 * @param {Object} detectorStrategy strategy
-				 * @return {ns.event.gesture.Instance}
-				 * @member ns.event.gesture.Instance
-				 */
-				addDetector: function (detectorStrategy) {
-					var detector = new Detector(detectorStrategy, this.eventSender),
-						alreadyHasDetector = !!this.eventDetectors.length;
-
-					this.eventDetectors.push(detector);
-
-					if (!!this.eventDetectors.length && !alreadyHasDetector) {
-						this.gestureManager.register(this);
-					}
-
-					return this;
-				},
-
-			/**
-				 * Remove detector
-				 * @method removeDetector
-				 * @param {Object} detectorStrategy strategy
-				 * @return {ns.event.gesture.Instance}
-				 * @member ns.event.gesture.Instance
-				 */
-				removeDetector: function (detectorStrategy) {
-					var idx = this.eventDetectors.indexOf(detectorStrategy);
-
-					if (idx > -1) {
-						this.eventDetectors.splice(idx, 1);
-					}
-
-					if (!this.eventDetectors.length) {
-						this.gestureManager.unregister(this);
-					}
-
-					return this;
-				},
-
-			/**
-				 * Triggers the gesture event
-				 * @method trigger
-				 * @param {string} gestureName gestureName name
-				 * @param {Object} eventInfo data provided to event object
-				 * @member ns.event.gesture.Instance
-				 */
-				trigger: function (gestureName, eventInfo) {
-					return events.trigger(this.element, gestureName, eventInfo, false);
-				},
-
-			/**
-				 * Get HTML element assigned to gesture event instance
-				 * @method getElement
-				 * @member ns.event.gesture.Instance
-				 */
-				getElement: function () {
-					return this.element;
-				},
-
-			/**
-				 * Get gesture event detectors assigned to instance
-				 * @method getGestureDetectors
-				 * @member ns.event.gesture.Instance
-				 */
-				getGestureDetectors: function () {
-					return this.eventDetectors;
-				},
-
-			/**
-				 * Destroy instance
-				 * @method destroy
-				 * @member ns.event.gesture.Instance
-				 */
-				destroy: function () {
-					this.element = null;
-					this.eventHandlers = {};
-					this.gestureManager = null;
-					this.eventSender = null;
-					this.eventDetectors.length = 0;
-				}
+			prototype._setOverlay = function () {
+				// disable overlay change
 			};
 
-			gesture.Instance = Instance;
+			function onClick(self) {
+				self.open();
+			}
 
-		}(ns));
+			prototype._bindEvents = function () {
+				var self = this,
+					callbacks = self._callbacks;
+
+				callbacks.onClick = onClick.bind(null, self);
+				CoreAssistPanel.prototype._bindEvents.call(self);
+
+				self._ui.indicator.addEventListener("vclick", callbacks.onClick);
+			};
+
+			prototype._unbindEvents = function () {
+				var self = this;
+
+				self._ui.indicator.removeEventListener("vclick", self._callbacks.onClick);
+			};
+
+			prototype._destroy = function () {
+				this._unbindEvents();
+				CoreAssistPanel.prototype._destroy.call(this);
+			};
+
+			/**
+			 * Open AssistPanel widget.
+			 *
+			 * ##### Running example in pure JavaScript:
+			 *
+			 * @example
+			 *
+			 * <div id="assistPanel" class="ui-assist-panel" data-drag-edge="1">
+			 *    <header class="ui-header">
+			 *        <h2 class="ui-title">AssistPanel</h2>
+			 *    </header>
+			 *    <div class="ui-content">
+			 *        <p>Assist panel content</p>
+			 *    </div>
+			 * </div>
+			 *
+			 * <script>
+			 *     var assistPanel = tau.widget.AssistPanel(document.getElementById("assistPanel"));
+			 *
+			 *     assistPanel.open();
+			 * </script>
+			 *
+			 * @method open
+			 * @public
+			 * @member ns.widget.wearable.AssistPanel
+			 */
+			ns.widget.wearable.AssistPanel = AssistPanel;
+			engine.defineWidget(
+				"AssistPanel",
+				selectors.WIDGET,
+				[
+					"open",
+					"close",
+					"isOpen",
+					"getState"
+				],
+				AssistPanel,
+				"wearable"
+			);
+
+			}(window.document, ns));
 
 /*global window, define, ns */
 /*jslint nomen: true */
@@ -32457,57 +34148,51 @@ function pathToRegexp (path, keys, options) {
 			var BaseWidget = ns.widget.BaseWidget,
 				BaseKeyboardSupport = ns.widget.core.BaseKeyboardSupport,
 				engine = ns.engine,
-				selectors = ns.util.selectors,
-				utilDOM = ns.util.DOM,
+				objectMerge = ns.util.object.merge,
 				events = ns.event,
-				Gesture = ns.event.gesture,
-				utilSelector = ns.util.selectors,
-				COLORS = {
-					BACKGROUND: "rgba(145, 145, 145, 0.7)",
-					ACTIVE: "rgba(61, 185, 204, 1)",
-					WARNING_BG: "rgba(201, 133, 133, 1)",
-					WARNING: "rgba(255, 25, 25, 1)"
+				/**
+			 	 * Widget options
+				 * @property {string} [options.type="continues"] Slider type. 'continues', 'level-bar'
+				 * @property {boolean} [options.disabled=false] Slider disabled mode. true or false
+				 * @property {number} [min=0] minimum value of Slider
+				 * @property {number} [max=10] maximum value of Slider
+				 * @property {number} [step=1] step specifies the granularity that the value must adhere to
+				 **/
+				defaults = {
+					type: "continues",
+					orientation: "horizontal",
+					expand: false,
+					warning: false,
+					warningLevel: 0,
+					disabled: false,
+					toggle: "",
+					min: 0,
+					max: 10,
+					step: 1
 				},
-				DEFAULT = {
-					HORIZONTAL: "horizontal"
-				},
+				unsupportedOptions = ["orientation", "expand", "warning", "warningLevel", "toggle"],
 				Slider = function () {
 					var self = this;
-					/**
-					 * Widget options
-					 * @property {boolean} [options.type="normal"] Slider type. 'normal', 'center' or 'circle'
-					 * @property {string} [options.orientation="horizontal"] Slider orientation. horizontal or vertical
-					 * @property {boolean} [options.expand=false] Slider expand mode. true or false
-					 **/
 
-					self.options = {
-						type: "normal",
-						orientation: DEFAULT.HORIZONTAL,
-						expand: false,
-						warning: false,
-						warningLevel: 0,
-						disabled: false,
-						toggle: ""
-					};
-
+					self.options = objectMerge({}, defaults);
 					BaseKeyboardSupport.call(self);
 
-					self._ui = {};
+					self._ui = {
+						scale: null
+					};
 				},
 				classes = {
 					SLIDER: "ui-slider",
-					SLIDER_HORIZONTAL: "ui-slider-horizontal",
-					SLIDER_VERTICAL: "ui-slider-vertical",
 					SLIDER_VALUE: "ui-slider-value",
 					SLIDER_HANDLER: "ui-slider-handler",
-					SLIDER_HANDLER_EXPAND: "ui-slider-handler-expand",
-					SLIDER_CENTER: "ui-slider-center",
-					SLIDER_HANDLER_ACTIVE: "ui-slider-handler-active",
-					SLIDER_WARNING: "ui-slider-warning",
 					SLIDER_DISABLED: "ui-disabled",
 					SLIDER_HANDLER_VALUE: "ui-slider-handler-value",
-					SLIDER_HANDLER_SMALL: "ui-slider-handler-small",
-					SLIDER_FOCUS: "ui-slider-focus"
+					SLIDER_FOCUS: "ui-slider-focus",
+					SLIDER_BAR: "ui-slider-bar",
+					SLIDER_ACTIVE: "ui-slider-active",
+					TRACK: "ui-slider-handler-track",
+					SPACE_BEFORE: "ui-slider-before-space",
+					SPACE_AFTER: "ui-slider-after-space"
 				},
 				prototype = new BaseWidget();
 
@@ -32523,26 +34208,10 @@ function pathToRegexp (path, keys, options) {
 			 * @static
 			 */
 			function bindEvents(self) {
-				var ui = self._ui,
-					element = ui.barElement,
-					toggle = ui.toggle;
+				events.on(self.element, "input change vmouseup vmousedown", self, false);
 
-				events.enableGesture(
-					element,
-
-					new Gesture.Drag({
-						orientation: self.options.orientation,
-						threshold: 0
-					})
-				);
-				// @todo remove drag handlers
-				//events.on(element, "dragstart drag dragend dragcancel", self, false);
-				events.on(self.element, "input change touchstart touchend", self, false);
-				events.on(self.element, "focus", self, false);
-				events.on(self.element, "blur", self, false);
-				events.on(self.element, "keyup", self, false);
-				if (toggle) {
-					events.on(toggle, "change", self);
+				if (self.isKeyboardSupport) {
+					events.on(self.element, "focus, blur, keyup", self, false);
 				}
 			}
 
@@ -32555,17 +34224,81 @@ function pathToRegexp (path, keys, options) {
 			 * @static
 			 */
 			function unbindEvents(self) {
-				var ui = self._ui,
-					element = ui.barElement,
-					toggle = ui.toggle;
+				events.off(self.element, "input change vmouseup vmousedown", self, false);
 
-				events.disableGesture(element);
-				// @todo remove drag handlers
-				//events.off(element, "dragstart drag dragend dragcancel", self, false);
-				events.off(self.element, "input change touchstart touchend", self, false);
-				if (toggle) {
-					events.off(toggle, "change", self);
+				if (self.isKeyboardSupport) {
+					events.off(self.element, "focus, blur, keyup", self, false);
 				}
+			}
+
+			/**
+			 * Method changes look of scale for Slider widget when type is level bar
+			 * @method _updateLevelBar
+			 * @member ns.widget.core.Slider
+			 * @protected
+			 */
+			prototype._updateLevelBar = function () {
+				var self = this,
+					ui = self._ui,
+					scale = ui.scale,
+					options = self.options,
+					numberOfDots = Math.round((options.max - options.min) / options.step) + 1,
+					currentDots = scale.children.length,
+					delta = numberOfDots - currentDots,
+					dot,
+					i;
+
+				// modify DOM
+				if (delta > 0) {
+					// add
+					for (i = 0; i < delta; i++) {
+						dot = document.createElement("div");
+						dot.classList.add("ui-slider-scale-dot");
+						scale.appendChild(dot);
+					}
+				} else if (delta < 0) {
+					// remove redundant dots
+					delta = -delta;
+					for (i = 0; i < delta; i++) {
+						scale.removeChild(scale.lastElementChild);
+					}
+				}
+			}
+
+			/**
+			 * Method is called when "type" option has change
+			 * @method _setType
+			 * @member ns.widget.core.Slider
+			 * @param {HTMLElement} element element parameter is required by BaseWidget
+			 * @param {string} value
+			 * @protected
+			 */
+			prototype._setType = function (element, value) {
+				var self = this,
+					ui = self._ui,
+					scale = ui.scale,
+					containerElement = ui.containerElement;
+
+				if (value === "level-bar") {
+					// create element
+					if (!scale) {
+						scale = document.createElement("div");
+						scale.classList.add("ui-slider-scale");
+						containerElement.appendChild(scale);
+						ui.scale = scale;
+					}
+					// update dots
+					self._updateLevelBar();
+				} else {
+					if (scale) {
+						containerElement.remove(scale);
+						ui.scale = null;
+					}
+				}
+
+				containerElement.classList.toggle("ui-slider-level-bar", value === "level-bar");
+
+				self.options.type = value;
 			}
 
 			/**
@@ -32579,32 +34312,71 @@ function pathToRegexp (path, keys, options) {
 			prototype._build = function (element) {
 				var self = this,
 					ui = self._ui,
+					containerElement = document.createElement("div"),
 					barElement = document.createElement("div"),
 					valueElement = document.createElement("div"),
-					handlerElement = document.createElement("div");
+					handlerElement = document.createElement("div"),
+					handlerTrack = document.createElement("div"),
+					beforeSpace = document.createElement("div"),
+					afterSpace = document.createElement("div");
 
-				barElement.classList.add(classes.SLIDER);
+				containerElement.classList.add(classes.SLIDER);
 
+				barElement.classList.add(classes.SLIDER_BAR);
 				valueElement.classList.add(classes.SLIDER_VALUE);
 				barElement.appendChild(valueElement);
-				handlerElement.classList.add(classes.SLIDER_HANDLER);
-				barElement.appendChild(handlerElement);
 
-				element.parentNode.appendChild(barElement);
+				handlerElement.classList.add(classes.SLIDER_HANDLER);
+				handlerTrack.classList.add(classes.TRACK);
+				beforeSpace.classList.add(classes.SPACE_BEFORE);
+				afterSpace.classList.add(classes.SPACE_AFTER);
+
+				handlerTrack.appendChild(beforeSpace);
+				handlerTrack.appendChild(handlerElement);
+				handlerTrack.appendChild(afterSpace);
+
+				containerElement.appendChild(handlerTrack);
+				containerElement.appendChild(barElement);
+
+				element.parentNode.appendChild(containerElement);
+				ui.barElement = barElement;
 				ui.valueElement = valueElement;
 				ui.handlerElement = handlerElement;
-				ui.barElement = barElement;
+				ui.containerElement = containerElement;
+				ui.beforeSpace = beforeSpace;
+				ui.afterSpace = afterSpace;
 
-				element.parentNode.replaceChild(barElement, element);
-				barElement.appendChild(element);
+				element.parentNode.replaceChild(containerElement, element);
+				containerElement.appendChild(element);
 
 				if (self.isKeyboardSupport) {
 					self.preventFocusOnElement(element);
-					barElement.setAttribute("data-focus-lock", "true");
-					barElement.setAttribute("tabindex", "0");
+					containerElement.setAttribute("data-focus-lock", "true");
+					containerElement.setAttribute("tabindex", "0");
 				}
 
 				return element;
+			};
+
+			/**
+			 * Update Slider properties from widget options
+			 * @method _updateProperties
+			 * @member ns.widget.core.Slider
+			 * @protected
+			 */
+			prototype._updateProperties = function () {
+				var self = this,
+					options = self.options,
+					attrValue = parseFloat(self.element.getAttribute("value"));
+
+				self._min = options.min;
+				self._max = options.max;
+				self._minValue = self._min;
+				self._maxValue = self._max;
+				self._interval = self._max - self._min;
+
+				self._value = attrValue ? attrValue : parseFloat(self.element.value);
+				self._previousValue = self._value;
 			};
 
 			/**
@@ -32616,49 +34388,27 @@ function pathToRegexp (path, keys, options) {
 			 * @protected
 			 */
 			prototype._init = function (element) {
-				var self = this,
-					attrMin = parseFloat(element.getAttribute("min")),
-					attrMax = parseFloat(element.getAttribute("max")),
-					attrValue = parseFloat(element.getAttribute("value")),
-					ui = self._ui,
-					options = self.options;
+				var self = this;
 
-				self._min = attrMin ? attrMin : 0;
-				self._max = attrMax ? attrMax : 100;
-				self._minValue = self._min;
-				self._maxValue = self._max;
-				self._value = attrValue ? attrValue : parseFloat(self.element.value);
-				self._interval = self._max - self._min;
-				self._previousValue = self._value;
-				self._warningLevel = parseInt(options.warningLevel, 10);
+				self._warnAboutUnsupportedOptions();
+				self._updateProperties();
+
 				self._setDisabled(element);
 				self._locked = false;
-
-				if (!ui.toggle && options.toggle) {
-					ui.toggle = document.querySelector(options.toggle);
-				}
 
 				self._initLayout();
 				return element;
 			};
 
-			prototype._setInputRangeSize = function () {
-				var self = this,
-					input = self.element,
-					barElement = self._ui.barElement,
-					options = self.options,
-					rectBar = barElement.getBoundingClientRect();
+			prototype._warnAboutUnsupportedOptions = function () {
+				var options = this.options;
 
-				if (options.orientation === DEFAULT.HORIZONTAL) {
-					input.style.width = (rectBar.width + 16) + "px";
-					input.style.top = "-12px"; // @todo change this hardcoded size;
-					input.style.left = "-8px";
-				} else {
-					input.style.width = (rectBar.width + 16) + "px";
-					input.style.height = rectBar.height + "px";
-					input.style.left = "-10px";
-				}
-			};
+				unsupportedOptions.forEach(function (option) {
+					if (options[option] !== defaults[option]) {
+						ns.warn("The " + option + " option has no effect on Slider widget");
+					}
+				});
+			}
 
 			/**
 			 * init layout of Slider component
@@ -32668,73 +34418,13 @@ function pathToRegexp (path, keys, options) {
 			 */
 			prototype._initLayout = function () {
 				var self = this,
-					options = self.options,
-					ui = self._ui,
-					barElement = ui.barElement,
-					handlerElement = ui.handlerElement;
+					ui = self._ui;
 
-				if (options.orientation === DEFAULT.HORIZONTAL) {
-					barElement.classList.remove(classes.SLIDER_VERTICAL);
-					barElement.classList.add(classes.SLIDER_HORIZONTAL);
-				} else {
-					barElement.classList.remove(classes.SLIDER_HORIZONTAL);
-					barElement.classList.add(classes.SLIDER_VERTICAL);
-				}
+				self._setType(self.element, self.options.type);
 
-				options.type === "center" ? barElement.classList.add(classes.SLIDER_CENTER) : barElement.classList.remove(classes.SLIDER_CENTER);
+				self._containerElementWidth = ui.containerElement.offsetWidth;
 
-				options.expand ? handlerElement.classList.add(classes.SLIDER_HANDLER_EXPAND) : handlerElement.classList.remove(classes.SLIDER_HANDLER_EXPAND);
-
-
-				self._barElementWidth = ui.barElement.offsetWidth;
-				if (self.options.orientation !== DEFAULT.HORIZONTAL) {
-					self._barElementHeight = ui.barElement.offsetHeight;
-				}
 				self._setValue(self._value);
-				self._setSliderColors(self._value);
-
-				self._setInputRangeSize();
-			};
-
-			/**
-			 * Set value of Slider center mode
-			 * @method _setCenterValue
-			 * @param {number} value
-			 * @member ns.widget.core.Slider
-			 * @protected
-			 */
-			prototype._setCenterValue = function (value) {
-				var self = this,
-					ui = self._ui,
-					validValue,
-					valueElementValidStyle,
-					barElementLength,
-					center,
-					validStyle,
-					inValidStyle;
-
-				if (self.options.orientation === DEFAULT.HORIZONTAL) {
-					barElementLength = self._barElementWidth;
-					center = barElementLength / 2;
-					validValue = barElementLength * (value - self._min) / self._interval;
-					validStyle = validValue < center ? "right" : "left";
-					inValidStyle = validValue < center ? "left" : "right";
-					valueElementValidStyle = "width";
-					ui.handlerElement.style["left"] = validValue + "px";
-				} else {
-					barElementLength = self._barElementHeight;
-					center = barElementLength / 2;
-					validValue = barElementLength * (value - self._min) / self._interval;
-					validStyle = validValue < center ? "top" : "bottom";
-					inValidStyle = validValue < center ? "bottom" : "top";
-					valueElementValidStyle = "height";
-					ui.handlerElement.style["top"] = (barElementLength - validValue) + "px";
-				}
-
-				ui.valueElement.style[validStyle] = "50%";
-				ui.valueElement.style[inValidStyle] = "initial";
-
-				ui.valueElement.style[valueElementValidStyle] = Math.abs(center - validValue) + "px";
 			};
 
 			/**
@@ -32747,21 +34437,13 @@ function pathToRegexp (path, keys, options) {
 			prototype._setNormalValue = function (value) {
 				var self = this,
 					ui = self._ui,
-					options = self.options,
-					barElementLength,
-					validValue;
+					percentValue;
 
-				if (options.orientation === DEFAULT.HORIZONTAL) {
-					barElementLength = self._barElementWidth;
-					validValue = barElementLength * (value - self._min) / self._interval;
-					ui.valueElement.style["width"] = validValue + "px";
-					ui.handlerElement.style["left"] = validValue + "px";
-				} else {
-					barElementLength = self._barElementHeight;
-					validValue = barElementLength * (value - self._min) / self._interval;
-					ui.valueElement.style["height"] = validValue + "px";
-					ui.handlerElement.style["top"] = (barElementLength - validValue) + "px";
-				}
+				// position of handle element
+				percentValue = value / (self._max - self._min) * 100;
+				ui.beforeSpace.style["width"] = percentValue + "%";
+				ui.afterSpace.style["width"] = (100 - percentValue) + "%";
+				ui.valueElement.style["width"] = percentValue + "%";
 			};
 
 			/**
@@ -32773,12 +34455,8 @@ function pathToRegexp (path, keys, options) {
 			 */
 			prototype._setValue = function (value) {
 				var self = this,
-					ui = self._ui,
-					options = self.options,
 					element = self.element,
-					toggle = ui.toggle,
-					floatValue,
-					expendedClasses;
+					floatValue;
 
 				self._previousValue = self._value;
 
@@ -32790,37 +34468,12 @@ function pathToRegexp (path, keys, options) {
 
 				floatValue = parseFloat(value);
 
-				if (options.type === "center") {
-					self._setCenterValue(value);
-				} else if (options.type === "normal") {
-					self._setNormalValue(value);
-				}
-
-				self._setHandlerStyle(value);
-				self._updateSliderColors(value);
-
-				if (self.options.expand) {
-					expendedClasses = classes.SLIDER_HANDLER_VALUE;
-					if (floatValue > 99 || floatValue < -10) {
-						expendedClasses += " " + classes.SLIDER_HANDLER_SMALL;
-					}
-					ui.handlerElement.innerHTML = "<span class=" + expendedClasses + ">" + floatValue + "</span>";
-				}
+				self._setNormalValue(value);
 
 				if (self._previousValue !== floatValue) {
 					element.setAttribute("value", floatValue);
 					element.value = floatValue;
 					self._value = floatValue;
-
-					if (toggle) {
-						if (floatValue === 0 && !toggle.checked) {
-							toggle.checked = true;
-						}
-
-						if (floatValue !== 0 && toggle.checked) {
-							toggle.checked = false;
-						}
-					}
 
 					//events.trigger(element, "input");
 				}
@@ -32831,97 +34484,8 @@ function pathToRegexp (path, keys, options) {
 			};
 
 			prototype._getContainer = function () {
-				return this._ui.barElement;
+				return this._ui.containerElement;
 			}
-
-			/**
-			 * Set background as a gradient
-			 * @param {HTMLElement} element
-			 * @param {string} orientation
-			 * @param {string} reverseOrientation
-			 * @param {string} color1
-			 * @param {string} level1
-			 * @param {string} color2
-			 * @param {string} level2
-			 * @param {string} currentValue This param is added only because gradients do not work in proper way on Tizen
-			 * @private
-			 */
-			function setBackground(element, orientation, reverseOrientation, color1, level1, color2, level2, currentValue) {
-				// gradients on Tizen do not work in proper way, so this condition is workaround
-				// if gradients work properly, this should be removed!
-				if (parseFloat(currentValue) > parseFloat(level1)) {
-					element.style.background = "-webkit-linear-gradient(" + reverseOrientation + "," +
-						color1 + " " + level1 + ", " + color2 + " " + level2 + ")";
-				} else {
-					element.style.background = color1;
-				}
-			}
-
-			/**
-			 * Set warning level for slider
-			 * @param {number} value
-			 * @member ns.widget.core.Slider
-			 * @protected
-			 */
-			prototype._setSliderColors = function (value) {
-				var self = this,
-					ui = self._ui,
-					barElement = ui.barElement,
-					sliderValueElement = ui.valueElement,
-					orientation,
-					reverseOrientation,
-					barLength,
-					warningLevel,
-					level;
-
-				if (self.options.type === "normal" && self.options.warning && value >= self._min && value <= self._max) {
-					if (self.options.orientation === DEFAULT.HORIZONTAL) {
-						orientation = "right";
-						reverseOrientation = "left";
-						barLength = self._barElementWidth;
-					} else {
-						orientation = "top";
-						reverseOrientation = "bottom";
-						barLength = self._barElementHeight;
-					}
-					warningLevel = barLength * self._warningLevel / (self._max - self._min) + "px";
-					level = barLength * value / (self._max - self._min) + "px";
-
-					// set background for value bar and slider bar
-					setBackground(sliderValueElement, orientation, reverseOrientation, COLORS.ACTIVE, warningLevel, COLORS.WARNING, warningLevel, level);
-					setBackground(barElement, orientation, reverseOrientation, COLORS.BACKGROUND, warningLevel, COLORS.WARNING_BG, warningLevel,
-						parseInt(warningLevel, 10) + 2);
-				} else {
-					// gradients on Tizen do not work in proper way, so this is workaround
-					// if gradients work properly, this should be removed!
-					sliderValueElement.style.background = COLORS.ACTIVE;
-					barElement.style.background = COLORS.BACKGROUND;
-				}
-			};
-
-			// gradients on Tizen do not work in proper way, so this is workaround
-			// if gradients work properly, this should be removed!
-			prototype._updateSliderColors = function (value) {
-				this._setSliderColors(value);
-			};
-
-			/**
-			 * Set style for handler
-			 * @param {number} value
-			 * @member ns.widget.core.Slider
-			 * @protected
-			 */
-			prototype._setHandlerStyle = function (value) {
-				var self = this;
-
-				if (self.options.warning) {
-					if (value >= self._warningLevel) {
-						self._ui.handlerElement.classList.add(classes.SLIDER_WARNING);
-					} else {
-						self._ui.handlerElement.classList.remove(classes.SLIDER_WARNING);
-					}
-				}
-			};
 
 			prototype._setDisabled = function (element) {
 				var self = this,
@@ -32937,8 +34501,8 @@ function pathToRegexp (path, keys, options) {
 			prototype._enable = function (element) {
 				if (element) {
 					this.options.disabled = false;
-					if (this._ui.barElement) {
-						this._ui.barElement.classList.remove(classes.SLIDER_DISABLED);
+					if (this._ui.containerElement) {
+						this._ui.containerElement.classList.remove(classes.SLIDER_DISABLED);
 					}
 				}
 			};
@@ -32946,8 +34510,8 @@ function pathToRegexp (path, keys, options) {
 			prototype._disable = function (element) {
 				if (element) {
 					this.options.disabled = true;
-					if (this._ui.barElement) {
-						this._ui.barElement.classList.add(classes.SLIDER_DISABLED);
+					if (this._ui.containerElement) {
+						this._ui.containerElement.classList.add(classes.SLIDER_DISABLED);
 					}
 				}
 			};
@@ -32971,31 +34535,18 @@ function pathToRegexp (path, keys, options) {
 			 */
 			prototype.handleEvent = function (event) {
 				var self = this,
-					toggle = self._ui.toggle,
 					eventType = event.type;
 
-				if (eventType === "change" && toggle && toggle === event.target) {
-					self._handleToggle(event);
-				} else if (!this.options.disabled) {
+				if (!this.options.disabled) {
 					switch (eventType) {
-						case "dragstart":
-							self._onDragstart(event);
-							break;
-						case "dragend":
-						case "dragcancel":
-							self._onDragend(event);
-							break;
-						case "drag":
-							self._onDrag(event);
-							break;
 						case "input" :
 						case "change" :
 							self._setValue(self.element.value);
 							break;
-						case "touchstart":
+						case "vmousedown":
 							self._onTouchStart(event);
 							break;
-						case "touchend":
+						case "vmouseup":
 							self._onTouchEnd(event);
 							break;
 						// case "focus":
@@ -33011,113 +34562,22 @@ function pathToRegexp (path, keys, options) {
 				}
 			};
 
-			prototype._handleToggle = function (event) {
-				var self = this,
-					options = self.options,
-					element = self.element,
-					target = event.target,
-					mute = target.checked,
-					value;
-
-				if (mute && self.value() > 0) {
-					utilDOM.setNSData(target, "slider-value", self.value());
-					self.value(self._minValue);
-					options.disabled = true;
-					self._setDisabled(element);
-				} else if (self.value() === 0) {
-					value = parseFloat(utilDOM.getNSData(target, "slider-value")) || 0
-					options.disabled = false;
-					self._setDisabled(element);
-					self.value(value);
-				}
-			};
-
-			/**
-			 * Drag event handler
-			 * @method _onDrag
-			 * @param {Event} event
-			 * @member ns.widget.core.Slider
-			 * @protected
-			 */
-			prototype._onDrag = function (event) {
-				var self = this,
-					ui = self._ui,
-					validPosition,
-					value;
-
-				if (self._active) {
-					validPosition = self.options.orientation === DEFAULT.HORIZONTAL ?
-						event.detail.estimatedX - ui.barElement.offsetLeft :
-						self._barElementHeight -
-					(event.detail.estimatedY - utilDOM.getElementOffset(ui.barElement).top + selectors.getScrollableParent(self.element).scrollTop),
-
-					value = self.options.orientation === DEFAULT.HORIZONTAL ?
-						self._interval * validPosition / self._barElementWidth :
-						self._interval * validPosition / self._barElementHeight;
-
-					value += self._min;
-					self._setValue(value);
-				}
-			};
-
-			/**
-			 * DragStart event handler
-			 * @method _onDragstart
-			 * @param {Event} event
-			 * @member ns.widget.core.Slider
-			 * @protected
-			 */
-			prototype._onDragstart = function (event) {
-				var self = this,
-					ui = self._ui,
-					validPosition = self.options.orientation === DEFAULT.HORIZONTAL ?
-						event.detail.estimatedX - ui.barElement.offsetLeft :
-						self._barElementHeight -
-					(event.detail.estimatedY - utilDOM.getElementOffset(ui.barElement).top + selectors.getScrollableParent(self.element).scrollTop),
-					value = self.options.orientation === DEFAULT.HORIZONTAL ?
-						self._interval * validPosition / self._barElementWidth :
-						self._interval * validPosition / self._barElementHeight;
-
-				ui.handlerElement.classList.add(classes.SLIDER_HANDLER_ACTIVE);
-				value += self._min;
-				self._setValue(value);
-				self._active = true;
-			};
-
-			/**
-			 * DragEnd event handler
-			 * @method _onDragend
-			 * @member ns.widget.core.Slider
-			 * @protected
-			 */
-			prototype._onDragend = function () {
-				var self = this,
-					ui = self._ui;
-
-				ui.handlerElement.classList.remove(classes.SLIDER_HANDLER_ACTIVE);
-				self._active = false;
-				if (self._previousValue !== self.element.value) {
-					events.trigger(self.element, "change");
-				}
-				self._previousValue = self.element.value;
-			};
-
 			prototype._onTouchStart = function () {
-				this._ui.handlerElement.classList.add(classes.SLIDER_HANDLER_ACTIVE);
+				this._ui.containerElement.classList.add(classes.SLIDER_ACTIVE);
 			};
 
 			prototype._onTouchEnd = function () {
-				this._ui.handlerElement.classList.remove(classes.SLIDER_HANDLER_ACTIVE);
+				this._ui.containerElement.classList.remove(classes.SLIDER_ACTIVE);
 			};
 
 			// prototype._onFocus = function () {
-			// 	var container = this._ui.barElement.parentElement;
+			// 	var container = this._ui.containerElement.parentElement;
 
 			// 	container && container.classList.add("ui-listview-item-focus");
 			// };
 
 			// prototype._onBlur = function () {
-			// 	var container = this._ui.barElement.parentElement;
+			// 	var container = this._ui.containerElement.parentElement;
 
 			// 	container && container.classList.remove("ui-listview-item-focus");
 			// };
@@ -33143,7 +34603,7 @@ function pathToRegexp (path, keys, options) {
 			// 	listviewWidget.saveKeyboardSupport();
 			// 	listviewWidget.disableKeyboardSupport();
 			// 	self.enableKeyboardSupport();
-			// 	self._ui.barElement.classList.add(classes.SLIDER_FOCUS);
+			// 	self._ui.containerElement.classList.add(classes.SLIDER_FOCUS);
 			// };
 
 			// prototype._unlockKeyboard = function () {
@@ -33155,7 +34615,7 @@ function pathToRegexp (path, keys, options) {
 			// 	listviewWidget.restoreKeyboardSupport();
 			// 	listviewWidget.enableKeyboardSupport();
 			// 	self.disableKeyboardSupport();
-			// 	self._ui.barElement.classList.remove(classes.SLIDER_FOCUS);
+			// 	self._ui.containerElement.classList.remove(classes.SLIDER_FOCUS);
 			// };
 
 			prototype._onKeyUp = function (event) {
@@ -33190,9 +34650,12 @@ function pathToRegexp (path, keys, options) {
 			 * @member ns.widget.core.Slider
 			 * @protected
 			 */
-			prototype.refresh = function () {
-				this._setDisabled(this.element);
-				this._initLayout();
+			prototype._refresh = function () {
+				var self = this;
+
+				self._updateProperties()
+				self._setDisabled(self.element);
+				self._initLayout();
 			};
 
 			/**
@@ -33203,11 +34666,11 @@ function pathToRegexp (path, keys, options) {
 			 */
 			prototype._destroy = function () {
 				var self = this,
-					barElement = self._ui.barElement;
+					containerElement = self._ui.containerElement;
 
 				unbindEvents(self);
-				if (barElement.parentNode) {
-					barElement.parentNode.removeChild(barElement);
+				if (containerElement.parentNode) {
+					containerElement.parentNode.removeChild(containerElement);
 				}
 				self._ui = null;
 				self._options = null;
@@ -33504,13 +34967,13 @@ function pathToRegexp (path, keys, options) {
 				/**
 				 * Options for widget
 				 * @property {Object} options Options for widget
-				 * @property {number} [options.thickness=8] Sets the border width of CircleProgressBar.
+				 * @property {number} [options.thickness=6] Sets the border width of CircleProgressBar.
 				 * @property {number|"full"|"large"|"medium"|"small"|null} [options.size="full"] Sets the size of CircleProgressBar.
 				 * @property {?string} [options.containerClassName=null] Sets the class name of CircleProgressBar container.
 				 * @member ns.widget.wearable.CircleProgressBar
 				 */
 				this.options = utilObject.merge({}, {
-					thickness: 8,
+					thickness: 6,
 					size: size.MEDIUM,
 					containerClassName: null,
 					type: "circle",
@@ -33546,7 +35009,7 @@ function pathToRegexp (path, keys, options) {
 			 * @param {number} thickness Thickness of line in pixels
 			 */
 			function drawLine(canvasContext, from, to, size, thickness, margin) {
-				canvasContext.strokeStyle = "rgba(55,161,237,1)";
+				canvasContext.strokeStyle = "rgba(0, 140, 256, 1)";
 				canvasContext.lineWidth = thickness;
 				canvasContext.beginPath();
 				canvasContext.arc(size, size, size - margin - thickness / 2, from, to);
@@ -33902,23 +35365,24 @@ function pathToRegexp (path, keys, options) {
 				/**
 				 * Options for widget
 				 * @property {Object} options Options for widget
-				 * @property {number} [options.thickness=8] Sets the border width of CircleProgressBar.
+				 * @property {number} [options.thickness=6] Sets the border width of CircleProgressBar.
 				 * @property {number|"full"|"large"|"medium"|"small"|null} [options.size="full"] Sets the size of CircleProgressBar.
 				 * @property {?string} [options.containerClassName=null] Sets the class name of CircleProgressBar container.
 				 * @property {"circle"|"normal"} [options.type="circle"] Sets type of slider
 				 * @property {number} [options.touchableWidth=50] In circle slider define size of touchable area on border
 				 * @property {boolean} [options.buttons=false] Enable additional + / - buttons
-				 * @property {string} [options.bgcolor="rgba(61, 185, 204, 0.4)"] Background color for inactive slider line
+				 * @property {string} [options.bgcolor="rgba(0, 42, 77, 1)"] Background color for inactive slider line
 				 * @property {boolean} [options.endPoint=true] Indicator of current slider position
-				 * @property {number} [options.margin=7] In circle slider define size of margin
+				 * @property {number} [options.margin=6] In circle slider define size of margin
 				 * @member ns.widget.wearable.Slider
 				 */
 				options.size = "full";
 				options.touchableWidth = 50;
 				options.buttons = false;
-				options.bgcolor = "rgba(61, 185, 204, 0.4)";
+				options.bgcolor = "rgba(0, 42, 77, 1)";
+				options.thickness = 6;
 				options.endPoint = true;
-				options.margin = 7;
+				options.margin = 6;
 			};
 
 			/**
@@ -34047,6 +35511,8 @@ function pathToRegexp (path, keys, options) {
 
 				if (options.type === "circle") {
 					events.on(document, "rotarydetent touchstart touchmove touchend click mousedown mousemove mouseup", self, false);
+					// disable tau rotaryScroller the widget has own support for rotary event
+					ns.util.rotaryScrolling && ns.util.rotaryScrolling.lock();
 				} else {
 					CoreSliderPrototype._bindEvents.call(self);
 				}
@@ -34262,6 +35728,7 @@ function pathToRegexp (path, keys, options) {
 				} else {
 					return CoreSliderPrototype._setValue.call(self, value);
 				}
+				return null;
 			};
 
 			/**
@@ -34319,6 +35786,8 @@ function pathToRegexp (path, keys, options) {
 					self._ui = null;
 					self.options = null;
 
+					// enable tau rotaryScroller the widget has own support for rotary event
+					ns.util.rotaryScrolling && ns.util.rotaryScrolling.unlock();
 				} else {
 					CoreSliderPrototype._destroy.call(self);
 				}
@@ -34713,11 +36182,23 @@ function pathToRegexp (path, keys, options) {
 				TOUCH_MOVE_TIME_THRESHOLD = 140,
 				// in px
 				TOUCH_MOVE_Y_THRESHOLD = 10,
+				TOUCH_MOVE_X_BOUNCING_THRESHOLD = 50,
 				// time of animation in skip animation mode, this is one animation frame and animation is
 				// invisible
 				ONE_FRAME_TIME = 40,
 				// half of screen height - center element height (112)
 				BOTTOM_MARGIN = (window.innerHeight - 112) / 2,
+				STARTING_Y_POSITION = 10,
+
+				// Focused title parameters
+				OVERSCROLL_TOP = 108,
+				OVERSCROLL_IN_DURATION = 500, //ms
+				OVERSCROLL_OUT_DURATION = 800, //ms
+				NORMAL_TITLE_WIDTH = 232,
+				FOCUSED_TITLE_WIDTH = 340,
+				NORMAL_TITLE_FONT_SIZE = 30,
+				FOCUSED_TITLE_FONT_SIZE = 40,
+
 				/**
 				 * Alias for class {@link ns.engine}
 				 * @property {Object} engine
@@ -34825,7 +36306,8 @@ function pathToRegexp (path, keys, options) {
 						bouncingTimeout: 1000,
 						visibleItems: 3,
 						listItemUpdater: null,
-						dataLength: 0
+						dataLength: 0,
+						focusedTitle: true
 					};
 					// items table on start is empty
 					self._items = [];
@@ -34845,6 +36327,7 @@ function pathToRegexp (path, keys, options) {
 					self._carouselIndex = 0;
 					self._disabledByPopup = false;
 					self._previousIndex = null;
+					self._overscrollRotaryHandler = null,
 					/**
 					 * Cache for widget UI HTMLElements
 					 * @property {Object} _ui
@@ -34854,7 +36337,13 @@ function pathToRegexp (path, keys, options) {
 					 */
 					self._ui = {
 						selection: null,
-						scroller: null
+						scroller: null,
+						arcListviewCarousel: null,
+						arcListviewSelection: null,
+						// ensures correct behaviour of radio buttons once
+						// item goes out of the screen (is removed from carousel)
+						dummyElement: null,
+						header: null
 					};
 				},
 
@@ -34875,7 +36364,9 @@ function pathToRegexp (path, keys, options) {
 					FORCE_RELATIVE: "ui-force-relative-li-children",
 					LISTVIEW: "ui-listview",
 					SELECTED: "ui-arc-listview-selected",
-					HIDDEN_CAROUSEL_ITEM: WIDGET_CLASS + "-carousel-item-hidden"
+					HIDDEN_CAROUSEL_ITEM: WIDGET_CLASS + "-carousel-item-hidden",
+					DUMMY_ELEMENT: WIDGET_CLASS + "-dummy-element",
+					HEADER_FOCUSED: "ui-header-focused"
 				},
 				events = {
 					CHANGE: "change"
@@ -34885,7 +36376,6 @@ function pathToRegexp (path, keys, options) {
 					POPUP: ".ui-popup",
 					SCROLLER: ".ui-scroller",
 					ITEMS: "." + WIDGET_CLASS + " > li",
-					SELECTION: "." + WIDGET_CLASS + "-selection",
 					TEXT_INPUT: "input[type='text']" +
 								", input[type='number']" +
 								", input[type='password']" +
@@ -34906,9 +36396,11 @@ function pathToRegexp (path, keys, options) {
 				lastTouchTime = 0,
 				factorsX = [],
 
+				lastTouchX = 0,
 				lastTouchY = 0,
 				deltaTouchY = 0,
 				deltaSumTouchY = 0,
+
 
 				// virtual list parameters
 				NUMBER_ITEMS_TO_ADD = 20,
@@ -34985,7 +36477,7 @@ function pathToRegexp (path, keys, options) {
 					duration: 0,
 					progress: 0,
 					scroll: {
-						current: 10,
+						current: STARTING_Y_POSITION,
 						from: null,
 						to: null
 					},
@@ -35127,6 +36619,8 @@ function pathToRegexp (path, keys, options) {
 						return null;
 					}
 				}
+
+				return null;
 			}
 
 			/**
@@ -35139,7 +36633,8 @@ function pathToRegexp (path, keys, options) {
 					currentTime = Date.now(),
 					startTime = state.startTime,
 					deltaTime = currentTime - startTime,
-					scroll = state.scroll;
+					scroll = state.scroll,
+					pageWidget = null;
 
 				if (deltaTime >= state.duration) {
 					self._scrollAnimationEnd = true;
@@ -35157,11 +36652,19 @@ function pathToRegexp (path, keys, options) {
 						1
 					);
 					if (self._scrollAnimationEnd) {
-						self.trigger(events.CHANGE, {
-							"selected": state.currentIndex
-						});
-						eventUtils.trigger(state.items[state.currentIndex].element, "selected");
+						// _scrollAnimationEnd can be set by TouchStart event to stop scroll.
+						// Show selection if scroll finishes.
+						if (deltaTime >= state.duration) {
+							self.trigger(events.CHANGE, {
+								"selected": state.currentIndex
+							});
+							eventUtils.trigger(state.items[state.currentIndex].element, "selected");
+						}
 						state.toIndex = state.currentIndex;
+
+						// set last scroll position when current page is hidden
+						pageWidget = ns.engine.getBinding(self._ui.page, "Page");
+						pageWidget.setLastScrollPosition(-1 * scroll.current || 0);
 
 						scroll.to = null;
 						scroll.from = null;
@@ -35253,7 +36756,7 @@ function pathToRegexp (path, keys, options) {
 						item.repaint = false;
 					} else {
 						if (itemElement.parentNode !== null && item.current.scale < 0.01) {
-							itemElement.parentNode.removeChild(itemElement);
+							self._ui.dummyElement.appendChild(itemElement);
 						}
 					}
 				}
@@ -35287,6 +36790,29 @@ function pathToRegexp (path, keys, options) {
 				self._ui.scroller.scrollTop = -1 * state.scroll.current;
 			};
 
+			prototype._updateFocusedTitle = function () {
+				var self = this,
+					header = self._ui.header,
+					title = self._ui.title,
+					state = self._state,
+					progress,
+					dWidth = FOCUSED_TITLE_WIDTH - NORMAL_TITLE_WIDTH,
+					dFontSize = FOCUSED_TITLE_FONT_SIZE - NORMAL_TITLE_FONT_SIZE;
+
+				if (header && title) {
+					progress = (state.scroll.current - STARTING_Y_POSITION) / (OVERSCROLL_TOP - STARTING_Y_POSITION);
+					if (state.scroll.current > STARTING_Y_POSITION) {
+						header.classList.add(classes.HEADER_FOCUSED);
+						header.style.transform = "translateY(" + (round(progress * OVERSCROLL_TOP)) + "px)";
+						title.style.width = round(progress * dWidth + NORMAL_TITLE_WIDTH) + "px";
+						title.style.fontSize = (progress * dFontSize + NORMAL_TITLE_FONT_SIZE) + "px";
+					} else {
+						header.classList.remove(classes.HEADER_FOCUSED);
+						title.style.fontSize = "auto";
+					}
+				}
+			};
+
 			/**
 			 * Update positions of items
 			 * @param {number} currentIndex
@@ -35305,6 +36831,10 @@ function pathToRegexp (path, keys, options) {
 					carouselItemElement,
 					carouselItemUpperSeparatorElement,
 					top;
+
+				if (self.options.focusedTitle) {
+					self._updateFocusedTitle();
+				}
 
 				if (self._previousIndex !== currentIndex) {
 					ns.event.trigger(self.element, "currentindexchange", {"index": currentIndex});
@@ -35363,6 +36893,20 @@ function pathToRegexp (path, keys, options) {
 					self._rendering = false;
 				}
 			};
+
+			/**
+			 * Methods return index of item after divider
+			 * @method findItemIndexByDivider
+			 * @param {HTMLElement} dividerElement
+			 * @memberof ns.widget.wearable.ArcListview
+			 */
+			prototype.findItemIndexByDivider = function (dividerElement) {
+				var result = this._state.separators.filter(function (item) {
+					return item.itemElement.element === dividerElement;
+				});
+
+				return result.length ? result[0].insertBefore : -1;
+			}
 
 			prototype._requestRender = function () {
 				var self = this;
@@ -35517,7 +37061,7 @@ function pathToRegexp (path, keys, options) {
 					scroll = state.scroll;
 
 				if (state.items.length === 0) {
-					return false;
+					return;
 				}
 
 				// increase scroll duration according to length of items
@@ -35576,7 +37120,7 @@ function pathToRegexp (path, keys, options) {
 				}
 
 				self._setMaxScrollY();
-				self._bouncingEffect._maxValue = self._maxScrollY;
+				self._bouncingEffect._maxScrollValue.y = self._maxScrollY;
 
 				// refresh widget view
 				self.refresh();
@@ -35602,6 +37146,7 @@ function pathToRegexp (path, keys, options) {
 					// hide end effect
 					bouncingEffect.dragEnd();
 				} else {
+					self._setGoToTopButtonVisibility("show");
 					// show bottom end effect
 					bouncingEffect.drag(0, -self._maxScrollY);
 					// hide after timeout
@@ -35629,16 +37174,17 @@ function pathToRegexp (path, keys, options) {
 
 				if (state.toIndex > 0) {
 					state.toIndex--;
+					self._setGoToTopButtonVisibility("hide");
 					// hide end effect
 					bouncingEffect.dragEnd();
+					self._roll();
 				} else {
+					self._overscrollTop();
 					// show top end effect
 					bouncingEffect.drag(0, 0);
 					// hide after timeout
 					self._setBouncingTimeout();
 				}
-
-				self._roll();
 			};
 
 			/**
@@ -35649,11 +37195,14 @@ function pathToRegexp (path, keys, options) {
 			prototype._onRotary = function (event) {
 				var self = this;
 
-				self._scrollAnimationEnd = true;
-				if (event.detail.direction === "CW") {
-					self._rollDown();
-				} else {
-					self._rollUp();
+				if (self._ui.header && !self._ui.header.classList.contains(classes.HEADER_FOCUSED) ||
+					!self._ui.header) {
+					self._scrollAnimationEnd = true;
+					if (event.detail.direction === "CW") {
+						self._rollDown();
+					} else {
+						self._rollUp();
+					}
 				}
 			};
 
@@ -35720,6 +37269,7 @@ function pathToRegexp (path, keys, options) {
 					touch = event.changedTouches[0],
 					state = self._state;
 
+				lastTouchX = touch.clientX;
 				deltaTouchY = 0;
 				lastTouchY = touch.clientY;
 				startTouchTime = Date.now();
@@ -35749,10 +37299,11 @@ function pathToRegexp (path, keys, options) {
 					deltaTouchTime,
 					scroll = state.scroll,
 					current = scroll.current,
+					deltaTouchX = 0,
 					bouncingEffect = self._bouncingEffect;
 
 				if (self._items.length === 0) {
-					return false;
+					return;
 				}
 
 				// time
@@ -35760,6 +37311,7 @@ function pathToRegexp (path, keys, options) {
 				deltaTouchTime = lastTouchTime - startTouchTime;
 
 				// move
+				deltaTouchX = touch.clientX - lastTouchX;
 				deltaTouchY = touch.clientY - lastTouchY;
 				current += deltaTouchY;
 				deltaSumTouchY += deltaTouchY;
@@ -35773,25 +37325,38 @@ function pathToRegexp (path, keys, options) {
 				}
 
 				if (didScroll) {
-					lastTouchY = touch.clientY;
 					// set current to correct range
-					if (current > 0) {
-						current = 0;
+					if (current > OVERSCROLL_TOP) {
+						current = OVERSCROLL_TOP;
 						// enable top end effect
-						bouncingEffect.drag(0, 0);
+						bouncingEffect.drag(-touch.clientX, 0);
 						self._setBouncingTimeout();
 					} else if (current < -self._maxScrollY) {
 						current = -self._maxScrollY;
 						// enable bottom end effect
-						bouncingEffect.drag(0, current);
+						bouncingEffect.drag(-touch.clientX, current);
 						self._setBouncingTimeout();
+					} else if (abs(deltaTouchX) > TOUCH_MOVE_X_BOUNCING_THRESHOLD) {
+						if (touch.clientX > lastTouchX) {
+							// enable left end effect
+							bouncingEffect.drag(0, -touch.clientY);
+							self._setBouncingTimeout();
+						} else {
+							// enable right end effect
+							bouncingEffect.drag(-self.element.getBoundingClientRect().right, -touch.clientY);
+							self._setBouncingTimeout();
+						}
 					} else {
 						// hide end effect
 						bouncingEffect.dragEnd();
 					}
+
+					lastTouchY = touch.clientY;
 					scroll.current = current;
 
 					state.currentIndex = self._findItemIndexByY(-1 * (current - SCREEN_HEIGHT / 2 + 1));
+					// Show Go-to-top button once last element is reached. Otherwise, hide it.
+					self._setGoToTopButtonVisibility((state.currentIndex == self._items.length - 1) ? "show" : "hide");
 					self._carouselUpdate(state.currentIndex);
 
 					momentum = 0;
@@ -35816,14 +37381,13 @@ function pathToRegexp (path, keys, options) {
 
 				if (didScroll) {
 					deltaTouchY = touch.clientY - lastTouchY;
+					lastTouchX = touch.clientX;
 					lastTouchY = touch.clientY;
 					scroll.current += deltaTouchY;
-					if (scroll.current > 0) {
-						scroll.current = 0;
+					if (scroll.current > OVERSCROLL_TOP) {
+						scroll.current = OVERSCROLL_TOP;
 					}
 
-					state.currentIndex = self._findItemIndexByY(-1 * (scroll.current - SCREEN_HEIGHT / 2 + 1));
-					self._carouselUpdate(state.currentIndex);
 
 					momentum = MOMENTUM_VALUE;
 					self._scrollAnimationEnd = true;
@@ -35834,12 +37398,55 @@ function pathToRegexp (path, keys, options) {
 					if (bouncingEffect) {
 						bouncingEffect.dragEnd();
 					}
+				} else {
+					self._roll();
 				}
+			};
+
+			prototype._overscrollTop = function () {
+				var self = this,
+					state = self._state,
+					scroll = state.scroll;
+
+				state.duration = OVERSCROLL_IN_DURATION;
+
+				// start scroll animation from current scroll position
+				scroll.from = scroll.current;
+				scroll.to = OVERSCROLL_TOP;
+
+				// if scroll animation is ended then animation start
+				if (self._scrollAnimationEnd) {
+					state.startTime = Date.now();
+					self._scrollAnimationEnd = false;
+					self._requestRender();
+				}
+
+				// clear timeout
+				if (self._overscrollRotaryHandler) {
+					window.clearTimeout(self._overscrollRotaryHandler);
+					self._overscrollRotaryHandler = null;
+				}
+
+				// back to initial position
+				self._overscrollRotaryHandler = window.setTimeout(function () {
+					momentum = MOMENTUM_VALUE;
+					state.startTime = Date.now();
+					self._requestRender();
+					self._scroll();
+					lastTouchTime = 0;
+					self._overscrollRotaryHandler = null;
+				}, OVERSCROLL_OUT_DURATION);
 			};
 
 			function showHighlight(arcListviewSelection, selectedElement) {
 				arcListviewSelection.style.height = selectedElement.getBoundingClientRect().height + "px";
 				arcListviewSelection.classList.add(classes.SELECTION_SHOW);
+			}
+
+			prototype._removeHighlight = function () {
+				var selection =	this._ui.arcListviewSelection;
+
+				selection.classList.remove(classes.SELECTION_SHOW);
 			}
 
 			prototype._wrapTextContent = function (element) {
@@ -35881,22 +37488,24 @@ function pathToRegexp (path, keys, options) {
 				var ui = this._ui,
 					state = this._state,
 					selectedElement = state.items[selectedIndex].element,
-					marqueeDiv,
-					widget;
+					marqueeDiv = selectedElement.querySelector(".ui-arc-listview-text-content"),
+					marqueeWidget = null;
 
-				marqueeDiv = selectedElement.querySelector(".ui-arc-listview-text-content");
+				// Start marquee.
 				if (marqueeDiv) {
 					marqueeDiv.style.width = "100%";
 					marqueeDiv.classList.add("ui-marquee");
+					marqueeWidget = ns.engine.getBinding(marqueeDiv);
+					if (!marqueeWidget) {
+						marqueeWidget = ns.widget.Marquee(marqueeDiv, {
+							marqueeStyle: "endToEnd",
+							iteration: 1,
+							delay: "300"
+						});
+					} else {
+						marqueeWidget.start();
+					}
 				}
-				widget = ns.widget.Marquee(marqueeDiv, {
-					marqueeStyle: "scroll",
-					ellipsisEffect: "gradient",
-					iteration: "infinite",
-					delay: "300"
-				});
-				widget.start();
-
 
 				if (selectedElement.classList.contains(classes.SELECTED)) {
 					showHighlight(ui.arcListviewSelection, selectedElement);
@@ -35918,26 +37527,30 @@ function pathToRegexp (path, keys, options) {
 				var selectedIndex = event.detail.selected,
 					unselectedIndex = event.detail.unselected,
 					classList = this._ui.arcListviewSelection.classList,
-					selectedElement,
-					marqueeDiv,
-					widget;
+					selectedElement = null,
+					marqueeDiv = null,
+					marqueeWidget = null;
 
 				if (!event.defaultPrevented && this._state.items.length > 0) {
 					if (selectedIndex !== undefined) {
 						this._selectItem(selectedIndex);
+						if (selectedIndex == this._state.items.length - 1) {
+							this._setGoToTopButtonVisibility("show");
+						}
 					} else {
 						classList.remove(classes.SELECTION_SHOW);
 						selectedElement = this._state.items[unselectedIndex].element,
 						selectedElement.removeEventListener("transitionend", this, true);
 						selectedElement.removeEventListener("webkitTransitionEnd", this, true);
 						selectedElement.classList.remove(classes.SELECTED);
-						// stop marque;
+
+						// Stop marquee.
 						marqueeDiv = selectedElement.querySelector(".ui-arc-listview-text-content");
 						if (marqueeDiv) {
-							widget = ns.widget.Marquee(marqueeDiv);
-							if (widget) {
-								widget.reset();
-								widget.destroy();
+							marqueeWidget = ns.engine.getBinding(marqueeDiv);
+							if (marqueeWidget) {
+								marqueeWidget.stop();
+								marqueeWidget.reset();
 							}
 						}
 					}
@@ -35984,9 +37597,10 @@ function pathToRegexp (path, keys, options) {
 					if (toIndex < state.items.length) {
 						state.toIndex = toIndex;
 					}
-
-					self._roll();
 				}
+				// Do scroll regardless of 'toIndex' value. This will center content relative
+				// to clicked position.
+				self._roll();
 			};
 
 			prototype._onPageInit = function () {
@@ -36025,16 +37639,20 @@ function pathToRegexp (path, keys, options) {
 				}
 			}
 
-			prototype._buildArcListviewSelection = function (page) {
-				// find or add selection for current list element
-				var arcListviewSelection = page.querySelector(selectors.SELECTION);
+			prototype._buildArcListviewElement = function (parentElement, cssClass, options) {
+				// find or add element for current list element
+				var arcListviewElement = parentElement.querySelector(cssClass);
 
-				if (!arcListviewSelection) {
-					arcListviewSelection = document.createElement("div");
-					arcListviewSelection.classList.add(classes.SELECTION);
-					page.appendChild(arcListviewSelection);
+				if (!arcListviewElement) {
+					arcListviewElement = document.createElement("div");
+					arcListviewElement.classList.add(cssClass);
+					if (options && options.insertBefore) {
+						parentElement.insertBefore(arcListviewElement, parentElement.firstElementChild);
+					} else {
+						parentElement.appendChild(arcListviewElement);
+					}
 				}
-				return arcListviewSelection;
+				return arcListviewElement;
 			};
 
 			function buildArcListviewCarousel(carousel, count) {
@@ -36108,6 +37726,17 @@ function pathToRegexp (path, keys, options) {
 				});
 			}
 
+			/**
+			 * Return all dividers (category names in items' list)
+			 * @method getDividers
+			 * @memberof ns.widget.wearable.ArcListview
+			 */
+			prototype.getDividers = function () {
+				return this._items
+					.filter(function (elem) {
+						return elem.classList.contains(classes.DIVIDER);
+					});
+			}
 
 			/**
 			 * Widget init method
@@ -36119,8 +37748,8 @@ function pathToRegexp (path, keys, options) {
 				var self = this,
 					element = self.element,
 					options = self.options,
-					arcListviewCarousel,
 					page,
+					header,
 					scroller,
 					ui = self._ui,
 					carousel = self._carousel,
@@ -36130,21 +37759,34 @@ function pathToRegexp (path, keys, options) {
 				page = selectorsUtil.getClosestBySelector(element, selectors.PAGE);
 				ui.page = page;
 
+				header = page.querySelector("header");
+				if (header) {
+					ui.header = header;
+					ui.title = header.querySelector(".ui-title:not(.ui-subtitle)");
+					ui.subTitle = header.querySelector(".ui-title.ui-subtitle");
+				}
 				scroller = selectorsUtil.getClosestBySelector(element, selectors.SCROLLER);
 
+
 				if (scroller) {
+					// disable tau rotaryScroller the widget has own support for rotary event
+					ns.util.rotaryScrolling && ns.util.rotaryScrolling.lock();
+
 					element.classList.add(WIDGET_CLASS, classes.PREFIX + visibleItemsCount);
 
 					self._getItemsFromElement();
 					self._createTextInputs();
 
-					ui.arcListviewSelection = self._buildArcListviewSelection(page);
-					arcListviewCarousel = buildArcListviewCarousel(carousel, visibleItemsCount);
-					ui.arcListviewCarousel = arcListviewCarousel;
+					ui.arcListviewSelection = self._buildArcListviewElement(
+						scroller, classes.SELECTION, {
+							insertBefore: true
+						});
+					ui.arcListviewCarousel = buildArcListviewCarousel(carousel, visibleItemsCount);
+					ui.dummyElement = self._buildArcListviewElement(page, classes.DUMMY_ELEMENT);
 
 					// append carousel outside scroller element
-					scroller.parentElement.appendChild(arcListviewCarousel);
-					self._ui.arcListviewCarousel.addEventListener("vclick", self, true);
+					scroller.parentElement.appendChild(ui.arcListviewCarousel);
+					ui.arcListviewCarousel.addEventListener("vclick", self, true);
 
 					// cache HTML elements
 					ui.scroller = scroller;
@@ -36186,6 +37828,10 @@ function pathToRegexp (path, keys, options) {
 
 				if (event.type === "pageinit") {
 					self._onPageInit(event);
+				} else if (event.type === "pageshow") {
+					self._selectItem(self._state.currentIndex);
+				} else if (event.type === "pagehide") {
+					self._removeHighlight();
 				} else if (page && page.classList.contains("ui-page-active")) {
 					// disable events on non active page
 					switch (event.type) {
@@ -36239,6 +37885,8 @@ function pathToRegexp (path, keys, options) {
 				page.addEventListener("touchmove", self, true);
 				page.addEventListener("touchend", self, true);
 				page.addEventListener("pageinit", self, true);
+				page.addEventListener("pageshow", self, true);
+				page.addEventListener("pagehide", self, true);
 				page.addEventListener("popupbeforeshow", self, true);
 				page.addEventListener("popupbeforehide", self, true);
 				if (self._ui.arcListviewCarousel) {
@@ -36302,6 +37950,8 @@ function pathToRegexp (path, keys, options) {
 				page.removeEventListener("touchmove", self, true);
 				page.removeEventListener("touchend", self, true);
 				page.removeEventListener("pageinit", self, true);
+				page.removeEventListener("pageshow", self, true);
+				page.removeEventListener("pagehide", self, true);
 				page.removeEventListener("popupbeforeshow", self, true);
 				page.removeEventListener("popupbeforehide", self, true);
 				if (self._ui.arcListviewCarousel) {
@@ -36357,7 +38007,10 @@ function pathToRegexp (path, keys, options) {
 				var self = this,
 					ui = self._ui,
 					arcListviewSelection = ui.arcListviewSelection,
-					arcListviewCarousel = ui.arcListviewCarousel;
+					arcListviewCarousel = ui.arcListviewCarousel,
+					dummyElement = ui.dummyElement,
+					marqueeDiv = null,
+					marqueeWidget = null;
 
 				self._unbindEvents();
 
@@ -36367,12 +38020,27 @@ function pathToRegexp (path, keys, options) {
 				});
 				self._items = [];
 
+				// Destroy marquee.
+				self._state.items.forEach(function (item) {
+					marqueeDiv = item.element.querySelector(".ui-arc-listview-text-content");
+					if (marqueeDiv) {
+						marqueeWidget = ns.engine.getBinding(marqueeDiv);
+						if (marqueeWidget) {
+							marqueeWidget.destroy();
+						}
+					}
+				});
+				self._state.items = [];
+
 				// remove added elements
 				if (arcListviewSelection && arcListviewSelection.parentElement) {
 					arcListviewSelection.parentElement.removeChild(arcListviewSelection);
 				}
 				if (arcListviewCarousel && arcListviewCarousel.parentElement) {
 					arcListviewCarousel.parentElement.removeChild(arcListviewCarousel);
+				}
+				if (dummyElement && dummyElement.parentElement) {
+					dummyElement.parentElement.removeChild(dummyElement);
 				}
 			};
 
@@ -36391,10 +38059,17 @@ function pathToRegexp (path, keys, options) {
 
 				self._setMaxScrollY();
 				self._bouncingEffect = new ns.widget.core.scroller.effect.Bouncing(self._ui.page, {
-					maxScrollX: 0,
+					maxScrollX: self.element.getBoundingClientRect().right,
 					maxScrollY: self._maxScrollY,
-					orientation: "vertical"
+					orientation: "vertical-horizontal"
 				});
+			};
+
+			prototype._setGoToTopButtonVisibility = function (visibility) {
+				var self = this,
+					page = self._ui.page;
+
+				eventUtils.trigger(page, visibility === "show" ? "showGoToTopButton" : "hideGoToTopButton");
 			};
 
 			ArcListview.prototype = prototype;
@@ -37565,6 +39240,7 @@ function pathToRegexp (path, keys, options) {
 						self._extended(false);
 					}
 
+					self._setIndex(self.element, self.options.index);
 					self._updateLayout();
 					self.indexBar1.options.index = self.options.index;
 					self.indexBar1.refresh();
@@ -38381,7 +40057,16 @@ function pathToRegexp (path, keys, options) {
 				engine = ns.engine,
 				utilsEvents = ns.event,
 				eventTrigger = utilsEvents.trigger,
+				gesture = ns.event.gesture,
 				prototype = new BaseWidget(),
+				DRAG_STEP_TO_VALUE = 60,
+				VIBRATION_DURATION = 10,
+				lastDragValueChange = 0,
+				dragGestureInstance = null,
+				swipeGestureInstance = null,
+				swipeNumber = 0,
+				SECOND_SWIPE_TIMEOUT = 500, //ms
+				swipeTimeout = null,
 
 				CircularIndexScrollbar = function () {
 					this._phase = null;
@@ -38409,7 +40094,19 @@ function pathToRegexp (path, keys, options) {
 					 * @event select
 					 * @member ns.widget.wearable.CircularIndexScrollbar
 					 */
-					SELECT: "select"
+					SELECT: "select",
+					/**
+					 * Event triggered before show popup with letter
+					 * @event show
+					 * @member ns.widget.wearable.CircularIndexScrollbar
+					 */
+					SHOW: "show",
+					/**
+					 * Event triggered before hide popup with letter
+					 * @event show
+					 * @member ns.widget.wearable.CircularIndexScrollbar
+					 */
+					HIDE: "hide"
 				},
 
 				classes = {
@@ -38701,6 +40398,97 @@ function pathToRegexp (path, keys, options) {
 				}
 			};
 
+			function hideWithTimeout(self) {
+				// disable previous timeout
+				clearTimeout(self._tid.phaseThree);
+
+				self._tid.phaseThree = setTimeout(function () {
+					self._hidePopup();
+					self._disableDrag();
+					// enable swipe event listener previously disabled on show indicator
+					utilsEvents.on(document, "swipe", self);
+				}, 1000);
+			}
+
+			prototype._onDrag = function (ev) {
+				var self = this,
+					dragValue;
+
+				hideWithTimeout(self);
+
+				if (self._phase === 3) {
+					dragValue = ev.detail.deltaY - lastDragValueChange;
+
+					if (Math.abs(dragValue) > DRAG_STEP_TO_VALUE) {
+						lastDragValueChange = ev.detail.deltaY;
+						// direction described in guideline doesn't make sense,
+						// the direction was changed to the opposite
+						if (ev.detail.deltaY < 0) {
+							self._nextIndex();
+						} else {
+							self._prevIndex();
+						}
+						window.navigator.vibrate(VIBRATION_DURATION);
+					}
+				}
+			}
+
+			prototype._onDragEnd = function () {
+				lastDragValueChange = 0;
+			};
+
+			function resetSwipeWithTimeout() {
+				swipeNumber = 0;
+				swipeTimeout = null;
+			}
+
+			prototype._onSwipe = function () {
+				var self = this;
+
+				window.clearTimeout(swipeTimeout);
+				if (swipeNumber === 1) {
+					utilsEvents.off(document, "swipe", self);
+					self._phase = 3;
+					swipeNumber = 0;
+					self._showPopup();
+					self._enableDrag();
+
+					hideWithTimeout(self);
+				} else {
+					swipeNumber = 1;
+					swipeTimeout = window.setTimeout(resetSwipeWithTimeout, SECOND_SWIPE_TIMEOUT);
+				}
+			};
+
+			prototype._enableDrag = function () {
+				var self = this;
+
+				self.element.style.pointerEvents = "all";
+				utilsEvents.on(document, "drag dragend", self);
+			};
+
+			prototype._disableDrag = function () {
+				var self = this;
+
+				self.element.style.pointerEvents = "none";
+				utilsEvents.off(document, "drag dragend", self);
+			};
+
+			prototype._showPopup = function () {
+				var self = this;
+
+				eventTrigger(self.element, EventType.SHOW);
+				self.element.classList.add(classes.SHOW);
+			};
+
+			prototype._hidePopup = function () {
+				var self = this;
+
+				eventTrigger(self.element, EventType.HIDE);
+				self.element.classList.remove(classes.SHOW);
+				self._phase = 1;
+			};
+
 			/**
 			 * This method is for phase 3 operation.
 			 * @method _rotaryPhaseThree
@@ -38711,14 +40499,12 @@ function pathToRegexp (path, keys, options) {
 			prototype._rotaryPhaseThree = function (direction) {
 				var self = this;
 
-				clearTimeout(self._tid.phaseThree);
-				self._tid.phaseThree = setTimeout(function () {
-					self.element.classList.remove(classes.SHOW);
-					self._phase = 1;
-				}, 1000);
+				hideWithTimeout(self);
 
 				if (self._phase === 3) {
-					self.element.classList.add(classes.SHOW);
+					self._showPopup();
+					self._enableDrag();
+
 					if (direction === rotaryDirection.CW) {
 						self._nextIndex();
 					} else {
@@ -38741,6 +40527,15 @@ function pathToRegexp (path, keys, options) {
 					case "rotarydetent":
 						self._rotary(event);
 						break;
+					case "drag":
+						self._onDrag(event);
+						break;
+					case "dragend":
+						self._onDragEnd(event);
+						break;
+					case "swipe":
+						self._onSwipe(event);
+						break;
 				}
 			};
 
@@ -38753,7 +40548,23 @@ function pathToRegexp (path, keys, options) {
 			prototype._bindEvents = function () {
 				var self = this;
 
+				// enabled drag gesture for document
+				if (dragGestureInstance === null) {
+					dragGestureInstance = new gesture.Drag({
+						blockHorizontal: true
+					});
+					utilsEvents.enableGesture(document, dragGestureInstance);
+				}
+				// enabled drag gesture for document
+				if (swipeGestureInstance === null) {
+					swipeGestureInstance = new gesture.Swipe({
+						orientation: gesture.Orientation.VERTICAL
+					});
+					utilsEvents.enableGesture(document, swipeGestureInstance);
+				}
+
 				utilsEvents.on(document, "rotarydetent", self);
+				utilsEvents.on(document, "swipe", self);
 			};
 
 			/**
@@ -38765,7 +40576,10 @@ function pathToRegexp (path, keys, options) {
 			prototype._unbindEvents = function () {
 				var self = this;
 
+				utilsEvents.disableGesture(document, dragGestureInstance);
+				utilsEvents.disableGesture(document, swipeGestureInstance);
 				utilsEvents.off(document, "rotarydetent", self);
+				utilsEvents.off(document, "swipe", self);
 			};
 
 			/**
@@ -40183,6 +41997,9 @@ function pathToRegexp (path, keys, options) {
 					utilScrolling.enable(scrollview, options.orientation);
 					utilScrolling.enableScrollBar();
 				}
+
+				// disable tau rotaryScroller the widget has own support for rotary event
+				ns.util.rotaryScrolling && ns.util.rotaryScrolling.lock();
 			};
 
 			/**
@@ -41038,7 +42855,10 @@ function pathToRegexp (path, keys, options) {
 					self._currentIndex = null;
 					self._enabled = true;
 					self._isTouched = false;
+					self._isScrollToPosition = false;
 					self._scrollEventCount = 0;
+					self._marginTop = 0;
+					self._headerHeight = 0;
 				},
 
 				prototype = new BaseWidget(),
@@ -41079,7 +42899,7 @@ function pathToRegexp (path, keys, options) {
 				},
 
 				// time threshold for detect scroll end
-				SCROLL_END_TIME_THRESHOLD = 0;
+				SCROLL_END_TIME_THRESHOLD = 150;
 
 			SnapListview.classes = classes;
 			SnapListview.animationTimer = null;
@@ -41165,24 +42985,12 @@ function pathToRegexp (path, keys, options) {
 				return listItem.element.style.display !== "none";
 			}
 
-			function getScrollPosition(scrollableParentElement) {
-				var contentElement = scrollableParentElement.querySelector(".ui-content"),
-					marginTop = 0;
-
-				if (contentElement) {
-					marginTop = parseInt(window.getComputedStyle(contentElement).marginTop, 10);
-				}
-
-				return -scrollableParentElement.firstElementChild.getBoundingClientRect().top + marginTop;
-			}
-
 			function setSelection(self) {
 				var ui = self._ui,
 					listItems = self._listItems,
 					scrollableParent = ui.scrollableParent,
 					scrollableParentHeight = scrollableParent.height || ui.page.offsetHeight,
-					scrollableParentElement = scrollableParent.element || ui.page,
-					scrollCenter = getScrollPosition(scrollableParentElement) + scrollableParentHeight / 2,
+					scrollCenter = scrolling.getScrollPosition() + scrollableParentHeight / 2,
 					listItemLength = listItems.length,
 					tempListItem,
 					tempListItemCoord,
@@ -41225,32 +43033,27 @@ function pathToRegexp (path, keys, options) {
 			 * @protected
 			 * @member ns.widget.wearable.SnapListview
 			 */
-			prototype._listItemAnimate = function () {
+			prototype._listItemAnimate = function (scrollValue) {
 				var self = this,
 					anim = self.options.animate,
-					animateCallback = self._callbacks[anim],
-					scrollPosition,
-					scrollableParentElement = self._ui.scrollableParent.element || self._ui.page;
+					animateCallback = self._callbacks[anim];
 
 				if (animateCallback) {
-					scrollPosition = getScrollPosition(scrollableParentElement);
 					utilArray.forEach(self._listItems, function (item) {
-						item.animate(scrollPosition, animateCallback);
+						item.animate(scrollValue, animateCallback);
 					});
 				}
 			};
 
 			function scrollEndCallback(self) {
-				if (self._isTouched === false) {
-					self._isScrollStarted = false;
-					// trigger "scrollend" event
-					utilEvent.trigger(self.element, eventType.SCROLL_END);
+				self._isScrollStarted = false;
+				// trigger "scrollend" event
+				utilEvent.trigger(self.element, eventType.SCROLL_END);
 
-					setSelection(self);
-				}
+				setSelection(self);
 			}
 
-			function scrollHandler(self) {
+			function scrollHandler(self, event) {
 				var callbacks = self._callbacks,
 					scrollEndCallback = callbacks.scrollEnd;
 
@@ -41266,7 +43069,9 @@ function pathToRegexp (path, keys, options) {
 					removeSelectedClass(self);
 				}
 
-				self._listItemAnimate();
+				if (event && event.detail) {
+					self._listItemAnimate(event.detail.scrollTop);
+				}
 
 				// scrollend handler can be run only when all touches are released.
 				if (self._isTouched === false) {
@@ -41281,7 +43086,10 @@ function pathToRegexp (path, keys, options) {
 
 			function onTouchEnd(self) {
 				self._isTouched = false;
-				setSelection(self);
+			}
+
+			function onRotary(self) {
+				self._isTouched = false;
 			}
 
 			function getScrollableParent(element) {
@@ -41314,32 +43122,49 @@ function pathToRegexp (path, keys, options) {
 					scroller,
 					visibleOffset,
 					elementHeight,
-					scrollMargin;
+					scrollMargin,
+					listItem;
 
 				// finding page  and scroller
 				ui.page = utilSelector.getClosestByClass(listview, "ui-page") || document.body;
 
-				scroller = getScrollableParent(listview);
+				scroller = getScrollableParent(listview) ||
+					ui.page.querySelector(".ui-scroller") ||
+					ui.page;
 				if (scroller) {
-					if (!scrolling.isElement(scroller)) {
-						scrolling.enable(scroller, "y");
-					}
-
-					elementHeight = (listview.firstElementChild) ? listview.firstElementChild.getBoundingClientRect().height : 0;
-
-					scrollMargin = listview.getBoundingClientRect().top -
-						scroller.getBoundingClientRect().top - elementHeight / 2;
-
-					scrolling.setMaxScroll(scroller.firstElementChild.getBoundingClientRect()
-						.height + scrollMargin);
-					scrolling.setSnapSize(elementHeight);
+					// disable tau rotaryScroller the snaplistview has own support for rotary event
+					ns.util.rotaryScrolling && ns.util.rotaryScrolling.lock();
 
 					scroller.classList.add(classes.SNAP_CONTAINER);
 					ui.scrollableParent.element = scroller;
 
 					visibleOffset = scroller.clientHeight;
 					ui.scrollableParent.height = visibleOffset;
+
+					listItem = listview.querySelector(self.options.selector);
+					if (!listItem) {
+						return scroller;
+					}
+
+					if (!scrolling.isElement(scroller)) {
+						scrolling.enable(scroller, "y");
+					}
+
+					elementHeight = listItem.getBoundingClientRect().height;
+
+					scrollMargin = listview.getBoundingClientRect().top -
+						scroller.getBoundingClientRect().top - elementHeight / 2;
+
+					scrolling.setMaxScroll(scroller.firstElementChild.getBoundingClientRect()
+						.height + scrollMargin);
+					scrolling.setSnapSize(self._listItems.map(function (item) {
+						return {
+							position: item.coord.top,
+							length: item.coord.height
+						};
+					}));
 				}
+				return scroller;
 			};
 
 			prototype._refreshSnapListview = function (listview) {
@@ -41348,12 +43173,22 @@ function pathToRegexp (path, keys, options) {
 					options = self.options,
 					listItems = [],
 					scroller = ui.scrollableParent.element,
-					visibleOffset;
+					visibleOffset,
+					contentElement,
+					header;
 
 				if (!scroller) {
-					self._initSnapListview(listview);
+					scroller = self._initSnapListview(listview);
 				}
 				visibleOffset = ui.scrollableParent.height || ui.page.offsetHeight;
+
+				contentElement = scroller.querySelector(".ui-content");
+				if (contentElement) {
+					self._marginTop = parseInt(window.getComputedStyle(contentElement).marginTop, 10);
+				}
+
+				header = ui.page.querySelector(".ui-header");
+				self._headerHeight = (header) ? header.offsetHeight : 0;
 
 				// init information about widget
 				self._selectedIndex = null;
@@ -41368,8 +43203,19 @@ function pathToRegexp (path, keys, options) {
 					}
 				});
 
+				if (listItems.length == 0) {
+					return;
+				}
+
+				scrolling.setSnapSize(listItems.map(function (item) {
+					return {
+						position: item.coord.top,
+						length: item.coord.height
+					};
+				}));
+
 				self._listItems = listItems;
-				self._listItemAnimate();
+				self._listItemAnimate(scrolling.getScrollPosition());
 			};
 
 			/**
@@ -41476,6 +43322,7 @@ function pathToRegexp (path, keys, options) {
 				self._callbacks.touchstart = onTouchStart.bind(null, self);
 				self._callbacks.touchend = onTouchEnd.bind(null, self);
 				self._callbacks.vclick = vClickHandler.bind(null, self);
+				self._callbacks.rotary = onRotary.bind(null, self);
 
 				if (scrollableElement) {
 					utilEvent.on(scrollableElement, "scroll", this._callbacks.scroll, false);
@@ -41483,6 +43330,7 @@ function pathToRegexp (path, keys, options) {
 				element.addEventListener("touchstart", self._callbacks.touchstart, false);
 				element.addEventListener("touchend", self._callbacks.touchend, false);
 				element.addEventListener("vclick", self._callbacks.vclick, false);
+				window.addEventListener("rotarydetent", self._callbacks.rotary, false);
 			};
 
 			/**
@@ -41502,6 +43350,7 @@ function pathToRegexp (path, keys, options) {
 				element.removeEventListener("touchstart", self._callbacks.touchstart, false);
 				element.removeEventListener("touchend", self._callbacks.touchend, false);
 				element.removeEventListener("vclick", self._callbacks.vclick, false);
+				window.removeEventListener("rotarydetent", self._callbacks.rotary, false);
 			};
 
 			/**
@@ -41517,7 +43366,7 @@ function pathToRegexp (path, keys, options) {
 				self._unbindEvents();
 
 				scroller = getScrollableParent(self.element);
-				if (scroller) {
+				if (scroller && !self._isScrollToPosition) {
 					scroller.scrollTop = 0;
 				}
 
@@ -41525,6 +43374,7 @@ function pathToRegexp (path, keys, options) {
 				self._callbacks = null;
 				self._listItems = null;
 				self._isScrollStarted = null;
+				self._isScrollToPosition = null;
 
 				if (self._scrollEndTimeoutId) {
 					window.clearTimeout(self._scrollEndTimeoutId);
@@ -41532,6 +43382,7 @@ function pathToRegexp (path, keys, options) {
 				self._scrollEndTimeoutId = null;
 				self._selectedIndex = null;
 				self._currentIndex = null;
+				self._headerHeight = null;
 
 				scrolling.disable();
 
@@ -41577,7 +43428,7 @@ function pathToRegexp (path, keys, options) {
 			 * @member ns.widget.wearable.SnapListview
 			 */
 			prototype.getSelectedIndex = function () {
-				return this._currentIndex || this._selectedIndex;
+				return this._selectedIndex;
 			};
 
 			function vClickHandler(self, e) {
@@ -41634,23 +43485,25 @@ function pathToRegexp (path, keys, options) {
 			 * Scroll SnapList by index
 			 * @method scrollToPosition
 			 * @param {number} index
+			 * @param {boolean} skipAnimation
 			 * @public
 			 * @return {boolean} True if the list was scrolled, false - otherwise.
 			 * @member ns.widget.wearable.SnapListview
 			 */
-			prototype.scrollToPosition = function (index) {
-				return this._scrollToPosition(index);
+			prototype.scrollToPosition = function (index, skipAnimation) {
+				return this._scrollToPosition(index, skipAnimation);
 			};
 
 			/**
 			 * Scroll SnapList by index
 			 * @method _scrollToPosition
 			 * @param {number} index
+			 * @param {boolean} skipAnimation
 			 * @param {Function} callback
 			 * @protected
 			 * @member ns.widget.wearable.SnapListview
 			 */
-			prototype._scrollToPosition = function (index, callback) {
+			prototype._scrollToPosition = function (index, skipAnimation, callback) {
 				var self = this,
 					ui = self._ui,
 					enabled = self._enabled,
@@ -41658,7 +43511,6 @@ function pathToRegexp (path, keys, options) {
 					scrollableParent = ui.scrollableParent,
 					listItemLength = listItems.length,
 					listItem = listItems[index],
-					listItemIndex,
 					dest;
 
 				// if list is disabled or selected index is out of range, or item on selected index
@@ -41669,13 +43521,27 @@ function pathToRegexp (path, keys, options) {
 				}
 
 				self._currentIndex = index;
+				self._isScrollToPosition = true;
 
 				removeSelectedClass(self);
 
-				listItemIndex = listItems[index].coord;
-				dest = listItemIndex.top - scrollableParent.height / 2 + listItemIndex.height / 2;
+				dest = scrolling.getScrollPositionByIndex(index);
 
-				scrollAnimation(scrollableParent.element, -scrollableParent.element.firstElementChild.getBoundingClientRect().top, dest, 450, callback);
+				// FIXME: If you scroll to the last index, the position
+				// may be slightly affected by the height of header. We
+				// need to find the correct solution.
+				if (index == listItemLength - 1) {
+					dest -= self._headerHeight;
+				}
+
+				if (skipAnimation) {
+					scrollableParent.element.scrollTop = dest;
+				} else {
+					scrollAnimation(scrollableParent.element, -scrollableParent.element.firstElementChild.getBoundingClientRect().top, dest, 450, callback);
+				}
+
+				// sync scroll position and index with scroller
+				scrolling.scrollToIndex(index, dest);
 
 				return true;
 			};
@@ -41695,35 +43561,35 @@ function pathToRegexp (path, keys, options) {
 
 			function scrollAnimation(element, from, to, duration, callback) {
 				var easeOut = cubicBezier(0.25, 0.46, 0.45, 1),
-					startTime = 0,
 					currentTime = 0,
 					progress = 0,
 					easeProgress = 0,
 					distance = to - from,
-					scrollTop = element.scrollTop,
-					animationTimer = SnapListview.animationTimer;
+					animationTimer = SnapListview.animationTimer,
+					startTime = window.performance.now(),
+					animation = function () {
+						var gap;
 
-				startTime = window.performance.now();
+						currentTime = window.performance.now();
+						progress = (currentTime - startTime) / duration;
+						easeProgress = easeOut(progress);
+						gap = distance * easeProgress;
+						element.scrollTop = from + gap;
+						if (progress <= 1 && progress >= 0) {
+							animationTimer = window.requestAnimationFrame(animation);
+						} else {
+							animationTimer = null;
+							if (callback && typeof callback === "function") {
+								callback();
+							}
+						}
+					};
+
 				if (animationTimer !== null) {
 					window.cancelAnimationFrame(animationTimer);
 				}
-				animationTimer = window.requestAnimationFrame(function animation() {
-					var gap;
 
-					currentTime = window.performance.now();
-					progress = (currentTime - startTime) / duration;
-					easeProgress = easeOut(progress);
-					gap = distance * easeProgress;
-					element.scrollTop = scrollTop + gap;
-					if (progress <= 1 && progress >= 0) {
-						animationTimer = window.requestAnimationFrame(animation);
-					} else {
-						animationTimer = null;
-						if (callback && typeof callback === "function") {
-							callback();
-						}
-					}
-				});
+				animationTimer = window.requestAnimationFrame(animation);
 			}
 
 			SnapListview.prototype = prototype;
@@ -42191,7 +44057,18 @@ function pathToRegexp (path, keys, options) {
 					self = this,
 					fromColor,
 					toColor,
-					prefix;
+					prefix,
+					animate = function () {
+						activeElementStyle.background = "-webkit-linear-gradient(" + prefix + ", " + fromColor + " 0%, " + toColor + " " + deltaX + "%)";
+						if (anim && deltaX < self.options.animationDuration) {
+							self._animating = true;
+							deltaX += self.options.animationInterval;
+							window.webkitRequestAnimationFrame(animate);
+						} else if (anim && deltaX >= self.options.animationDuration) {
+							self._animating = false;
+							self._transitionEnd();
+						}
+					};
 
 				if (this.swipeLeftElement && translateX >= 0) {
 					// left
@@ -42205,17 +44082,7 @@ function pathToRegexp (path, keys, options) {
 					deltaX = Math.abs(deltaX);
 				}
 
-				(function animate() {
-					activeElementStyle.background = "-webkit-linear-gradient(" + prefix + ", " + fromColor + " 0%, " + toColor + " " + deltaX + "%)";
-					if (anim && deltaX < self.options.animationDuration) {
-						self._animating = true;
-						deltaX += self.options.animationInterval;
-						window.webkitRequestAnimationFrame(animate);
-					} else if (anim && deltaX >= self.options.animationDuration) {
-						self._animating = false;
-						self._transitionEnd();
-					}
-				}());
+				animate();
 			};
 
 			prototype._findSwipeTarget = function (element) {
@@ -42860,7 +44727,6 @@ function pathToRegexp (path, keys, options) {
 					ITEM_END_DEGREE: 330,
 					ITEM_NORMAL_SCALE: "scale(" + STATIC.SCALE_FACTOR + ")",
 					ITEM_ACTIVE_SCALE: "scale(1)",
-					ITEM_MOVED_SCALE: "scale(0.92)",
 					EMPTY_STATE_TEXT: "Selector is empty"
 				},
 				EVENT_TYPE = {
@@ -43465,17 +45331,18 @@ function pathToRegexp (path, keys, options) {
 
 				index = index !== undefined ? index : 0;
 
-				transform = items[index].style.transform || items[index].style.webkitTransform;
-
 				if (active) {
-					active.style.transform =
-						active.style.transform.replace(DEFAULT.ITEM_ACTIVE_SCALE,
-							DEFAULT.ITEM_NORMAL_SCALE);
+					transform = active.style.transform || active.style.webkitTransform;
+					newTransformStyle = transform.replace(/scale[(][^)]+[)]/,
+						DEFAULT.ITEM_NORMAL_SCALE);
+					active.style.transform = newTransformStyle;
+					active.style.webkitTransform = newTransformStyle;
 					active.classList.remove(classes.ITEM_ACTIVE);
 				}
 				if (items.length) {
 					items[index].classList.add(classes.ITEM_ACTIVE);
-					newTransformStyle = transform.replace(DEFAULT.ITEM_NORMAL_SCALE,
+					transform = items[index].style.transform || items[index].style.webkitTransform;
+					newTransformStyle = transform.replace(/scale[(][^)]+[)]/,
 						DEFAULT.ITEM_ACTIVE_SCALE);
 					items[index].style.transform = newTransformStyle;
 					items[index].style.webkitTransform = newTransformStyle;
@@ -44345,6 +46212,7 @@ function pathToRegexp (path, keys, options) {
 					itemsOnLayer = self.options.maxItemNumber;
 
 				removeLayers(self.element, self.options);
+
 				element.removeChild(ui.items[index]);
 				ui.items = element.querySelectorAll(self.options.itemSelector);
 				length = ui.items.length;
@@ -44362,6 +46230,22 @@ function pathToRegexp (path, keys, options) {
 
 				self._refresh();
 			};
+
+			/**
+			 * Removes given item from widget
+			 * @method removeGivenItem
+			 * @param {HTMLElement} item
+			 * @public
+			 * @member ns.widget.wearable.Selector
+			 */
+			prototype.removeItemByElement = function (item) {
+				var self = this,
+					index = Array.prototype.indexOf.call(self._ui.items, item);
+
+				if (index !== -1) {
+					self.removeItem(index);
+				}
+			}
 
 			prototype._destroy = function () {
 				var self = this,
@@ -44551,7 +46435,7 @@ function pathToRegexp (path, keys, options) {
 				 * @param {Function} onEnd
 				 * @return {Object}
 				 */
-				anim = function anim(items, duration, timingFn, drawFn, onEnd) {
+				anim = function (items, duration, timingFn, drawFn, onEnd) {
 					// item (or items) should has properties: from, to
 
 					var state = {
@@ -45267,6 +47151,9 @@ function pathToRegexp (path, keys, options) {
 
 				// set proper grid look
 				self.mode(options.mode);
+
+				// disable tau rotaryScroller the widget has own support for rotary event
+				ns.util.rotaryScrolling && ns.util.rotaryScrolling.lock();
 			};
 
 			function findChildIndex(self, target) {
@@ -45737,7 +47624,7 @@ function pathToRegexp (path, keys, options) {
 				updateItemsFrom(items);
 				self._assembleItemsTo3x3(items);
 
-				anim(items, TRANSFORM_DURATION, changeItems, transformItem, function onTransitionEnd() {
+				anim(items, TRANSFORM_DURATION, changeItems, transformItem, function () {
 					element.style[self._scrollSize] = getGridSize(self, "3x3") + "px";
 					self._updateSnapPointPositions();
 				});
@@ -45966,7 +47853,646 @@ function pathToRegexp (path, keys, options) {
 			);
 			}(window, window.document));
 
-/*global window, define, ns */
+/*global define, ns */
+/*
+ * Copyright (c) 2020 Samsung Electronics Co., Ltd
+ *
+ * Licensed under the Flora License, Version 1.1 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://floralicense.org/license/
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+/**
+ * #Spin
+ *
+ * @class ns.widget.core.Spin
+ * @since 1.2
+ * @extends ns.widget.core.BaseWidget
+ * @author Tomasz Lukawski <t.lukawski@samsung.com>
+ */
+/**
+ * Main file of applications, which connect other parts
+ */
+// then we can load plugins for libraries and application
+(function (window, ns) {
+	"use strict";
+			var document = window.document,
+			BaseWidget = ns.widget.BaseWidget,
+			engine = ns.engine,
+			utilsEvents = ns.event,
+			gesture = utilsEvents.gesture,
+
+			Animation = ns.util.Animate,
+
+			ENABLING_DURATION = 300, // [ms]
+			ROLL_DURATION = 600,
+			DELTA_Y = 100,
+			DRAG_STEP_TO_VALUE = 60,
+			VIBRATION_DURATION = 10,
+			lastDragValueChange = 0,
+
+			/**
+			 * Alias for class Spin
+			 * @method Spin
+			 * @member ns.widget.core.Spin
+			 * @private
+			 * @static
+			 */
+			Spin = function () {
+				/**
+				 * Object with default options
+				 * @property {Object} options
+				 * @property {number} options.min minimum value of spin
+				 * @property {number} options.max maximum value of spin
+				 * @property {number} options.step step of decrease / increase value
+				 * @property {string} [options.moduloValue="enabled"] value will be show as modulo
+				 *  // if enabled then value above max will be show as modulo eg. 102
+				 *  // with range 0-9 will be show as 2 (12 % 10)
+				 * @property {string} [options.shortPath="enabled"] spin rotate with short path
+				 *  // eg. when value will be 1 and then will change to 8
+				 *  // the spin will rotate by 1 -> 0 -> 9 -> 0
+				 * @property {number} [options.duration=ROLL_DURATION] time of rotate to indicated value
+				 * @property {string} [options.direction="up"] direction of spin rotation
+				 * @property {string} [options.rollHeight="custom"] size of frame to rotate one item
+				 * @property {number} [options.itemHeight=38] size of frame for "custom" rollHeight
+				 * @property {number} [options.momentumLevel=0] define moementum level on drag
+				 * @property {number} [options.scaleFactor=0.4] second / next items scale factor
+				 * @property {number} [options.moveFactor=0.4] second / next items move factor from center
+				 * @property {number} [options.loop="enabled"] when the spin reaches max value then loops to min value
+				 * @property {string} [options.labels=""] defines labels for values likes days of week separated by ","
+				 * // eg. "Monday,Tuesday,Wednesday"
+				 * @property {string} [options.digits=0] value filling with zeros, eg. 002 for digits=3;
+				 * @property {string} [options.dragTarget="document"] set target element for drag gesture
+				 * @member ns.widget.core.Spin
+				 */
+				this.options = {
+					min: 0,
+					max: 9,
+					step: 1,
+					moduloValue: "enabled",
+					shortPath: "enabled",
+					duration: ROLL_DURATION,
+					direction: "up",
+					rollHeight: "custom", // "container" | "item" | "custom"
+					itemHeight: 38,
+					momentumLevel: 0, // 0 - one item on swipe
+					scaleFactor: 0.4,
+					moveFactor: 0.4,
+					loop: "enabled",
+					labels: [],
+					digits: 0, // 0 - doesn't complete by zeros
+					value: 0,
+					dragTarget: "document" // "document" | "self"
+				};
+				this._ui = {};
+				this.length = this.options.max - this.options.min + 1;
+				this._prevValue = null; // this property has to be "null" on start
+			},
+
+			WIDGET_CLASS = "ui-spin",
+
+			classes = {
+				SPIN: WIDGET_CLASS,
+				ITEM: WIDGET_CLASS + "-item",
+				SELECTED: WIDGET_CLASS + "-item-selected",
+				NEXT: WIDGET_CLASS + "-item-next",
+				PREV: WIDGET_CLASS + "-item-prev",
+				ENABLED: "enabled",
+				ENABLING: WIDGET_CLASS + "-enabling",
+				PLACEHOLDER: WIDGET_CLASS + "-placeholder"
+			},
+
+			prototype = new BaseWidget();
+
+		Spin.classes = classes;
+		Spin.timing = Animation.timing;
+
+		function transform(value, index, centerY, options) {
+			var diff,
+				direction,
+				diffAbs,
+				scale,
+				moveY,
+				opacity,
+				delta = options.max - options.min + options.step,
+				numberOfItems = delta / options.step,
+				currentIndex = Math.round((value - options.min) / options.step);
+
+			if (options.loop === "enabled") {
+				if (value >= options.max - 2 * options.step) {
+					if (numberOfItems - currentIndex < 3) {
+						if (index < 3) {
+							index = index + numberOfItems;
+						}
+					}
+				} else if (value <= options.min + 2 * options.step) {
+					if (currentIndex < 3) {
+						if (index > numberOfItems - 3) {
+							index = index - numberOfItems;
+						}
+					}
+				}
+			}
+
+			diff = value - options.min - index * options.step;
+			direction = diff < 0 ? 1 : -1;
+			diffAbs = Math.abs(diff);
+			scale = 1 - options.scaleFactor * diffAbs;
+			moveY = 1 - options.moveFactor * diffAbs;
+			opacity = 1 - ((options.enabled) ? options.scaleFactor : 1) * diffAbs;
+
+			scale = (scale < 0) ? 0 : scale;
+			opacity = (opacity < 0) ? 0 : opacity;
+			moveY = direction * (DELTA_Y * (1 - moveY)) + centerY;
+
+			return {
+				moveY: moveY,
+				scale: scale,
+				opacity: opacity
+			}
+		}
+
+		function showAnimationTick(self) {
+			var items = self._ui.items,
+				options = self.options,
+				itemHeight = self._itemHeight,
+				state = self._objectValue,
+				centerY = (self._containerHeight - itemHeight) / 2;
+
+			items.forEach(function (item, index) {
+				var change = transform(state.value, index, centerY, options);
+
+				// set item position
+				if (change.opacity > 0) {
+					item.style.transform = "translateY(" + change.moveY + "px) scale(" + change.scale + ")";
+				} else {
+					item.style.transform = "translateY(-1000px)"; // move item from active area
+				}
+				item.style.opacity = change.opacity;
+				item.style.height = itemHeight + "px";
+			});
+			ns.event.trigger(self.element, "spinstep", parseInt(state.value, 10));
+		}
+
+		function getStartValue(self) {
+			var prevValue = (self._prevValue === null) ? self.options.value : self._prevValue,
+				startValue = prevValue,
+				diff = self.options.value - prevValue,
+				rest = 0,
+				int = 0;
+
+			if (self.options.moduloValue === "enabled") {
+				int = diff / self.length | 0;
+				if (Math.abs(diff) >= self.length) {
+					startValue = prevValue + self.length * int;
+				}
+				rest = diff % self.length;
+				if (self.options.shortPath === "enabled" &&
+					Math.abs(rest) > self.length / 2) {
+					int += (rest < 0) ? -1 : 1;
+					startValue = prevValue + self.length * int;
+				}
+			}
+
+			return startValue;
+		}
+
+		prototype._valueToIndex = function (value) {
+			var options = this.options,
+				delta = options.max - options.min + 1;
+
+			value = value - options.min;
+			while (value < options.min) {
+				value += delta;
+			}
+			while (value > options.max) {
+				value -= delta;
+			}
+
+			return parseInt(value, 10) % this.length;
+		}
+
+		prototype._removeSelectedLayout = function () {
+			var self = this;
+
+			if (self._prevValue !== null) {
+				self._ui.items[self._valueToIndex(self._prevValue)]
+					.classList.remove(classes.SELECTED);
+			}
+		}
+
+		prototype._addSelectedLayout = function () {
+			var self = this,
+				index = self._valueToIndex(self.options.value);
+
+			self._ui.items[index].classList.add(classes.SELECTED);
+		}
+
+		prototype._show = function (triggerChangeEvent) {
+			var self = this,
+				animation = new Animation({}),
+				state = null,
+				objectValue = {
+					value: getStartValue(self)
+				};
+
+			self._removeSelectedLayout();
+
+			state = {
+				animation: [{
+					object: objectValue,
+					property: "value",
+					to: self.options.value
+				}],
+				animationConfig: {
+					// when widget is disabled then duration of animation should be minimal
+					duration: (self.options.enabled) ? self.options.duration : 1,
+					timing: Spin.timing.ease
+				}
+			};
+			self.state = state;
+			self._objectValue = objectValue;
+			self._animation = animation;
+
+			animation.set(state.animation, state.animationConfig);
+			animation.tick(showAnimationTick.bind(null, self));
+			animation.start(function () {
+				self._addSelectedLayout();
+				if (triggerChangeEvent) {
+					ns.event.trigger(self.element, "spinchange", {
+						value: parseInt(self.options.value, 10),
+						dValue: parseInt(self.options.value, 10) - parseInt(self._prevValue, 10)
+					});
+				}
+			});
+
+		};
+
+		prototype._modifyItems = function () {
+			var self = this,
+				options = self.options,
+				element = self.element,
+				itemHeight = 0,
+				items = [].slice.call(element.querySelectorAll("." + classes.ITEM)),
+				len = options.max - options.min + 1,
+				diff = len - items.length,
+				centerY,
+				item = null,
+				i = 0;
+
+			// add or remove item from spin widget
+			if (diff > 0) {
+				for (; i < diff; i++) {
+					item = document.createElement("div");
+					item.classList.add(classes.ITEM);
+					element.appendChild(item);
+					items.push(item);
+				}
+			} else if (diff < 0) {
+				diff = -diff;
+				for (; i < diff; i++) {
+					element.removeChild(items.pop());
+				}
+			}
+
+			// set content;
+			items.forEach(function (item, index) {
+				var textValue = "";
+
+				if (self.options.labels.length) {
+					textValue = self.options.labels[index];
+				} else {
+					textValue += (options.min + index);
+					if (options.digits > 0) {
+						while (textValue.length < options.digits) {
+							textValue = "0" + textValue;
+						}
+					}
+				}
+				item.innerHTML = textValue
+			});
+
+			// determine item height for scroll
+			if (options.rollHeight === "container") {
+				itemHeight = self._containerHeight;
+			} else if (options.rollHeight === "custom") {
+				itemHeight = options.itemHeight;
+			} else { // item height
+				item = items[0];
+				itemHeight = (item) ?
+					item.getBoundingClientRect().height :
+					self._containerHeight;
+			}
+			self._itemHeight = itemHeight;
+			centerY = (self._containerHeight - itemHeight) / 2,
+
+			// set position;
+			items.forEach(function (item, index) {
+				var change = transform(self.options.value, index, centerY, options);
+
+				// set item position
+				item.style.transform = "translateY(" + change.moveY + "px) scale(" + change.scale + ")";
+				item.style.opacity = change.opacity;
+			});
+
+			self._ui.items = items;
+		};
+
+		prototype._setItemHeight = function (element, value) {
+			value = (typeof value === "string") ? parseInt(value.replace("px").trim(), 10) : value;
+			this.options.itemHeight = value;
+		};
+
+		/**
+		 * Update items
+		 * @method _updateItems
+		 * @member ns.widget.core.Spin
+		 * @protected
+		 */
+		prototype._updateItems = function () {
+			var self = this;
+
+			self._removeSelectedLayout();
+			self._modifyItems();
+			self._addSelectedLayout();
+		}
+
+		prototype._refresh = function () {
+			var self = this;
+
+			self._containerHeight = parseInt(getComputedStyle(self.element).height, 10);
+			self._modifyItems();
+			self._show();
+		};
+
+		/**
+		 * Widget init method
+		 * @protected
+		 * @method _init
+		 * @member ns.widget.core.Spin
+		 */
+		prototype._init = function () {
+			var self = this,
+				options = self.options;
+
+			// convert options
+			options.min = (options.min !== undefined) ? parseInt(options.min, 10) : 0;
+			options.max = (options.max !== undefined) ? parseInt(options.max, 10) : 0;
+			options.value = (options.value !== undefined) ? parseInt(options.value, 10) : 0;
+			options.duration = (options.duration !== undefined) ? parseInt(options.duration, 10) : 0;
+			options.labels = (Array.isArray(options.labels)) ? options.labels : options.labels.split(",");
+
+			self.length = options.max - options.min + 1;
+			self.dragTarget = (options.dragTarget === "document") ? document : self.element;
+
+			self._refresh();
+		};
+
+		prototype._build = function (element) {
+			var placeholder = document.createElement("div");
+
+			element.classList.add(classes.SPIN);
+			placeholder.classList.add(classes.PLACEHOLDER);
+			element.appendChild(placeholder);
+
+			this._ui.placeholder = placeholder;
+			return element;
+		};
+
+		prototype._setValue = function (value, enableChangeEvent) {
+			var self = this,
+				animation;
+
+			value = window.parseInt(value, 10);
+			self._ui.placeholder.textContent = value;
+
+			if (isNaN(value)) {
+				ns.warn("Spin: value is not a number");
+			} else if (value !== self.options.value) {
+				if (value >= self.options.min && value <= self.options.max || self.options.loop === "enabled") {
+					self._prevValue = self.options.value;
+					if (self.options.loop === "enabled") {
+						if (value > self.options.max) {
+							value = self.options.min;
+						} else if (value < self.options.min) {
+							value = self.options.max;
+						}
+					}
+					self.options.value = value;
+					// set data-value on element
+					self.element.dataset.value = value;
+
+					// stop previous animation
+					animation = self.state.animation[0];
+					if (animation !== null && animation.to !== animation.current) {
+						self._animation.stop();
+					}
+					// update status of widget
+					self._show(enableChangeEvent);
+				}
+			}
+		};
+
+		prototype._getValue = function () {
+			return this.options.value;
+		};
+
+		prototype._setMax = function (element, max) {
+			var options = this.options;
+
+			options.max = (max !== undefined) ? parseInt(max, 10) : 0;
+			this.length = options.max - options.min + 1;
+		};
+
+		prototype._setMin = function (element, min) {
+			var options = this.options;
+
+			options.min = (min !== undefined) ? parseInt(min, 10) : 0;
+			this.length = options.max - options.min + 1;
+		};
+
+		prototype._setLabels = function (element, value) {
+			var self = this;
+
+			self.options.labels = value.split(",");
+			self._refresh();
+		};
+
+		prototype._setModuloValue = function (element, value) {
+			this.options.moduloValue = (value === "enabled") ? "enabled" : "disabled";
+		};
+
+		prototype._setShortPath = function (element, value) {
+			this.options.shortPath = (value === "enabled") ? "enabled" : "disabled";
+		};
+
+		prototype._setLoop = function (element, value) {
+			this.options.loop = (value === "enabled") ? "enabled" : "disabled";
+		};
+
+		prototype._setDuration = function (element, value) {
+			this.options.duration = window.parseInt(value, 10);
+		};
+
+		prototype._setEnabled = function (element, value) {
+			var self = this;
+
+			self.options.enabled = (value === "false") ? false : value;
+			if (self.options.enabled) {
+				element.classList.add(classes.ENABLING);
+				window.setTimeout(function () {
+					element.classList.remove(classes.ENABLING);
+				}, ENABLING_DURATION);
+				element.classList.add(classes.ENABLED);
+				utilsEvents.on(self.dragTarget, "drag dragend", self);
+
+			} else {
+				element.classList.add(classes.ENABLING);
+				window.setTimeout(function () {
+					element.classList.remove(classes.ENABLING);
+					self.refresh();
+				}, ENABLING_DURATION);
+				element.classList.remove(classes.ENABLED);
+				utilsEvents.off(self.dragTarget, "drag dragend", self);
+				// disable animation
+				self._animation.stop();
+			}
+			// reset previous value;
+			this._prevValue = null;
+			return true;
+		};
+
+		prototype._setDirection = function (element, direction) {
+			this.options.direction = (["up", "down"].indexOf(direction) > -1) ? direction : "up";
+		};
+
+		prototype._drag = function (e) {
+			var self = this,
+				dragValue,
+				value;
+
+			// if element is detached from DOM then event listener should be removed
+			if (document.getElementById(self.element.id) === null) {
+				utilsEvents.off(self.dragTarget, "drag dragend", self);
+			} else {
+				if (self.options.enabled) {
+					value = self.value();
+					dragValue = e.detail.deltaY - lastDragValueChange;
+
+					if (Math.abs(dragValue) > DRAG_STEP_TO_VALUE) {
+						self._setValue(value - Math.round(dragValue / DRAG_STEP_TO_VALUE), true);
+						lastDragValueChange = e.detail.deltaY;
+						window.navigator.vibrate(VIBRATION_DURATION);
+					}
+				}
+			}
+
+		};
+
+		prototype._dragEnd = function () {
+			lastDragValueChange = 0;
+		};
+
+		prototype._click = function (e) {
+			var target = e.target,
+				self = this,
+				items = self._ui.items,
+				value = self.value(),
+				targetIndex = items.indexOf(target),
+				currentIndex = self._valueToIndex(value);
+
+			if (targetIndex > -1 && targetIndex !== currentIndex) {
+				if (currentIndex === items.length - 1 && targetIndex == 0) {
+					// loop - current index is 12/12 and event target has index 0/12
+					self._setValue(value + 1, true);
+				} else if (currentIndex === 0 && targetIndex == items.length - 1) {
+					// loop - current index is 0/12 and event target has index 12/12
+					self._setValue(value - 1, true);
+				} else if (targetIndex < currentIndex) {
+					self._setValue(value - 1, true);
+				} else if (targetIndex > currentIndex) {
+					self._setValue(value + 1, true);
+				}
+			}
+		}
+
+		prototype.handleEvent = function (event) {
+			switch (event.type) {
+				case "drag":
+					this._drag(event);
+					break;
+				case "dragend":
+					this._dragEnd(event);
+					break;
+				case "click":
+					this._click(event);
+					break;
+			}
+		};
+
+		prototype._bindEvents = function () {
+			var self = this;
+
+			// enabled drag gesture for document
+			utilsEvents.enableGesture(self.dragTarget, new gesture.Drag({
+				blockHorizontal: true
+			}));
+
+			utilsEvents.on(self.element, "click", self);
+		};
+
+		prototype._unbindEvents = function () {
+			var self = this;
+
+			utilsEvents.disableGesture(self.dragTarget);
+
+			utilsEvents.off(self.dragTarget, "drag dragend", self);
+			utilsEvents.off(self.element, "click", self);
+		};
+
+		/**
+		 * Destroy widget instance
+		 * @protected
+		 * @method _destroy
+		 * @member ns.widget.core.Spin
+		 * @protected
+		 */
+		prototype._destroy = function () {
+			var self = this,
+				element = self.element,
+				ui = self._ui;
+
+			self._unbindEvents();
+			ui.items.forEach(function (item) {
+				item.parentNode.removeChild(item);
+			});
+			element.removeChild(ui.placeholder);
+			element.classList.remove(classes.SPIN);
+		};
+
+		Spin.prototype = prototype;
+		ns.widget.core.Spin = Spin;
+
+		engine.defineWidget(
+			"Spin",
+			".ui-spin",
+			[],
+			Spin,
+			"core"
+		);
+
+		
+})(window, ns);
+
+/*global define, ns */
 /*jslint nomen: true, plusplus: true */
 /*
  * Copyright (c) 2015 Samsung Electronics Co., Ltd
@@ -45998,581 +48524,48 @@ function pathToRegexp (path, keys, options) {
 // then we can load plugins for libraries and application
 (function (window, ns) {
 	"use strict";
-				var document = window.document,
-				BaseWidget = ns.widget.BaseWidget,
-				/**
-				 * Alias for class {@link ns.engine}
-				 * @property {Object} engine
-				 * @member ns.widget.wearable.Spin
-				 * @private
-				 * @static
-				 */
-				engine = ns.engine,
-				utilsEvents = ns.event,
-				gesture = utilsEvents.gesture,
-
-				Animation = ns.util.Animate,
-
-				ENABLING_DURATION = 300, // [ms]
-				ROLL_DURATION = 600,
-				DELTA_Y = 100,
-				DRAG_STEP_TO_VALUE = 30,
-				VIBRATION_DURATION = 10,
-				lastDragValueChange = 0,
-				dragGestureInstance = null,
-
-				/**
-				 * Alias for class Spin
-				 * @method Spin
-				 * @member ns.widget.wearable.Spin
-				 * @private
-				 * @static
-				 */
-				Spin = function () {
-					/**
-					 * Object with default options
-					 * @property {Object} options
-					 * @property {Object} [options.type] Spin type
-					 * @property {number} [options.orientation] orientation
-					 * @member ns.widget.wearable.Spin
-					 */
-					this.options = {
-						min: 0,
-						max: 9,
-						step: 1,
-						moduloValue: "enabled",
-						shortPath: "enabled",
-						duration: ROLL_DURATION,
-						direction: "up",
-						rollHeight: "custom", // "container" | "item" | "custom"
-						itemHeight: 38,
-						momentumLevel: 0, // 0 - one item on swipe
-						scaleFactor: 0.4,
-						moveFactor: 0.4,
-						loop: "enabled",
-						labels: [],
-						digits: 0 // 0 - doesn't complete by zeros
-					};
-					this._ui = {};
-					this.length = this.options.max - this.options.min + 1;
-					this._prevValue = null; // this property has to be "null" on start
-
-					// enabled drag gesture for document
-					if (dragGestureInstance === null) {
-						dragGestureInstance = new gesture.Drag({
-							blockHorizontal: true
-						});
-						utilsEvents.enableGesture(document, dragGestureInstance);
-					}
-				},
-
-				WIDGET_CLASS = "ui-spin",
-
-				classes = {
-					SPIN: WIDGET_CLASS,
-					ITEM: WIDGET_CLASS + "-item",
-					SELECTED: WIDGET_CLASS + "-item-selected",
-					NEXT: WIDGET_CLASS + "-item-next",
-					PREV: WIDGET_CLASS + "-item-prev",
-					ENABLED: "enabled",
-					ENABLING: WIDGET_CLASS + "-enabling",
-					PLACEHOLDER: WIDGET_CLASS + "-placeholder"
-				},
-
-				prototype = new BaseWidget();
-
-			Spin.classes = classes;
-			Spin.timing = Animation.timing;
-
-			function transform(value, index, centerY, options) {
-				var diff,
-					direction,
-					diffAbs,
-					scale,
-					moveY,
-					opacity,
-					delta = options.max - options.min + options.step,
-					numberOfItems = delta / options.step,
-					currentIndex = Math.round((value - options.min) / options.step);
-
-				if (options.loop === "enabled") {
-					if (value >= options.max - 2 * options.step) {
-						if (numberOfItems - currentIndex < 3) {
-							if (index < 3) {
-								index = index + numberOfItems;
-							}
-						}
-					} else if (value <= options.min + 2 * options.step) {
-						if (currentIndex < 3) {
-							if (index > numberOfItems - 3) {
-								index = index - numberOfItems;
-							}
-						}
-					}
-				}
-
-				diff = value - options.min - index * options.step;
-				direction = diff < 0 ? 1 : -1;
-				diffAbs = Math.abs(diff);
-				scale = 1 - options.scaleFactor * diffAbs;
-				moveY = 1 - options.moveFactor * diffAbs;
-				opacity = 1 - ((options.enabled) ? options.scaleFactor : 1) * diffAbs;
-
-				scale = (scale < 0) ? 0 : scale;
-				opacity = (opacity < 0) ? 0 : opacity;
-				moveY = direction * (DELTA_Y * (1 - moveY)) + centerY;
-
-				return {
-					moveY: moveY,
-					scale: scale,
-					opacity: opacity
-				}
-			}
-
-			function showAnimationTick(self) {
-				var items = self._ui.items,
-					options = self.options,
-					itemHeight = self._itemHeight,
-					state = self._objectValue,
-					centerY = (self._containerRect.height - itemHeight) / 2;
-
-				items.forEach(function (item, index) {
-					var change = transform(state.value, index, centerY, options);
-
-					// set item position
-					if (change.opacity > 0) {
-						item.style.transform = "translateY(" + change.moveY + "px) scale(" + change.scale + ")";
-					} else {
-						item.style.transform = "translateY(-1000px)"; // move item from active area
-					}
-					item.style.opacity = change.opacity;
-				});
-				ns.event.trigger(self.element, "spinstep", parseInt(state.value, 10));
-			}
-
-			function getStartValue(self) {
-				var prevValue = (self._prevValue === null) ? self.options.value : self._prevValue,
-					startValue = prevValue,
-					diff = self.options.value - prevValue,
-					rest = 0,
-					int = 0;
-
-				if (self.options.moduloValue === "enabled") {
-					int = diff / self.length | 0;
-					if (Math.abs(diff) >= self.length) {
-						startValue = prevValue + self.length * int;
-					}
-					rest = diff % self.length;
-					if (self.options.shortPath === "enabled" &&
-						Math.abs(rest) > self.length / 2) {
-						int += (rest < 0) ? -1 : 1;
-						startValue = prevValue + self.length * int;
-					}
-				}
-
-				return startValue;
-			}
-
-			prototype._valueToIndex = function (value) {
-				var options = this.options,
-					delta = options.max - options.min + 1;
-
-				value = value - options.min;
-				while (value < options.min) {
-					value += delta;
-				}
-				while (value > options.max) {
-					value -= delta;
-				}
-
-				return parseInt(value, 10) % this.length;
-			}
-
-			prototype._removeSelectedLayout = function () {
+			var CoreSpin = ns.widget.core.Spin,
+			CoreSpinPrototype = CoreSpin.prototype,
+			engine = ns.engine,
+			objectUtil = ns.util.object,
+			classes = objectUtil.copy(CoreSpin.classes),
+			Spin = function () {
 				var self = this;
 
-				if (self._prevValue !== null) {
-					self._ui.items[self._valueToIndex(self._prevValue)]
-						.classList.remove(classes.SELECTED);
-				}
+				CoreSpin.call(self);
+			},
+			prototype = new CoreSpin();
+
+		Spin.prototype = prototype;
+		Spin.classes = classes;
+		Spin.timing = CoreSpin.timing;
+
+		prototype._setEnabled = function (element, value) {
+			var self = this;
+
+			CoreSpinPrototype._setEnabled.call(self, element, value);
+
+			if (self.options.enabled) {
+				// disable tau rotaryScroller the widget has own support for rotary event
+				ns.util.rotaryScrolling && ns.util.rotaryScrolling.lock();
+			} else {
+				// enable tau rotaryScroller the widget has own support for rotary event
+				ns.util.rotaryScrolling && ns.util.rotaryScrolling.unlock();
 			}
+		}
 
-			prototype._addSelectedLayout = function () {
-				var self = this,
-					index = self._valueToIndex(self.options.value);
+		ns.widget.wearable.Spin = Spin;
 
-				self._ui.items[index].classList.add(classes.SELECTED);
-			}
+		engine.defineWidget(
+			"Spin",
+			".ui-spin",
+			[],
+			Spin,
+			"wearable"
+		);
 
-			prototype._show = function (triggerChangeEvent) {
-				var self = this,
-					animation = new Animation({}),
-					state = null,
-					objectValue = {
-						value: getStartValue(self)
-					};
-
-				self._removeSelectedLayout();
-
-				state = {
-					animation: [{
-						object: objectValue,
-						property: "value",
-						to: self.options.value
-					}],
-					animationConfig: {
-						// when widget is disabled then duration of animation should be minimal
-						duration: (self.options.enabled) ? self.options.duration : 1,
-						timing: Spin.timing.ease
-					}
-				};
-				self.state = state;
-				self._objectValue = objectValue;
-				self._animation = animation;
-
-				animation.set(state.animation, state.animationConfig);
-				animation.tick(showAnimationTick.bind(null, self));
-				animation.start(function () {
-					self._addSelectedLayout();
-					if (triggerChangeEvent) {
-						ns.event.trigger(self.element, "spinchange", {
-							value: parseInt(self.options.value, 10),
-							dValue: parseInt(self.options.value, 10) - parseInt(self._prevValue, 10)
-						});
-					}
-				});
-
-			};
-
-			prototype._modifyItems = function () {
-				var self = this,
-					options = self.options,
-					element = self.element,
-					itemHeight = 0,
-					items = [].slice.call(element.querySelectorAll("." + classes.ITEM)),
-					len = options.max - options.min + 1,
-					diff = len - items.length,
-					centerY,
-					item = null,
-					i = 0;
-
-				// add or remove item from spin widget
-				if (diff > 0) {
-					for (; i < diff; i++) {
-						item = document.createElement("div");
-						item.classList.add(classes.ITEM);
-						element.appendChild(item);
-						items.push(item);
-					}
-				} else if (diff < 0) {
-					diff = -diff;
-					for (; i < diff; i++) {
-						element.removeChild(items.pop());
-					}
-				}
-
-				// set content;
-				items.forEach(function (item, index) {
-					var textValue = "";
-
-					if (self.options.labels.length) {
-						textValue = self.options.labels[index];
-					} else {
-						textValue += (options.min + index);
-						if (options.digits > 0) {
-							while (textValue.length < options.digits) {
-								textValue = "0" + textValue;
-							}
-						}
-					}
-					item.innerHTML = textValue
-				});
-
-				// determine item height for scroll
-				if (options.rollHeight === "container") {
-					itemHeight = self._containerRect.height;
-				} else if (options.rollHeight === "custom") {
-					itemHeight = options.itemHeight;
-				} else { // item height
-					item = items[0];
-					itemHeight = (item) ?
-						item.getBoundingClientRect().height :
-						self._containerRect.height;
-				}
-				self._itemHeight = itemHeight;
-				centerY = (self._containerRect.height - itemHeight) / 2,
-
-				// set position;
-				items.forEach(function (item, index) {
-					var change = transform(self.value, index, centerY, options);
-
-					// set item position
-					item.style.transform = "translateY(" + change.moveY + "px) scale(" + change.scale + ")";
-					item.style.opacity = change.opacity;
-				});
-
-				self._ui.items = items;
-			};
-
-			prototype._setItemHeight = function (element, value) {
-				value = (typeof value === "string") ? parseInt(value.replace("px").trim(), 10) : value;
-				this.options.itemHeight = value;
-			};
-
-			prototype._refresh = function () {
-				var self = this;
-
-				self._containerRect = self.element.getBoundingClientRect();
-				self._modifyItems();
-				self._show();
-			};
-
-			/**
-			 * Widget init method
-			 * @protected
-			 * @method _init
-			 * @member ns.widget.wearable.Spin
-			 */
-			prototype._init = function () {
-				var self = this,
-					options = self.options;
-
-				// convert options
-				options.min = (options.min !== undefined) ? parseInt(options.min, 10) : 0;
-				options.max = (options.max !== undefined) ? parseInt(options.max, 10) : 0;
-				options.value = (options.value !== undefined) ? parseInt(options.value, 10) : 0;
-				options.duration = (options.duration !== undefined) ? parseInt(options.duration, 10) : 0;
-				options.labels = (Array.isArray(options.labels)) ? options.labels : options.labels.split(",");
-
-				self.length = options.max - options.min + 1;
-
-				self._refresh();
-			};
-
-			prototype._build = function (element) {
-				var placeholder = document.createElement("div");
-
-				element.classList.add(classes.SPIN);
-				placeholder.classList.add(classes.PLACEHOLDER);
-				element.appendChild(placeholder);
-
-				this._ui.placeholder = placeholder;
-				return element;
-			};
-
-			prototype._setValue = function (value, enableChangeEvent) {
-				var self = this,
-					animation;
-
-				value = window.parseInt(value, 10);
-				self._ui.placeholder.textContent = value;
-
-				if (isNaN(value)) {
-					ns.warn("Spin: value is not a number");
-				} else if (value !== self.options.value) {
-					if (value >= self.options.min && value <= self.options.max || self.options.loop === "enabled") {
-						self._prevValue = self.options.value;
-						if (self.options.loop === "enabled") {
-							if (value > self.options.max) {
-								value = self.options.min;
-							} else if (value < self.options.min) {
-								value = self.options.max;
-							}
-						}
-						self.options.value = value;
-						// stop previous animation
-						animation = self.state.animation[0];
-						if (animation !== null && animation.to !== animation.current) {
-							self._animation.stop();
-						}
-						// update status of widget
-						self._show(enableChangeEvent);
-					}
-				}
-			};
-
-			prototype._getValue = function () {
-				return this.options.value;
-			};
-
-			prototype._setMax = function (element, max) {
-				var options = this.options;
-
-				options.max = (max !== undefined) ? parseInt(max, 10) : 0;
-				this.length = options.max - options.min + 1;
-			};
-
-			prototype._setMin = function (element, min) {
-				var options = this.options;
-
-				options.min = (min !== undefined) ? parseInt(min, 10) : 0;
-				this.length = options.max - options.min + 1;
-			};
-
-			prototype._setLabels = function (element, value) {
-				var self = this;
-
-				self.options.labels = value.split(",");
-				self._refresh();
-			};
-
-			prototype._setModuloValue = function (element, value) {
-				this.options.moduloValue = (value === "enabled") ? "enabled" : "disabled";
-			};
-
-			prototype._setShortPath = function (element, value) {
-				this.options.shortPath = (value === "enabled") ? "enabled" : "disabled";
-			};
-
-			prototype._setLoop = function (element, value) {
-				this.options.loop = (value === "enabled") ? "enabled" : "disabled";
-			};
-
-			prototype._setDuration = function (element, value) {
-				this.options.duration = window.parseInt(value, 10);
-			};
-
-			prototype._setEnabled = function (element, value) {
-				var self = this;
-
-				self.options.enabled = (value === "false") ? false : value;
-				if (self.options.enabled) {
-					element.classList.add(classes.ENABLING);
-					window.setTimeout(function () {
-						element.classList.remove(classes.ENABLING);
-					}, ENABLING_DURATION);
-					element.classList.add(classes.ENABLED);
-					utilsEvents.on(document, "drag dragend", self);
-				} else {
-					element.classList.add(classes.ENABLING);
-					window.setTimeout(function () {
-						element.classList.remove(classes.ENABLING);
-						self.refresh();
-					}, ENABLING_DURATION);
-					element.classList.remove(classes.ENABLED);
-					utilsEvents.off(document, "drag dragend", self);
-				}
-				// reset previous value;
-				this._prevValue = null;
-				return true;
-			};
-
-			prototype._setDirection = function (element, direction) {
-				this.options.direction = (["up", "down"].indexOf(direction) > -1) ?
-					direction : "up";
-			};
-
-			prototype._drag = function (e) {
-				var self = this,
-					dragValue,
-					value;
-
-				// if element is detached from DOM then event listener should be removed
-				if (document.getElementById(self.element.id) === null) {
-					utilsEvents.off(document, "drag dragend", self);
-				} else {
-					if (self.options.enabled) {
-						value = self.value();
-						dragValue = e.detail.deltaY - lastDragValueChange;
-
-						if (Math.abs(dragValue) > DRAG_STEP_TO_VALUE) {
-							self._setValue(value - Math.round(dragValue / DRAG_STEP_TO_VALUE), true);
-							lastDragValueChange = e.detail.deltaY;
-							window.navigator.vibrate(VIBRATION_DURATION);
-						}
-					}
-				}
-
-			};
-
-			prototype._dragEnd = function () {
-				lastDragValueChange = 0;
-			};
-
-			prototype._click = function (e) {
-				var target = e.target,
-					self = this,
-					items = self._ui.items,
-					value = self.value(),
-					targetIndex = items.indexOf(target),
-					currentIndex = self._valueToIndex(value);
-
-				if (targetIndex > -1 && targetIndex !== currentIndex) {
-					if (currentIndex === items.length - 1 && targetIndex == 0) {
-						// loop - current index is 12/12 and event target has index 0/12
-						self._setValue(value + 1, true);
-					} else if (currentIndex === 0 && targetIndex == items.length - 1) {
-						// loop - current index is 0/12 and event target has index 12/12
-						self._setValue(value - 1, true);
-					} else if (targetIndex < currentIndex) {
-						self._setValue(value - 1, true);
-					} else if (targetIndex > currentIndex) {
-						self._setValue(value + 1, true);
-					}
-				}
-			}
-
-			prototype.handleEvent = function (event) {
-				switch (event.type) {
-					case "drag":
-						this._drag(event);
-						break;
-					case "dragend":
-						this._dragEnd(event);
-						break;
-					case "click":
-						this._click(event);
-						break;
-				}
-			};
-
-			prototype._bindEvents = function () {
-				var self = this;
-
-				utilsEvents.on(self.element, "click", self);
-			};
-
-			prototype._unbindEvents = function () {
-				var self = this;
-
-				utilsEvents.off(self.element, "drag dragend", self);
-				utilsEvents.off(self.element, "click", self);
-			};
-
-			/**
-			 * Destroy widget instance
-			 * @protected
-			 * @method _destroy
-			 * @member ns.widget.wearable.Spin
-			 * @protected
-			 */
-			prototype._destroy = function () {
-				var self = this,
-					element = self.element,
-					ui = self._ui;
-
-				self._unbindEvents();
-				ui.items.forEach(function (item) {
-					item.parentNode.removeChild(item);
-				});
-				element.removeChild(ui.placeholder);
-				element.classList.remove(classes.SPIN);
-			};
-
-			Spin.prototype = prototype;
-			ns.widget.wearable.Spin = Spin;
-
-			engine.defineWidget(
-				"Spin",
-				"." + WIDGET_CLASS,
-				[],
-				Spin,
-				"wearable"
-			);
-
-			
+		
 })(window, ns);
-
 
 /*
  * Copyright (c) 2015 Samsung Electronics Co., Ltd
@@ -47293,6 +49286,15 @@ function pathToRegexp (path, keys, options) {
 					label: null,
 					footer: null
 				};
+
+				// property contains information which DOM elements
+				// was built during widget build process.
+				// These data are needed in destroy method
+				self._wasBuilt = {
+					footer: false,
+					buttonSet: false
+				}
+
 			}
 			NumberPicker.classes = classes;
 
@@ -47349,6 +49351,7 @@ function pathToRegexp (path, keys, options) {
 					if (!footer) {
 						footer = document.createElement("footer");
 						parent.appendChild(footer);
+						this._wasBuilt.footer = true;
 					}
 
 					// add standard footer class for footer with button
@@ -47589,6 +49592,7 @@ function pathToRegexp (path, keys, options) {
 				buttonSet.classList.add(classes.BUTTON_SET);
 				// add "set" button to the footer
 				footer.appendChild(buttonSet);
+				this._wasBuilt.buttonSet = true;
 
 				// build DOM structure
 				container.appendChild(number);
@@ -47639,6 +49643,14 @@ function pathToRegexp (path, keys, options) {
 				footer.classList.remove("ui-bottom-button");
 
 				// recovery DOM structure
+				if (self._wasBuilt.buttonSet) {
+					ui.footer.removeChild(ui.buttonSet);
+					self._wasBuilt.buttonSet = false;
+				}
+				if (self._wasBuilt.footer) {
+					ui.footer.parentElement.removeChild(ui.footer);
+					self._wasBuilt.footer = false;
+				}
 				if (container.parentElement) {
 					container.parentElement.replaceChild(self.element, container);
 				}
@@ -47884,6 +49896,18 @@ function pathToRegexp (path, keys, options) {
 					*/
 					ACTIVE_LABEL_ANIMATION: WIDGET_CLASS + "-active-label-animation",
 					/**
+					* Show PM in time picker widget (without animation)
+					* @style ui-time-picker-show-pm-without-animation
+					* @member ns.widget.wearable.TimePicker
+					*/
+					SHOW_PM: WIDGET_CLASS + "-show-pm-without-animation",
+					/**
+					* Hide PM in time picker widget (without animation)
+					* @style ui-time-picker-hide-pm-without-animation
+					* @member ns.widget.wearable.TimePicker
+					*/
+					HIDE_PM: WIDGET_CLASS + "-hide-pm-without-animation",
+					/**
 					* Set animation for showing PM in time picker widget
 					* @style ui-time-picker-show-pm
 					* @member ns.widget.wearable.TimePicker
@@ -47969,7 +49993,6 @@ function pathToRegexp (path, keys, options) {
 				var self = this,
 					initDate = new Date(),
 					ui = self._ui,
-					uiNumberHours = ui.numberHours,
 					uiInputHours = ui.numberPickerHoursInput;
 
 				//set the initial hours value, based on time stamp
@@ -47980,8 +50003,6 @@ function pathToRegexp (path, keys, options) {
 				} else {
 					self._maxHour = 12;
 				}
-				uiNumberHours.classList.add(classes.ACTIVE_LABEL);
-				uiNumberHours.classList.add(classes.ACTIVE_LABEL_ANIMATION);
 				self._actualMax = parseInt(uiInputHours.max, 10);
 				self._toggleCircleIndicator();
 				// move indicator to the selected hours value
@@ -48182,15 +50203,7 @@ function pathToRegexp (path, keys, options) {
 					window.setTimeout(function () {
 						uiAmPmContainer.classList.remove(classes.AMPM_PRESSED);
 					}, AMPM_PRESS_EFFECT_DURATION);
-					if (self.options.amOrPm === "AM") {
-						uiAmPmContainer.firstElementChild.classList.remove(classes.HIDE_PM_ANIMATION);
-						uiAmPmContainer.firstElementChild.classList.add(classes.SHOW_PM_ANIMATION);
-						self.options.amOrPm = "PM";
-					} else {
-						uiAmPmContainer.firstElementChild.classList.remove(classes.SHOW_PM_ANIMATION);
-						uiAmPmContainer.firstElementChild.classList.add(classes.HIDE_PM_ANIMATION);
-						self.options.amOrPm = "AM";
-					}
+					self._setAmPm(self.options.amOrPm === "AM" ? "PM" : "AM", true /* do animation */);
 				} else if (eventTargetElement.classList.contains("ui-number-picker-set")) {
 					self.trigger("change", {
 						value: self.value()
@@ -48365,6 +50378,24 @@ function pathToRegexp (path, keys, options) {
 				});
 			};
 
+			prototype._setAmPm = function (value, doAnimation) {
+				var self = this,
+					ui = self._ui,
+					uiAmPmContainer = ui.amOrPmContainer;
+
+				if (value === "PM") {
+					uiAmPmContainer.firstElementChild.classList.remove(classes.HIDE_PM);
+					uiAmPmContainer.firstElementChild.classList.remove(classes.HIDE_PM_ANIMATION);
+					uiAmPmContainer.firstElementChild.classList.add(doAnimation ? classes.SHOW_PM_ANIMATION : classes.SHOW_PM);
+					self.options.amOrPm = "PM";
+				} else if (value === "AM") {
+					uiAmPmContainer.firstElementChild.classList.remove(classes.SHOW_PM);
+					uiAmPmContainer.firstElementChild.classList.remove(classes.SHOW_PM_ANIMATION);
+					uiAmPmContainer.firstElementChild.classList.add(doAnimation ? classes.HIDE_PM_ANIMATION : classes.HIDE_PM);
+					self.options.amOrPm = "AM";
+				}
+			}
+
 			prototype._setDateValue = function (value) {
 				var self = this,
 					ui = self._ui,
@@ -48376,9 +50407,9 @@ function pathToRegexp (path, keys, options) {
 				if (self.options.format === "h") {
 					if (hours > 12) {
 						hours -= 12;
-						self.options.amOrPm = "PM";
+						self._setAmPm("PM", false /* without animation */);
 					} else {
-						self.options.amOrPm = "AM";
+						self._setAmPm("AM", false /* without animation */);
 					}
 				}
 				ui.numberPickerHoursInput.setAttribute("value", hours);
@@ -48436,6 +50467,28 @@ function pathToRegexp (path, keys, options) {
 			};
 
 			/**
+			 * Get value of number picker
+			 * @protected
+			 * @method _getValue
+			 * @member ns.widget.core.TimePicker
+			 * @return {Date}
+			 */
+			prototype._getValue = function () {
+				var time = new Date(0),
+					self = this,
+					ui = self._ui,
+					hours = parseInt(ui.numberPickerHoursInput.value, 10);
+
+				if (self.options.format === "h" && self.options.amOrPm === "PM") {
+					hours += 12;
+				}
+				time.setHours(hours);
+				time.setMinutes(parseInt(ui.numberPickerMinutesInput.value, 10));
+
+				return time;
+			}
+
+			/**
 			 * Toggle circle indicator
 			 * @protected
 			 * @method _toggleCircleIndicator
@@ -48472,8 +50525,13 @@ function pathToRegexp (path, keys, options) {
 
 				ui.footer.classList.remove("ui-bottom-button");
 
-				if (ui.footer.children.length) {
+				if (self._wasBuilt.buttonSet) {
 					ui.footer.removeChild(ui.buttonSet);
+					self._wasBuilt.buttonSet = false;
+				}
+				if (self._wasBuilt.footer) {
+					ui.footer.parentElement.removeChild(ui.footer);
+					self._wasBuilt.footer = false;
 				}
 
 				self._unbindEvents();
@@ -48507,8 +50565,8 @@ function pathToRegexp (path, keys, options) {
 
 				utilsEvents.off(document, "rotarydetent", self, true);
 				utilsEvents.off(document, "click", self, true);
-				utilsEvents.on(ui.numberMinutes, "spinchange", self, true);
-				utilsEvents.on(ui.numberHours, "spinchange", self, true);
+				utilsEvents.off(ui.numberMinutes, "spinchange", self, true);
+				utilsEvents.off(ui.numberHours, "spinchange", self, true);
 			};
 
 			TimePicker.prototype = prototype;
@@ -48849,14 +50907,13 @@ function pathToRegexp (path, keys, options) {
 			}
 
 			/**
-			 * Initialize widget state, set current date and init month indicator
+			 * Initialize widget state, set current date
 			 * @method _init
 			 * @memberof ns.widget.wearable.DatePicker
 			 * @protected
 			 */
 			prototype._init = function () {
 				this._setValue(new Date());
-				this._setActiveSelector("month");
 			};
 
 			/**
@@ -49252,8 +51309,10 @@ function pathToRegexp (path, keys, options) {
 			 * @protected
 			 */
 			prototype._destroy = function () {
-				this._unbindEvents();
-				this.element.innerHTML = "";
+				var self = this;
+
+				self._unbindEvents();
+				self.element.innerHTML = "";
 			};
 
 			/**
@@ -49531,7 +51590,9 @@ function pathToRegexp (path, keys, options) {
 
 				inputElement.focus();
 
-				inputElement.selectionStart = inputElement.value.length;
+				if (inputElement.hasOwnProperty("selectionStart")) {
+					inputElement.selectionStart = inputElement.value.length;
+				}
 
 				utilEvent.on(inputElement, "blur", self._hideInputPaneBound, true);
 				utilEvent.on(window, "resize", self._windowResizeBound, true);
@@ -49583,8 +51644,10 @@ function pathToRegexp (path, keys, options) {
 				}
 
 				// setting caret position at the end
-				element.selectionStart = currentValueLength;
-				element.selectionEnd = currentValueLength;
+				if (element.hasOwnProperty("selectionStart")) {
+					element.selectionStart = currentValueLength;
+					element.selectionEnd = currentValueLength;
+				}
 			};
 
 			prototype._onWindowResize = function () {
@@ -50249,28 +52312,28 @@ function pathToRegexp (path, keys, options) {
 
 			function scrollAnimation(element, from, to, duration) {
 				var easeOut = cubicBezier(0.25, 0.46, 0.45, 1),
-					startTime = 0,
 					currentTime = 0,
 					progress = 0,
 					easeProgress = 0,
 					distance = to - from,
-					scrollTop = from;
+					scrollTop = from,
+					startTime = window.performance.now(),
+					animation = function () {
+						var gap;
 
-				startTime = window.performance.now();
-				animationTimer = window.requestAnimationFrame(function animation() {
-					var gap;
+						currentTime = window.performance.now();
+						progress = (currentTime - startTime) / duration;
+						easeProgress = easeOut(progress);
+						gap = distance * easeProgress;
+						element.scrollTop = scrollTop + gap;
+						if (progress < 1 && progress >= 0) {
+							animationTimer = window.requestAnimationFrame(animation);
+						} else {
+							animationTimer = null;
+						}
+					};
 
-					currentTime = window.performance.now();
-					progress = (currentTime - startTime) / duration;
-					easeProgress = easeOut(progress);
-					gap = distance * easeProgress;
-					element.scrollTop = scrollTop + gap;
-					if (progress < 1 && progress >= 0) {
-						animationTimer = window.requestAnimationFrame(animation);
-					} else {
-						animationTimer = null;
-					}
-				});
+				animationTimer = window.requestAnimationFrame(animation);
 			}
 
 			function showEdgeEffect(direction) {
@@ -50348,6 +52411,7 @@ function pathToRegexp (path, keys, options) {
 				objectUtils.merge(self.options, options);
 
 				self.bindEvents();
+				return undefined;
 			};
 
 			prototype.bindEvents = function () {
@@ -50879,6 +52943,792 @@ function pathToRegexp (path, keys, options) {
 			ns.event.pinch = rotaryemulation;
 			}(window, window.document, ns));
 
+
+/*global ns, define */
+/*jslint nomen: true */
+/*
+ * Copyright (c) 2015 Samsung Electronics Co., Ltd
+ *
+ * Licensed under the Flora License, Version 1.1 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://floralicense.org/license/
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/**
+ * #Gesture.Manager class
+ * Main class controls all gestures.
+ * @class ns.event.gesture.Manager
+ */
+(function (ns, window, document) {
+	"use strict";
+	
+		/**
+		 * Local alias for {@link ns.event.gesture}
+		 * @property {Object}
+		 * @member ns.event.gesture.Manager
+		 * @private
+		 * @static
+		 */
+		var gesture = ns.event.gesture,
+
+			gestureUtils = gesture.utils,
+
+			utilObject = ns.util.object,
+
+			instance = null,
+
+			touchCheck = /touch/,
+
+			Manager = function () {
+				var self = this;
+
+				self.instances = [];
+				self.gestureDetectors = [];
+				self.runningDetectors = [];
+				self.detectorRequestedBlock = null;
+
+				self.unregisterBlockList = [];
+
+				self.gestureEvents = {};
+				self.velocity = null;
+
+				self._isReadyDetecting = false;
+				self._blockMouseEvent = false;
+				self.touchSupport = "ontouchstart" in window;
+			};
+
+		function sortInstances(a, b) {
+			if (a.index < b.index) {
+				return -1;
+			} else if (a.index > b.index) {
+				return 1;
+			}
+			return 0;
+		}
+
+		Manager.prototype = {
+			/**
+			 * Bind start events
+			 * @method _bindStartEvents
+			 * @param {ns.event.gesture.Instance} _instance gesture instance
+			 * @member ns.event.gesture.Manager
+			 * @protected
+			 */
+			_bindStartEvents: function (_instance) {
+				var element = _instance.getElement();
+
+				if (this.touchSupport) {
+					element.addEventListener("touchstart", this, {passive: false});
+				} else {
+					element.addEventListener("mousedown", this, false);
+				}
+			},
+
+			/**
+			 * Bind move, end and cancel events
+			 * @method _bindEvents
+			 * @member ns.event.gesture.Manager
+			 * @protected
+			 */
+			_bindEvents: function () {
+				var self = this;
+
+				if (self.touchSupport) {
+					document.addEventListener("touchmove", self, {passive: false});
+					document.addEventListener("touchend", self, {passive: false});
+					document.addEventListener("touchcancel", self, {passive: false});
+				} else {
+					document.addEventListener("mousemove", self);
+					document.addEventListener("mouseup", self);
+				}
+			},
+
+			/**
+			 * Unbind start events
+			 * @method _unbindStartEvents
+			 * @param {ns.event.gesture.Instance} _instance gesture instance
+			 * @member ns.event.gesture.Manager
+			 * @protected
+			 */
+			_unbindStartEvents: function (_instance) {
+				var element = _instance.getElement();
+
+				if (this.touchSupport) {
+					element.removeEventListener("touchstart", this, {passive: false});
+				} else {
+					element.removeEventListener("mousedown", this, false);
+				}
+			},
+
+			/**
+			 * Unbind move, end and cancel events
+			 * @method _bindEvents
+			 * @member ns.event.gesture.Manager
+			 * @protected
+			 */
+			_unbindEvents: function () {
+				var self = this;
+
+				if (self.touchSupport) {
+					document.removeEventListener("touchmove", self, {passive: false});
+					document.removeEventListener("touchend", self, {passive: false});
+					document.removeEventListener("touchcancel", self, {passive: false});
+				} else {
+					document.removeEventListener("mousemove", self, false);
+					document.removeEventListener("mouseup", self, false);
+				}
+			},
+
+			/**
+			 * Detect that event should be processed by handleEvent
+			 * @param {Event} event Input event object
+			 * @return {null|string}
+			 * @member ns.event.gesture.Manager
+			 * @protected
+			 */
+			_detectEventType: function (event) {
+				var eventType = event.type;
+
+				if (eventType.match(touchCheck)) {
+					this._blockMouseEvent = true;
+				} else {
+					if (this._blockMouseEvent || event.which !== 1) {
+						return null;
+					}
+				}
+				return eventType;
+			},
+
+			/**
+			 * Handle event
+			 * @method handleEvent
+			 * @param {Event} event
+			 * @member ns.event.gesture.Manager
+			 * @protected
+			 */
+			handleEvent: function (event) {
+				var self = this,
+					eventType = self._detectEventType(event);
+
+				switch (eventType) {
+					case "mousedown":
+					case "touchstart":
+						self._start(event);
+						break;
+					case "mousemove":
+					case "touchmove":
+						self._move(event);
+						break;
+					case "mouseup":
+					case "touchend":
+						self._end(event);
+						break;
+					case "touchcancel":
+						self._cancel(event);
+						break;
+				}
+			},
+
+			/**
+			 * Handler for gesture start
+			 * @method _start
+			 * @param {Event} event
+			 * @member ns.event.gesture.Manager
+			 * @protected
+			 */
+			_start: function (event) {
+				var self = this,
+					element = event.currentTarget,
+					startEvent = {},
+					detectors = [];
+
+				if (!self._isReadyDetecting) {
+					self._resetDetecting();
+					self._bindEvents();
+
+					startEvent = self._createDefaultEventData(gesture.Event.START, event);
+
+					self.gestureEvents = {
+						start: startEvent,
+						last: startEvent
+					};
+
+					self.velocity = {
+						event: startEvent,
+						x: 0,
+						y: 0
+					};
+
+					startEvent = utilObject.fastMerge(startEvent,
+						self._createGestureEvent(gesture.Event.START, event));
+					self._isReadyDetecting = true;
+				}
+
+				self.instances.forEach(function (_instance) {
+					if (_instance.getElement() === element) {
+						detectors = detectors.concat(_instance.getGestureDetectors());
+					}
+				}, self);
+
+				detectors.sort(sortInstances);
+
+				self.gestureDetectors = self.gestureDetectors.concat(detectors);
+
+				self._detect(detectors, startEvent);
+			},
+
+			/**
+			 * Handler for gesture move
+			 * @method _move
+			 * @param {Event} event
+			 * @member ns.event.gesture.Manager
+			 * @protected
+			 */
+			_move: function (event) {
+				var newEvent,
+					self = this;
+
+				if (self._isReadyDetecting) {
+					newEvent = self._createGestureEvent(gesture.Event.MOVE, event);
+					self._detect(self.gestureDetectors, newEvent);
+					self.gestureEvents.last = newEvent;
+				}
+			},
+
+			/**
+			 * Handler for gesture end
+			 * @method _end
+			 * @param {Event} event
+			 * @member ns.event.gesture.Manager
+			 * @protected
+			 */
+			_end: function (event) {
+				var self = this,
+					newEvent = utilObject.merge(
+						{},
+						self.gestureEvents.last,
+						self._createDefaultEventData(gesture.Event.END, event)
+					);
+
+				if (newEvent.pointers.length === 0) {
+					self._detect(self.gestureDetectors, newEvent);
+
+					self.unregisterBlockList.forEach(function (_instance) {
+						this.unregister(_instance);
+					}, self);
+
+					self._resetDetecting();
+					self._blockMouseEvent = false;
+				}
+			},
+
+			/**
+			 * Handler for gesture cancel
+			 * @method _cancel
+			 * @param {Event} event
+			 * @member ns.event.gesture.Manager
+			 * @protected
+			 */
+			_cancel: function (event) {
+				var self = this;
+
+				event = utilObject.merge(
+					{},
+					self.gestureEvents.last,
+					self._createDefaultEventData(gesture.Event.CANCEL, event)
+				);
+
+				self._detect(self.gestureDetectors, event);
+
+				self.unregisterBlockList.forEach(function (_instance) {
+					this.unregister(_instance);
+				}, self);
+
+				self._resetDetecting();
+				self._blockMouseEvent = false;
+			},
+
+			/**
+			 * Detect gesture
+			 * @method _detect
+			 * @param {Array} detectors
+			 * @param {Event} event
+			 * @member ns.event.gesture.Manager
+			 * @protected
+			 */
+			_detect: function (detectors, event) {
+				var self = this,
+					finishedDetectors = [];
+
+				detectors.forEach(function (detector) {
+					var result;
+
+					if (!self.detectorRequestedBlock) {
+						result = detector.detect(event);
+						if ((result & gesture.Result.RUNNING) &&
+								self.runningDetectors.indexOf(detector) < 0) {
+							self.runningDetectors.push(detector);
+						}
+						if (result & gesture.Result.FINISHED) {
+							finishedDetectors.push(detector);
+						}
+						if (result & gesture.Result.BLOCK) {
+							self.detectorRequestedBlock = detector;
+						}
+					}
+				});
+
+				// remove finished detectors.
+				finishedDetectors.forEach(function (detector) {
+					var idx = self.gestureDetectors.indexOf(detector);
+
+					if (idx > -1) {
+						self.gestureDetectors.splice(idx, 1);
+					}
+					idx = self.runningDetectors.indexOf(detector);
+					if (idx > -1) {
+						self.runningDetectors.splice(idx, 1);
+					}
+				});
+
+				// remove all detectors except the detector that return block result
+				if (self.detectorRequestedBlock) {
+					// send to cancel event.
+					self.runningDetectors.forEach(function (detector) {
+						var cancelEvent = utilObject.fastMerge({}, event);
+
+						cancelEvent.eventType = gesture.Event.BLOCKED;
+						detector.detect(cancelEvent);
+					});
+					self.runningDetectors.length = 0;
+					self.gestureDetectors.length = 0;
+					if (finishedDetectors.indexOf(self.detectorRequestedBlock) < 0) {
+						self.gestureDetectors.push(self.detectorRequestedBlock);
+					}
+				}
+			},
+
+			/**
+			 * Reset of gesture manager detector
+			 * @method _resetDetecting
+			 * @member ns.event.gesture.Manager
+			 * @protected
+			 */
+			_resetDetecting: function () {
+				var self = this;
+
+				self._isReadyDetecting = false;
+
+				self.gestureDetectors.length = 0;
+				self.runningDetectors.length = 0;
+				self.detectorRequestedBlock = null;
+
+				self.gestureEvents = {};
+				self.velocity = null;
+
+				self._unbindEvents();
+			},
+
+			/**
+			 * Create default event data
+			 * @method _createDefaultEventData
+			 * @param {string} type event type
+			 * @param {Event} event source event
+			 * @return {Object} default event data
+			 * @return {string} return.eventType
+			 * @return {number} return.timeStamp
+			 * @return {Touch} return.pointer
+			 * @return {TouchList} return.pointers
+			 * @return {Event} return.srcEvent
+			 * @return {Function} return.preventDefault
+			 * @return {Function} return.stopPropagation
+			 * @member ns.event.gesture.Manager
+			 * @protected
+			 */
+			_createDefaultEventData: function (type, event) {
+				var pointers = event.touches;
+
+				if (!pointers) {
+					if (event.type === "mouseup") {
+						pointers = [];
+					} else {
+						event.identifier = 1;
+						pointers = [event];
+					}
+				}
+
+				return {
+					eventType: type,
+					timeStamp: Date.now(),
+					pointer: pointers[0],
+					pointers: pointers,
+
+					srcEvent: event,
+					preventDefault: event.preventDefault.bind(event),
+					stopPropagation: event.stopPropagation.bind(event)
+				};
+			},
+
+			/**
+			 * Create gesture event
+			 * @method _createGestureEvent
+			 * @param {string} type event type
+			 * @param {Event} event source event
+			 * @return {Object} gesture event consist from Event class and additional properties
+			 * @return {number} return.deltaTime
+			 * @return {number} return.deltaX
+			 * @return {number} return.deltaY
+			 * @return {number} return.velocityX
+			 * @return {number} return.velocityY
+			 * @return {number} return.estimatedX
+			 * @return {number} return.estimatedY
+			 * @return {number} return.estimatedDeltaX
+			 * @return {number} return.estimatedDeltaY
+			 * @return {number} return.distance
+			 * @return {number} return.angle
+			 * @return {number} return.direction
+			 * @return {number} return.scale
+			 * @return {number} return.rotation (deg)
+			 * @return {Event} return.startEvent
+			 * @return {Event} return.lastEvent
+			 * @member ns.event.gesture.Manager
+			 * @protected
+			 */
+			_createGestureEvent: function (type, event) {
+				var self = this,
+					defaultEvent = self._createDefaultEventData(type, event),
+					startEvent = self.gestureEvents.start,
+					lastEvent = self.gestureEvents.last,
+					velocity = self.velocity,
+					velocityEvent = velocity.event,
+					delta = {
+						time: defaultEvent.timeStamp - startEvent.timeStamp,
+						x: defaultEvent.pointer.clientX - startEvent.pointer.clientX,
+						y: defaultEvent.pointer.clientY - startEvent.pointer.clientY
+					},
+					deltaFromLast = {
+						x: defaultEvent.pointer.clientX - lastEvent.pointer.clientX,
+						y: defaultEvent.pointer.clientY - lastEvent.pointer.clientY
+					},
+					/* pause time threshold.util. tune the number to up if it is slow */
+					timeDifference = gesture.defaults.estimatedPointerTimeDifference,
+					estimated;
+
+				// reset start event for multi touch
+				if (startEvent && defaultEvent.pointers.length !== startEvent.pointers.length) {
+					startEvent.pointers = Array.prototype.slice.call(defaultEvent.pointers);
+				}
+
+				if (defaultEvent.timeStamp - velocityEvent.timeStamp >
+						gesture.defaults.updateVelocityInterval) {
+					utilObject.fastMerge(velocity, gestureUtils.getVelocity(
+						defaultEvent.timeStamp - velocityEvent.timeStamp,
+						defaultEvent.pointer.clientX - velocityEvent.pointer.clientX,
+						defaultEvent.pointer.clientY - velocityEvent.pointer.clientY
+					));
+					velocity.event = defaultEvent;
+				}
+
+				estimated = {
+					x: Math.round(defaultEvent.pointer.clientX +
+							(timeDifference * velocity.x * (deltaFromLast.x < 0 ? -1 : 1))),
+					y: Math.round(defaultEvent.pointer.clientY +
+							(timeDifference * velocity.y * (deltaFromLast.y < 0 ? -1 : 1)))
+				};
+
+				// Prevent that point goes back even though direction is not changed.
+				if ((deltaFromLast.x < 0 && estimated.x > lastEvent.estimatedX) ||
+						(deltaFromLast.x > 0 && estimated.x < lastEvent.estimatedX)) {
+					estimated.x = lastEvent.estimatedX;
+				}
+
+				if ((deltaFromLast.y < 0 && estimated.y > lastEvent.estimatedY) ||
+						(deltaFromLast.y > 0 && estimated.y < lastEvent.estimatedY)) {
+					estimated.y = lastEvent.estimatedY;
+				}
+
+				utilObject.fastMerge(defaultEvent, {
+					deltaTime: delta.time,
+					deltaX: delta.x,
+					deltaY: delta.y,
+
+					velocityX: velocity.x,
+					velocityY: velocity.y,
+
+					estimatedX: estimated.x,
+					estimatedY: estimated.y,
+					estimatedDeltaX: estimated.x - startEvent.pointer.clientX,
+					estimatedDeltaY: estimated.y - startEvent.pointer.clientY,
+
+					distance: gestureUtils.getDistance(startEvent.pointer, defaultEvent.pointer),
+
+					angle: gestureUtils.getAngle(startEvent.pointer, defaultEvent.pointer),
+
+					direction: gestureUtils.getDirection(startEvent.pointer, defaultEvent.pointer),
+
+					scale: gestureUtils.getScale(startEvent.pointers, defaultEvent.pointers),
+					rotation: gestureUtils.getRotation(startEvent.pointers, defaultEvent.pointers),
+
+					startEvent: startEvent,
+					lastEvent: lastEvent
+				});
+
+				return defaultEvent;
+			},
+
+			/**
+			 * Register instance of gesture
+			 * @method register
+			 * @param {ns.event.gesture.Instance} instance gesture instance
+			 * @member ns.event.gesture.Manager
+			 */
+			register: function (instance) {
+				var self = this,
+					idx = self.instances.indexOf(instance);
+
+				if (idx < 0) {
+					self.instances.push(instance);
+					self._bindStartEvents(instance);
+				}
+			},
+
+			/**
+			 * Unregister instance of gesture
+			 * @method unregister
+			 * @param {ns.event.gesture.Instance} instance gesture instance
+			 * @member ns.event.gesture.Manager
+			 */
+			unregister: function (instance) {
+				var idx,
+					self = this;
+
+				if (self.gestureDetectors.length) {
+					self.unregisterBlockList.push(instance);
+				} else {
+					idx = self.instances.indexOf(instance);
+					if (idx > -1) {
+						self.instances.splice(idx, 1);
+						self._unbindStartEvents(instance);
+					}
+
+					if (!self.instances.length) {
+						self._destroy();
+					}
+				}
+			},
+
+			/**
+			 * Destroy instance of Manager
+			 * @method _destroy
+			 * @member ns.event.gesture.Manager
+			 * @protected
+			 */
+			_destroy: function () {
+				var self = this;
+
+				self._resetDetecting();
+				self.instances.length = 0;
+				self.unregisterBlockList.length = 0;
+				self._blockMouseEvent = false;
+				instance = null;
+			}
+
+		};
+
+		Manager.getInstance = function () {
+			if (!instance) {
+				instance = new Manager();
+			}
+			return instance;
+		};
+
+		gesture.Manager = Manager;
+		}(ns, window, window.document));
+
+/*global ns, window, define */
+/*
+ * Copyright (c) 2015 Samsung Electronics Co., Ltd
+ *
+ * Licensed under the Flora License, Version 1.1 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://floralicense.org/license/
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+(function (ns) {
+	"use strict";
+			/**
+			 * Local alias for {@link ns.event.gesture}
+			 * @property {Object}
+			 * @member ns.event.gesture.Instance
+			 * @private
+			 * @static
+			 */
+			var gesture = ns.event.gesture,
+			/**
+				 * Local alias for {@link ns.event.gesture.Detector}
+				 * @property {Object}
+				 * @member ns.event.gesture.Instance
+				 * @private
+				 * @static
+				 */
+				Detector = gesture.Detector,
+			/**
+				 * Local alias for {@link ns.event.gesture.Manager}
+				 * @property {Object}
+				 * @member ns.event.gesture.Instance
+				 * @private
+				 * @static
+				 */
+				Manager = gesture.Manager,
+			/**
+				 * Local alias for {@link ns.event}
+				 * @property {Object}
+				 * @member ns.event.gesture.Instance
+				 * @private
+				 * @static
+				 */
+				events = ns.event,
+			/**
+				 * Alias for method {@link ns.util.object.merge}
+				 * @property {Function} merge
+				 * @member ns.event.gesture.Instance
+				 * @private
+				 * @static
+				 */
+				merge = ns.util.object.merge,
+
+			/**
+				 * #Gesture.Instance class
+				 * Creates instance of gesture manager on element.
+				 * @param {HTMLElement} element
+				 * @param {Object} options
+				 * @class ns.event.gesture.Instance
+				 */
+				Instance = function (element, options) {
+					this.element = element;
+					this.eventDetectors = [];
+					this.options = merge({}, gesture.defaults, options);
+
+					this.gestureManager = Manager.getInstance();
+					this.eventSender = merge({}, Detector.Sender, {
+						sendEvent: this.trigger.bind(this)
+					});
+				};
+
+			Instance.prototype = {
+			/**
+				 * Set options
+				 * @method setOptions
+				 * @param {Object} options options
+				 * @return {ns.event.gesture.Instance}
+				 * @member ns.event.gesture.Instance
+				 */
+				setOptions: function (options) {
+					merge(this.options, options);
+					return this;
+				},
+
+			/**
+				 * Add detector
+				 * @method addDetector
+				 * @param {Object} detectorStrategy strategy
+				 * @return {ns.event.gesture.Instance}
+				 * @member ns.event.gesture.Instance
+				 */
+				addDetector: function (detectorStrategy) {
+					var detector = new Detector(detectorStrategy, this.eventSender),
+						alreadyHasDetector = !!this.eventDetectors.length;
+
+					this.eventDetectors.push(detector);
+
+					if (!!this.eventDetectors.length && !alreadyHasDetector) {
+						this.gestureManager.register(this);
+					}
+
+					return this;
+				},
+
+			/**
+				 * Remove detector
+				 * @method removeDetector
+				 * @param {Object} detectorStrategy strategy
+				 * @return {ns.event.gesture.Instance}
+				 * @member ns.event.gesture.Instance
+				 */
+				removeDetector: function (detectorStrategy) {
+					var idx = this.eventDetectors.indexOf(detectorStrategy);
+
+					if (idx > -1) {
+						this.eventDetectors.splice(idx, 1);
+					}
+
+					if (!this.eventDetectors.length) {
+						this.gestureManager.unregister(this);
+					}
+
+					return this;
+				},
+
+			/**
+				 * Triggers the gesture event
+				 * @method trigger
+				 * @param {string} gestureName gestureName name
+				 * @param {Object} eventInfo data provided to event object
+				 * @member ns.event.gesture.Instance
+				 */
+				trigger: function (gestureName, eventInfo) {
+					return events.trigger(this.element, gestureName, eventInfo, false);
+				},
+
+			/**
+				 * Get HTML element assigned to gesture event instance
+				 * @method getElement
+				 * @member ns.event.gesture.Instance
+				 */
+				getElement: function () {
+					return this.element;
+				},
+
+			/**
+				 * Get gesture event detectors assigned to instance
+				 * @method getGestureDetectors
+				 * @member ns.event.gesture.Instance
+				 */
+				getGestureDetectors: function () {
+					return this.eventDetectors;
+				},
+
+			/**
+				 * Destroy instance
+				 * @method destroy
+				 * @member ns.event.gesture.Instance
+				 */
+				destroy: function () {
+					this.element = null;
+					this.eventHandlers = {};
+					this.gestureManager = null;
+					this.eventSender = null;
+					this.eventDetectors.length = 0;
+				}
+			};
+
+			gesture.Instance = Instance;
+
+		}(ns));
 
 /*global ns, window, define */
 /*jslint nomen: true */

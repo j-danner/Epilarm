@@ -1979,6 +1979,19 @@ input.ui-btn.ui-inline {
 .ui-grid-row > .ui-btn:first-child {
   margin-top: 0;
 }
+.ui-button-go-to-top {
+  position: fixed;
+  display: none;
+  left: 50%;
+  -webkit-transform: translateX(-50%);
+      -ms-transform: translateX(-50%);
+          transform: translateX(-50%);
+  bottom: 1.25rem;
+  z-index: 100;
+  width: 3.25rem;
+  height: 3.25rem;
+  background-image: url("images/go_to_top_dark.png");
+}
 .ui-popup {
   box-sizing: border-box;
   position: fixed;
@@ -2797,7 +2810,7 @@ tau-listview {
   user-select: none;
   color: rgba(250, 250, 250, 1);
 }
-.ui-listview li > a:not(.ui-btn) {
+.ui-listview li > a:not(.ui-btn):not(.li-has-multiline) {
   display: block;
   width: 100%;
   height: auto;
@@ -3469,15 +3482,15 @@ tau-listview {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 9.875rem;
-  height: 9.875rem;
-  line-height: 9.875rem;
+  width: 8.5rem;
+  height: 8.5rem;
+  line-height: 8.5rem;
   border-radius: 50%;
   background-color: rgba(0, 61, 107, 0.95);
   transition: opacity 250ms ease-out;
   -webkit-transform: translate(-50%, -50%);
-  -ms-transform: translate(-50%, -50%);
-  transform: translate(-50%, -50%);
+      -ms-transform: translate(-50%, -50%);
+          transform: translate(-50%, -50%);
   opacity: 0;
 }
 .ui-circularindexscrollbar.ui-circularindexscrollbar-show {
@@ -3493,7 +3506,7 @@ tau-listview {
   width: 100%;
   height: 100%;
   text-align: center;
-  font-size: 4.375rem;
+  font-size: 4.5rem;
   color: rgba(55, 161, 237, 1);
 }
 /***************************************************************************
@@ -3720,7 +3733,7 @@ tau-listview {
   position: absolute;
 }
 .ui-swipelist-left .ui-swipelist-icon {
-  margin-left: 2%;
+  left: 2%;
   background-color: rgba(250, 250, 250, 1);
   -webkit-mask-image: url('images/Swipelist/b_logs_icon_body_btn_call_nor.png');
           mask-image: url('images/Swipelist/b_logs_icon_body_btn_call_nor.png');
@@ -3731,10 +3744,10 @@ tau-listview {
   mask-repeat: no-repeat;
 }
 .ui-swipelist-left .ui-swipelist-text {
-  margin-left: 40%;
+  left: 40%;
 }
 .ui-swipelist-right .ui-swipelist-icon {
-  margin-left: 80%;
+  left: 80%;
   background-color: rgba(250, 250, 250, 1);
   -webkit-mask-image: url('images/Swipelist/b_logs_icon_actionbar_btn_msg_nor.png');
           mask-image: url('images/Swipelist/b_logs_icon_actionbar_btn_msg_nor.png');
@@ -3745,7 +3758,7 @@ tau-listview {
   mask-repeat: no-repeat;
 }
 .ui-swipelist-right .ui-swipelist-text {
-  margin-left: 20%;
+  left: 20%;
 }
 .ui-tab-indicator {
   position: relative;
@@ -3788,25 +3801,6 @@ input[type="radio"] {
   -ms-mask-size: 100% 100%;
   -o-mask-size: 100% 100%;
   mask-size: 100% 100%;
-}
-input[type="radio"]::after {
-  content: "";
-  background-color: rgba(250, 250, 250, 0.3);
-  -webkit-mask-image: url('images/Controller_icon/tw_btn_radiobox_line.png');
-          mask-image: url('images/Controller_icon/tw_btn_radiobox_line.png');
-  -webkit-mask-repeat: no-repeat;
-  -moz-mask-repeat: no-repeat;
-  -ms-mask-repeat: no-repeat;
-  -o-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-size: 100% 100%;
-  -moz-mask-size: 100% 100%;
-  -ms-mask-size: 100% 100%;
-  -o-mask-size: 100% 100%;
-  mask-size: 100% 100%;
-  width: 100%;
-  height: 100%;
-  position: absolute;
 }
 input[type="radio"]:checked::before {
   content: "";
@@ -3935,12 +3929,19 @@ input[type="checkbox"]:not(.ui-switch-input):active:checked::before {
   height: 100%;
   position: absolute;
 }
+.ui-checkbox-small {
+  font-size: 32px;
+  color: #ffffff;
+  max-height: 42px;
+  white-space: nowrap;
+  float: left;
+}
 .ui-checkbox-small input[type=checkbox]:not(.ui-switch-input),
 .ui-checkbox-small input[type=radio] {
-  top: 0.4375rem;
-  margin-right: 0.4375rem;
-  width: 2.125rem;
-  height: 2.125rem;
+  margin-right: 5px;
+  width: 34px;
+  height: 34px;
+  float: left;
 }
 .ui-marquee {
   position: relative;
@@ -3977,6 +3978,7 @@ input[type="checkbox"]:not(.ui-switch-input):active:checked::before {
 }
 .ui-marquee.ui-marquee-gradient::after {
   background: linear-gradient(left, transparent 0%, rgba(0, 0, 0, 1) 100%);
+  margin-left: 6.25rem;
 }
 /****************************************************
 		Page Indicator
@@ -4120,7 +4122,7 @@ tau-sectionchanger {
   background-color: rgba(64, 64, 64, 1);
 }
 .ui-slider .ui-slider-value {
-  background-color: rgba(55, 161, 237, 1);
+  background-color: #008cff;
 }
 .ui-slider .ui-slider-handler {
   width: 2.25rem;
@@ -4143,7 +4145,7 @@ tau-sectionchanger {
 .ui-slider.ui-slider-horizontal .ui-slider-handler {
   top: 50%;
   margin-left: -20px;
-  border: 3px solid rgba(55, 161, 237, 1);
+  border: 3px solid #008cff;
   -webkit-transform: translate(0, -50%) scale(0.6);
       -ms-transform: translate(0, -50%) scale(0.6);
           transform: translate(0, -50%) scale(0.6);
@@ -5249,6 +5251,9 @@ tau-sectionchanger {
 .ui-graph {
   width: 100%;
   height: 15.625rem;
+}
+.ui-coverflow:focus {
+  background-color: black;
 }
 .tau-info-theme:after {
   content: "default";

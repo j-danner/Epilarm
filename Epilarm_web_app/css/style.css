@@ -263,7 +263,7 @@
 	display: block;
 	height: 100%;
 	line-height: 60px;
-	background: url(../contents/list/images/tw_list_number_icon.png) no-repeat 50% 100%;
+	background: url(./images/tw_list_number_icon.png) no-repeat 50% 100%;
 	color: rgb(245,245,245);
 }
 .ui-listview li.select {
@@ -271,7 +271,7 @@
 }
 li.static::before {
 	content:"";
-	-webkit-mask-image: url(../contents/list/images/tw_list_check_ic.png);
+	-webkit-mask-image: url(./images/tw_list_check_ic.png);
 	-webkit-mask-repeat: no-repeat;
 	background-color: rgba(112, 186, 15, 1);
 	width: 0;
@@ -380,31 +380,31 @@ li.static::before {
 
 .app-icon::before {
 	/* TODO: replace this icon with IC icon according to the guide */
-	background-image: url(images/b_more_option_human_icon.png);
+	background-image: url(./images/b_more_option_human_icon.png);
 	background-color: rgba(255, 0, 255, 0.50);
 }
 
 .li-has-action-icon .li-action-icon-button.li-action-delete {
-	-webkit-mask-image: url(../contents/list/images/tw_list_delete_holo_dark.png);
+	-webkit-mask-image: url(./images/tw_list_delete_holo_dark.png);
 	background-color: rgba(245, 245, 245, 1);
 }
 .li-has-action-icon .li-action-icon-button.li-action-setting {
-	-webkit-mask-image: url(../contents/list/images/tw_list_setting_holo_dark.png);
+	-webkit-mask-image: url(./images/tw_list_setting_holo_dark.png);
 	background-color: rgba(245, 245, 245, 1);
 }
 .li-has-action-icon .li-action-icon-button.li-action-add {
-	-webkit-mask-image: url(../contents/list/images/tw_list_add_holo_dark.png);
+	-webkit-mask-image: url(./images/tw_list_add_holo_dark.png);
 	background-color: rgba(245, 245, 245, 1);
 }
 
 .li-action-add {
-	background-image: url(../contents/list/images/tw_list_add_holo_dark.png);
+	background-image: url(./images/tw_list_add_holo_dark.png);
 }
 .li-action-delete {
-	background-image: url(../contents/list/images/tw_list_delete_holo_dark.png);
+	background-image: url(./images/tw_list_delete_holo_dark.png);
 }
 .li-action-setting {
-	background-image: url(../contents/list/images/tw_list_setting_holo_dark.png);
+	background-image: url(./images/tw_list_setting_holo_dark.png);
 }
 
 .ui-listview .li-has-action-icon.ui-li-active {
@@ -458,12 +458,12 @@ li.static::before {
 	-webkit-mask-repeat: no-repeat;
 }
 #selectModePage li.select span::after {
-	-webkit-mask-image: url(../contents/list/images/tw_list_check_line.png);
+	-webkit-mask-image: url(./images/tw_list_check_line.png);
 	background-color: white;
 }
 #selectModePage li.select span::before {
 	content:"";
-	-webkit-mask-image: url(../contents/list/images/tw_list_check_ic.png);
+	-webkit-mask-image: url(./images/tw_list_check_ic.png);
 	background-color: rgba(77,207,255,1);
 }
 #selectModePage #rightDrawer {
@@ -632,53 +632,53 @@ li.static::before {
 
 /* -----------------------------------  OPTION POPUP------------------------------------ */
 .option-icon-action::before {
-	-webkit-mask-image:url(../contents/assistviews/images/b_option_list_icon_action.png);
+	-webkit-mask-image:url(./images/b_option_list_icon_action.png);
 }
 .option-icon-delete::before {
-	-webkit-mask-image:url(../contents/assistviews/images/b_option_list_icon_delete.png);
+	-webkit-mask-image:url(./images/b_option_list_icon_delete.png);
 }
 .option-icon-enter::before {
-	-webkit-mask-image:url(../contents/assistviews/images/b_option_list_icon_enter.png);
+	-webkit-mask-image:url(./images/b_option_list_icon_enter.png);
 }
 .option-icon-share::before {
-	-webkit-mask-image:url(../contents/assistviews/images/b_option_list_icon_share.png);
+	-webkit-mask-image:url(./images/b_option_list_icon_share.png);
 }
 .option-icon-notext-call::before {
-	-webkit-mask-image:url(../contents/assistviews/images/b_option_icon_call.png);
+	-webkit-mask-image:url(./images/b_option_icon_call.png);
 }
 .option-icon-notext-contacts::before {
-	-webkit-mask-image:url(../contents/assistviews/images/b_option_icon_contacts.png);
+	-webkit-mask-image:url(./images/b_option_icon_contacts.png);
 }
 .option-icon-notext-message::before {
-	-webkit-mask-image:url(../contents/assistviews/images/b_option_icon_message.png);
+	-webkit-mask-image:url(./images/b_option_icon_message.png);
 }
 /* -----------------------------------POPUP------------------------------------ */
 .btn-icon-share::before {
 	background-color: rgba(245, 245, 245, 1);
-	-webkit-mask-image: url(../contents/assistviews/images/tw_ic_button_share_holo_dark.png);
+	-webkit-mask-image: url(./images/tw_ic_button_share_holo_dark.png);
 }
 .btn-icon-showonphone::before {
 	background-color: rgba(245, 245, 245, 1);
-	-webkit-mask-image: url(../contents/assistviews/images/tw_ic_button_showonphone_holo_dark.png);
+	-webkit-mask-image: url(./images/tw_ic_button_showonphone_holo_dark.png);
 }
 .btn-icon-delete::before {
 	background-color: rgba(245, 245, 245, 1);
-	-webkit-mask-image: url(../contents/assistviews/images/tw_ic_button_delete_holo_dark.png);
+	-webkit-mask-image: url(./images/tw_ic_button_delete_holo_dark.png);
 }
 .btn-icon-check::before {
 	background-color: rgba(245, 245, 245, 1);
-	-webkit-mask-image: url(../contents/assistviews/images/tw_ic_popup_btn_check.png);
+	-webkit-mask-image: url(./images/tw_ic_popup_btn_check.png);
  }
 .btn-icon-cancel::before {
 	background-color: rgba(245, 245, 245, 1);
-	-webkit-mask-image: url(../contents/assistviews/images/tw_ic_popup_btn_delete.png);
+	-webkit-mask-image: url(./images/tw_ic_popup_btn_delete.png);
  }
 .btn-icon-toast-check {
 	margin-bottom: 16px;
 }
 .btn-icon-toast-check::after {
 	background-color: rgba(255, 255, 255, 1);
-	-webkit-mask-image: url(../contents/assistviews/images/tw_ic_popup_btn_check.png);
+	-webkit-mask-image: url(./images/tw_ic_popup_btn_check.png);
 }
 
 /* ----------------------------------Toggle Switch-------------------------------- */
