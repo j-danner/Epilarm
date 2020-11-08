@@ -34,7 +34,16 @@ function load_params() {
 }
 
 function start_ftp_upload() {
-    console.log('starting service app for ftp upload...');
+	console.log("ftp_upload: checking if wifi is on...");
+	//TODO automatically switch on wifi if necessary...
+	/*if(navigator.connection.type != Connection.WIFI) {
+		console.log("ftp_upload: wifi is on, ftp upload can be started!");
+	} else {
+		//switch wifi on... 
+		
+	}*/
+	
+    console.log('ftp_upload: starting service app for ftp upload...');
     var obj = new tizen.ApplicationControlData('service_action', ['log_upload']);
     var obj_params = new tizen.ApplicationControlData('params', params.ftpToString());
     var obj1 = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
@@ -45,7 +54,7 @@ function start_ftp_upload() {
     var appControlReplyCallback = {
         // callee sent a reply
         onsuccess: function(data) {
-            console.log('reply to ftp-upload request is: ' + data[0].value[0]);
+            console.log('ftp_upload: reply to ftp-upload request is ' + data[0].value[0]);
             //end loading symbol...
             tau.closePopup();
 
@@ -55,7 +64,7 @@ function start_ftp_upload() {
         },
         // callee returned failure
         onfailure: function() {
-            console.log('reply to ftp-upload request failed');
+            console.log('ftp_upload: reply to ftp-upload request failed');
             //end loading popup
             tau.closePopup();
             //show upload failed popup
@@ -66,14 +75,14 @@ function start_ftp_upload() {
         tizen.application.launchAppControl(obj1,
             SERVICE_APP_ID,
             function() {
-                console.log('Log upload starting succeeded');
+                console.log('ftp_upload: Log upload starting succeeded');
             },
             function(e) {
-                console.log('Log upload starting failed : ' + e.message);
+                console.log('ftp_upload: Log upload starting failed : ' + e.message);
                 tau.closePopup();
             }, appControlReplyCallback);
     } catch (e) {
-        window.alert('Error when starting appcontrol for log upload! error msg:' + e.toString());
+        window.alert('ftp_upload: Error when starting appcontrol! error msg:' + e.toString());
     }
 }
 
@@ -177,6 +186,7 @@ function toggle_logging(id) {
 }
 
 function reset_params() {
+	//default values
     params = {
         minFreq: 3, //minimal freq of seizure-like movements (3Hz -> TODO verify using videos!)
         maxFreq: 8, //maximum freq of seizure-like movements (8Hz -> TODO verify using videos!)
