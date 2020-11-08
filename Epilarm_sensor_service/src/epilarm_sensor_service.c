@@ -799,7 +799,7 @@ void service_app_control(app_control_h app_control, void *data)
     		app_control_add_extra_data(reply, APP_CONTROL_DATA_SELECTED, ad->running ? "1" : "0");
 
     		app_control_reply_to_launch_request(reply, app_control, APP_CONTROL_RESULT_SUCCEEDED);
-            dlog_print(DLOG_INFO, LOG_TAG, "reply sent");
+            dlog_print(DLOG_INFO, LOG_TAG, "reply sent (%d)", ad->running);
 
     		app_control_destroy(reply);
 

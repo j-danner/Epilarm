@@ -107,6 +107,7 @@ function start_service_app() {
             }, null);
     } catch (e) {
         window.alert('Error when starting appcontrol for starting seizure detection! error msg:' + e.toString());
+        running=false;
     }
 }
 
@@ -144,8 +145,9 @@ function update_start_stop_checkbox() {
         // callee sent a reply
         onsuccess: function(data) {
             //update checkbox!
-            document.getElementById('start_stop').checked = (data[0].value[0] === 1);
-            console.log('updated checkbox!');
+            document.getElementById('start_stop_checkbox').checked = (data[0].value[0] === '1');
+            console.log('received: ' + data[0].value[0]);
+            console.log('updated checkbox! (to ' + (data[0].value[0] === '1') + ')');
         },
         // callee returned failure
         onfailure: function() {
