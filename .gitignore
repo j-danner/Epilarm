@@ -3,3 +3,4 @@ Epilarm_sensor_service/Debug/*
 Epilarm_sensor_service/.sign/*
 *.tmp
 *.wgt
+log_analysis/logs/*
