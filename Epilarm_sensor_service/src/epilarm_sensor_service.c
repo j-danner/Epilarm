@@ -34,8 +34,8 @@
 #define MYSERVICELAUNCHER_APP_ID "QOeM6aBGp0.Epilarm" // an ID of the UI application of our package
 #define STRNCMP_LIMIT 256 // the limit of characters to be compared using strncmp function
 
-#define sampleRate 50 //in Hz (no samples per sec), this leads an interval of 1/sampleRate secs between measurements
-#define dataQueryInterval 20 //time in ms between measurements //only possible to do with 20, 40, 60, 80, 100, 200, 300 (results from experiments)
+#define sampleRate 25 //in Hz (no samples per sec), this leads an interval of 1/sampleRate secs between measurements
+#define dataQueryInterval 40 //time in ms between measurements //only possible to do with 20, 40, 60, 80, 100, 200, 300 (results from experiments)
 #define dataAnalysisInterval 10 //time in s that are considered for the FFT
 
 //we have a sample frequency of sampleRate = 50Hz and for each FFT we consider dataAnalysisInterval = 10s of time,
@@ -667,7 +667,9 @@ void sensor_start(void *data)
 	{
 		if (sensor_create_listener(ad->sensor, &(ad->listener)) == SENSOR_ERROR_NONE
 			&& sensor_listener_set_event_cb(ad->listener, dataQueryInterval, sensor_event_callback, ad) == SENSOR_ERROR_NONE
-			&& sensor_listener_set_option(ad->listener, SENSOR_OPTION_ALWAYS_ON) == SENSOR_ERROR_NONE)
+			&& sensor_listener_set_option(ad->listener, SENSOR_OPTION_ALWAYS_ON) == SENSOR_ERROR_NONE
+			&& sensor_listener_set_attribute_int(ad->listener, SENSOR_ATTRIBUTE_PAUSE_POLICY, SENSOR_PAUSE_NONE) == SENSOR_ERROR_NONE
+			&& device_power_request_lock(POWER_LOCK_CPU, 0) == DEVICE_ERROR_NONE)
 		{
 			if (sensor_listener_start(ad->listener) == SENSOR_ERROR_NONE)
 			{
@@ -704,6 +706,10 @@ void sensor_stop(void *data, int sendNot)
 	else
 	{
 		dlog_print(DLOG_INFO, LOG_TAG, "Error occurred when destroying sensor listener: listener was never created!");
+	}
+
+	if(device_power_release_lock(POWER_LOCK_CPU) != DEVICE_ERROR_NONE) {
+		dlog_print(DLOG_INFO, LOG_TAG, "could not release cpu lock!");
 	}
 }
 
