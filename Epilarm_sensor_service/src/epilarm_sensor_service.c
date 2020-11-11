@@ -20,6 +20,8 @@
 #include <fcntl.h>
 #include <glib-object.h>
 #include <json-glib/json-glib.h>
+#include <microtar.h>
+#include <miniz.h>
 
 
 //own modules
@@ -34,8 +36,8 @@
 #define MYSERVICELAUNCHER_APP_ID "QOeM6aBGp0.Epilarm" // an ID of the UI application of our package
 #define STRNCMP_LIMIT 256 // the limit of characters to be compared using strncmp function
 
-#define sampleRate 25 //in Hz (no samples per sec), this leads an interval of 1/sampleRate secs between measurements
-#define dataQueryInterval 40 //time in ms between measurements //only possible to do with 20, 40, 60, 80, 100, 200, 300 (results from experiments)
+#define sampleRate 50 //in Hz (no samples per sec), this leads an interval of 1/sampleRate secs between measurements
+#define dataQueryInterval 20 //time in ms between measurements //only possible to do with 20, 40, 60, 80, 100, 200, 300 (results from experiments)
 #define dataAnalysisInterval 10 //time in s that are considered for the FFT
 
 //we have a sample frequency of sampleRate = 50Hz and for each FFT we consider dataAnalysisInterval = 10s of time,
@@ -223,25 +225,29 @@ void save_log(void *data) {
     fclose(fp);
 }
 
-//function for sharing locally stored data, returns -1 if it did not finish, otherwise returns 0
-int share_data(const char* ftp_url) {
-	curl_global_init(CURL_GLOBAL_ALL);
-
-	dlog_print(DLOG_INFO, LOG_TAG, "share_data: start");
-
-	//init vars for ftp transfer...
-	CURL *curl;
-	CURLcode res;
-	struct stat file_info;
-	double speed_upload, total_time;
-	FILE *fd;
-
-    //get local data path
+//compress all locally stored logs
+void compress_logs() {
 	char file_path[256];
 	char* data_path = app_get_data_path();
-	char URL[256]; //should be large enough to store ad->ftp_url + filename!
+	char tar_path[256];
+	char buff[2048]; //must be large enough to fit one log-file (!!)
 
-    //iterate over files:
+	//create tar file with appropriate name
+	struct timespec tmnow;
+	struct tm *tm;
+	char timebuf[30];
+	clock_gettime(CLOCK_REALTIME, &tmnow);
+	tm = localtime(&tmnow.tv_sec);
+	strftime(timebuf, 30, "%Y_%m_%dT%H_%M_%S", tm);
+	snprintf(tar_path, sizeof(tar_path), "%slogs_%s.%s", data_path, timebuf, "tar");
+
+	mtar_t tar;
+	mtar_open(&tar, tar_path, "w");
+
+
+    //iterate over files
+	struct stat file_info;
+	FILE *fd;
     DIR *d;
     struct dirent *dir;
     d = opendir(data_path);
@@ -259,8 +265,114 @@ int share_data(const char* ftp_url) {
 
     			fd = fopen(file_path, "rb"); /* open file to upload */
     			if(!fd) {
+    				dlog_print(DLOG_INFO, LOG_TAG, "could not open file! (skipping file!)");
+    				continue; // skip this file!
+    			}
+
+    			/* to get the file size */
+    			if(fstat(fileno(fd), &file_info) != 0) {
+    				dlog_print(DLOG_INFO, LOG_TAG, "file is empty? (skipping file!)");
+    				continue; //skip file
+    			}
+
+    			//read data
+    			fgets(buff, file_info.st_size, fd);
+    			fclose(fd);
+
+				//attach file to tar
+				mtar_write_file_header(&tar, dir->d_name, file_info.st_size);
+				mtar_write_data(&tar, buff, file_info.st_size);
+
+				//remove local log file
+				remove(file_path);
+				dlog_print(DLOG_INFO, LOG_TAG, "log-file added to tar and deleted.");
+
+    		} else {
+    			//dir is either no regular file, its name is shorter than 5 chars or it does not end with .json
+    			dlog_print(DLOG_INFO, LOG_TAG, "skipping 'file' %s", dir->d_name);
+    		}
+    	}
+    	closedir(d);
+	} else {
+		dlog_print(DLOG_INFO, LOG_TAG, "directory does not exist or cannot be opened!");
+	}
+
+	free(data_path);
+
+    /* Finalize -- this needs to be the last thing done before closing */
+    mtar_finalize(&tar);
+
+    /* Close archive */
+    mtar_close(&tar);
+
+    //TODO compress tar file
+}
+
+//function for sharing locally stored tar-data, returns -1 if it did not finish, otherwise returns 0
+int share_data(const char* ftp_url) {
+	if(device_power_request_lock(POWER_LOCK_CPU, 0) != DEVICE_ERROR_NONE)
+	{
+		dlog_print(DLOG_INFO, LOG_TAG, "could not lock CPU for data sharing!");
+	}
+
+	curl_global_init(CURL_GLOBAL_ALL);
+
+	dlog_print(DLOG_INFO, LOG_TAG, "share_data: start");
+
+	//init vars for ftp transfer...
+	CURL *curl;
+	CURLcode res;
+	struct stat file_info;
+	double speed_upload, total_time;
+	FILE *fd;
+
+    //get local data path
+	char file_path[256];
+	char* data_path = app_get_data_path();
+	char URL[256]; //should be large enough to store ad->ftp_url + filename!
+
+	/* TODO
+	//check whether ftp-server can be reached:
+	curl = curl_easy_init();
+	if (curl) {
+		curl_easy_setopt(curl, CURLOPT_URL, URL);
+		res = curl_easy_perform(curl);
+		if(res != CURLE_OK) {
+			dlog_print(DLOG_INFO, LOG_TAG, "ftp server cannot be reached (error: %s)", curl_easy_strerror(res));
+			device_power_release_lock(POWER_LOCK_CPU);
+		    return -1;
+		} else {
+			curl_easy_cleanup(curl);
+		}
+	} else {
+		device_power_release_lock(POWER_LOCK_CPU);
+		return -1;
+	}
+	//server can be reached, now compress files!
+	dlog_print(DLOG_INFO, LOG_TAG, "ftp server can be reached (username + password are ok)!");
+	*/
+
+    //iterate over files:
+    DIR *d;
+    struct dirent *dir;
+    d = opendir(data_path);
+	dlog_print(DLOG_INFO, LOG_TAG, "reading data in %s", data_path);
+    if (d) {
+    	while ((dir = readdir(d)) != NULL) {
+    		//now dir->d_name stores name of file in dir
+    		if (strncmp(dir->d_name, "logs_",5) == 0 && strcmp(strrchr(dir->d_name, '.'), ".tar") == 0)
+    		{
+    			dlog_print(DLOG_INFO, LOG_TAG, "processing file %s", dir->d_name);
+    			//set correct file_path
+    			snprintf(file_path, sizeof(file_path), "%s%s", data_path, dir->d_name);
+
+    			dlog_print(DLOG_INFO, LOG_TAG, "reading %s", file_path);
+
+    			fd = fopen(file_path, "rb"); /* open file to upload */
+    			if(!fd) {
     				dlog_print(DLOG_INFO, LOG_TAG, "could not open file!");
     				free(data_path);
+    				device_power_release_lock(POWER_LOCK_CPU);
     				return -1; /* can't continue */
     			}
 
@@ -268,6 +380,7 @@ int share_data(const char* ftp_url) {
     			if(fstat(fileno(fd), &file_info) != 0) {
     				dlog_print(DLOG_INFO, LOG_TAG, "file is empty?");
     				free(data_path);
+    				device_power_release_lock(POWER_LOCK_CPU);
     				return -1; /* can't continue */
     			}
 
@@ -275,7 +388,6 @@ int share_data(const char* ftp_url) {
     			if(curl)
     			{
     				//construct url
-    				//TODO fix buggy assembling of URL !!!!
 					dlog_print(DLOG_INFO, LOG_TAG, "ftp_url=%s", ftp_url);
 					dlog_print(DLOG_INFO, LOG_TAG, "d_name=%s", dir->d_name);
 
@@ -308,6 +420,7 @@ int share_data(const char* ftp_url) {
     				if(res != CURLE_OK) {
     					dlog_print(DLOG_INFO, LOG_TAG, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
     					free(data_path);
+    					device_power_release_lock(POWER_LOCK_CPU);
     					return -1;
     				} else {
     					dlog_print(DLOG_INFO, LOG_TAG, "file uploaded!");
@@ -336,12 +449,17 @@ int share_data(const char* ftp_url) {
 	} else {
 		dlog_print(DLOG_INFO, LOG_TAG, "directory does not exist or cannot be opened!");
 		free(data_path);
+		device_power_release_lock(POWER_LOCK_CPU);
 		return -1;
 	}
 
     curl_global_cleanup();
 
 	free(data_path);
+
+	//release cpu-lock
+	device_power_release_lock(POWER_LOCK_CPU);
+
 	return 1;
 }
 
@@ -686,6 +804,9 @@ void sensor_stop(void *data, int sendNot)
 	// Extracting application data
 	appdata_s* ad = (appdata_s*)data;
 
+	if(ad->logging) { //tar all logs
+		compress_logs();
+	}
 	if(!ad->running) {
 		dlog_print(DLOG_INFO, LOG_TAG, "Sensor listener already destroyed.");
 		return;
