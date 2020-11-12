@@ -276,7 +276,7 @@ void compress_logs() {
     			}
 
     			//read data
-    			fgets(buff, file_info.st_size, fd);
+    			fgets(buff, file_info.st_size+1, fd); //size+1 as the null char is counted, otherwise last char is cut off
     			fclose(fd);
 
 				//attach file to tar
@@ -310,14 +310,19 @@ void compress_logs() {
 
 //function for sharing locally stored tar-data, returns -1 if it did not finish, otherwise returns 0
 int share_data(const char* ftp_url) {
+	dlog_print(DLOG_INFO, LOG_TAG, "share_data: start");
+
 	if(device_power_request_lock(POWER_LOCK_CPU, 0) != DEVICE_ERROR_NONE)
 	{
 		dlog_print(DLOG_INFO, LOG_TAG, "could not lock CPU for data sharing!");
 	}
 
+	//tar all logs
+	compress_logs();
+
+
 	curl_global_init(CURL_GLOBAL_ALL);
 
-	dlog_print(DLOG_INFO, LOG_TAG, "share_data: start");
 
 	//init vars for ftp transfer...
 	CURL *curl;
@@ -804,9 +809,6 @@ void sensor_stop(void *data, int sendNot)
 	// Extracting application data
 	appdata_s* ad = (appdata_s*)data;
 
-	if(ad->logging) { //tar all logs
-		compress_logs();
-	}
 	if(!ad->running) {
 		dlog_print(DLOG_INFO, LOG_TAG, "Sensor listener already destroyed.");
 		return;
