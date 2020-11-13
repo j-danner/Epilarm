@@ -1,3 +1,23 @@
+http://tizen.org/privilege/display
+
+http://tizen.org/privilege/display
+
+http://tizen.org/privilege/display
+
+http://tizen.org/privilege/display
+
+http://tizen.org/privilege/display
+
+http://tizen.org/privilege/display
+
+http://tizen.org/privilege/display
+
+http://tizen.org/privilege/display
+
+http://tizen.org/privilege/display
+
+http://tizen.org/privilege/display
+
 http://tizen.org/privilege/notification
 
 http://tizen.org/privilege/notification
@@ -5,6 +25,8 @@ http://tizen.org/privilege/notification
 http://tizen.org/privilege/notification
 
 http://tizen.org/privilege/appmanager.launch
+
+http://tizen.org/privilege/display
 
 http://tizen.org/privilege/display
 

@@ -34,7 +34,7 @@ function load_params() {
 }
 
 function start_ftp_upload() {
-	console.log("ftp_upload: checking if wifi is on...");
+	console.log('ftp_upload: checking if wifi is on...');
 	//TODO automatically switch on wifi if necessary...
 	/*if(navigator.connection.type != Connection.WIFI) {
 		console.log("ftp_upload: wifi is on, ftp upload can be started!");
@@ -42,6 +42,43 @@ function start_ftp_upload() {
 		//switch wifi on... 
 		
 	}*/
+	//start data compression!
+    console.log('stopping service app...');
+    var obj = new tizen.ApplicationControlData('service_action', ['compress_logs']); //you'll find the app id in config.xml file.
+    var obj1 = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
+        null,
+        null,
+        null, [obj]
+    );
+    var appControlReplyCallback = {
+    		// callee sent a reply
+            onsuccess: function(data) {
+                console.log('ftp_upload: compression done.');
+                //end loading symbol...
+                tau.closePopup();
+            },
+            // callee returned failure
+            onfailure: function() {
+                console.log('ftp_upload: compression failed');
+                //end loading popup
+                tau.closePopup();
+                //show upload failed popup
+                tau.openPopup('#CompressionFailedPopup'); //TODO
+            }
+        };
+    try {
+        tizen.application.launchAppControl(obj1,
+            SERVICE_APP_ID,
+            function() {
+                console.log('Starting compression of logs succeeded.');
+            },
+            function(e) {
+                console.log('Starting compression of logs failed : ' + e.message);
+            }, null);
+    } catch (e) {
+        window.alert('Error when starting appcontrol for compressing logs! error msg:' + e.toString());
+    }
+
 	
     console.log('ftp_upload: starting service app for ftp upload...');
     var obj = new tizen.ApplicationControlData('service_action', ['log_upload']);
@@ -54,17 +91,13 @@ function start_ftp_upload() {
     var appControlReplyCallback = {
         // callee sent a reply
         onsuccess: function(data) {
-            console.log('ftp_upload: reply to ftp-upload request is ' + data[0].value[0]);
+            console.log('ftp_upload: ftp-upload done.');
             //end loading symbol...
             tau.closePopup();
-
-            if (data[0].value[0] === '-1') { //upload failed!
-                tau.openPopup('#UploadFailedPopup');
-            }
         },
         // callee returned failure
         onfailure: function() {
-            console.log('ftp_upload: reply to ftp-upload request failed');
+            console.log('ftp_upload: ftp-upload failed.');
             //end loading popup
             tau.closePopup();
             //show upload failed popup
@@ -76,6 +109,8 @@ function start_ftp_upload() {
             SERVICE_APP_ID,
             function() {
                 console.log('ftp_upload: Log upload starting succeeded');
+                //update text in popup
+                document.getElementById('UploadPopupText').innerHTML = 'uploading logs...';
             },
             function(e) {
                 console.log('ftp_upload: Log upload starting failed : ' + e.message);
@@ -84,6 +119,8 @@ function start_ftp_upload() {
     } catch (e) {
         window.alert('ftp_upload: Error when starting appcontrol! error msg:' + e.toString());
     }
+    //reset popup text
+    document.getElementById('UploadPopupText').innerHTML = 'compressing logs...';
 }
 
 

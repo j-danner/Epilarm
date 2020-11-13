@@ -20,7 +20,6 @@
 #include <fcntl.h>
 #include <glib-object.h>
 #include <json-glib/json-glib.h>
-#include <microtar.h>
 #include <miniz.h>
 
 
@@ -225,12 +224,20 @@ void save_log(void *data) {
     fclose(fp);
 }
 
-//compress all locally stored logs
-void compress_logs() {
+//compress all locally stored logs (all files ending with .json)
+int compress_logs() {
+	dlog_print(DLOG_INFO, LOG_TAG, "compress_logs: start");
+
+	if(device_power_request_lock(POWER_LOCK_CPU, 0) != DEVICE_ERROR_NONE)
+	{
+		dlog_print(DLOG_INFO, LOG_TAG, "could not lock CPU for log compression!");
+	}
+
+
 	char file_path[256];
 	char* data_path = app_get_data_path();
-	char tar_path[256];
-	char buff[2048]; //must be large enough to fit one log-file (!!)
+	char zip_path[256];
+	char buff[4096]; //must be large enough to fit one log-file (!!)
 
 	//create tar file with appropriate name
 	struct timespec tmnow;
@@ -239,13 +246,10 @@ void compress_logs() {
 	clock_gettime(CLOCK_REALTIME, &tmnow);
 	tm = localtime(&tmnow.tv_sec);
 	strftime(timebuf, 30, "%Y_%m_%dT%H_%M_%S", tm);
-	snprintf(tar_path, sizeof(tar_path), "%slogs_%s.%s", data_path, timebuf, "tar");
-
-	mtar_t tar;
-	mtar_open(&tar, tar_path, "w");
+	snprintf(zip_path, sizeof(zip_path), "%slogs_%s.%s", data_path, timebuf, "zip");
 
 
-    //iterate over files
+     //iterate over files
 	struct stat file_info;
 	FILE *fd;
     DIR *d;
@@ -279,13 +283,19 @@ void compress_logs() {
     			fgets(buff, file_info.st_size+1, fd); //size+1 as the null char is counted, otherwise last char is cut off
     			fclose(fd);
 
-				//attach file to tar
-				mtar_write_file_header(&tar, dir->d_name, file_info.st_size);
-				mtar_write_data(&tar, buff, file_info.st_size);
+				//attach file to zip
+    			int status = mz_zip_add_mem_to_archive_file_in_place(zip_path, dir->d_name, buff, file_info.st_size, "", strlen(""), MZ_BEST_COMPRESSION);
+    			if (!status)
+    			{
+    				dlog_print(DLOG_INFO, LOG_TAG, "mz_zip_add_mem_to_archive_file_in_place failed!");
+    				free(data_path);
+    				device_power_release_lock(POWER_LOCK_CPU);
+    				return -1;
+    			}
 
 				//remove local log file
 				remove(file_path);
-				dlog_print(DLOG_INFO, LOG_TAG, "log-file added to tar and deleted.");
+				dlog_print(DLOG_INFO, LOG_TAG, "log-file added to zip and deleted.");
 
     		} else {
     			//dir is either no regular file, its name is shorter than 5 chars or it does not end with .json
@@ -295,20 +305,21 @@ void compress_logs() {
     	closedir(d);
 	} else {
 		dlog_print(DLOG_INFO, LOG_TAG, "directory does not exist or cannot be opened!");
+		free(data_path);
+		device_power_release_lock(POWER_LOCK_CPU);
+		return -1;
 	}
 
 	free(data_path);
-
-    /* Finalize -- this needs to be the last thing done before closing */
-    mtar_finalize(&tar);
-
-    /* Close archive */
-    mtar_close(&tar);
-
-    //TODO compress tar file
+	device_power_release_lock(POWER_LOCK_CPU);
+    return 0;
 }
 
-//function for sharing locally stored tar-data, returns -1 if it did not finish, otherwise returns 0
+
+
+//function for sharing locally stored zip-data (logs first need to be zipped via compress_logs (!!))
+//returns -1 if it did not finish because of FTP server issues
+//returns 0 otherwise
 int share_data(const char* ftp_url) {
 	dlog_print(DLOG_INFO, LOG_TAG, "share_data: start");
 
@@ -317,12 +328,7 @@ int share_data(const char* ftp_url) {
 		dlog_print(DLOG_INFO, LOG_TAG, "could not lock CPU for data sharing!");
 	}
 
-	//tar all logs
-	compress_logs();
-
-
 	curl_global_init(CURL_GLOBAL_ALL);
-
 
 	//init vars for ftp transfer...
 	CURL *curl;
@@ -336,27 +342,6 @@ int share_data(const char* ftp_url) {
 	char* data_path = app_get_data_path();
 	char URL[256]; //should be large enough to store ad->ftp_url + filename!
 
-	/* TODO
-	//check whether ftp-server can be reached:
-	curl = curl_easy_init();
-	if (curl) {
-		curl_easy_setopt(curl, CURLOPT_URL, URL);
-		res = curl_easy_perform(curl);
-		if(res != CURLE_OK) {
-			dlog_print(DLOG_INFO, LOG_TAG, "ftp server cannot be reached (error: %s)", curl_easy_strerror(res));
-			device_power_release_lock(POWER_LOCK_CPU);
-		    return -1;
-		} else {
-			curl_easy_cleanup(curl);
-		}
-	} else {
-		device_power_release_lock(POWER_LOCK_CPU);
-		return -1;
-	}
-	//server can be reached, now compress files!
-	dlog_print(DLOG_INFO, LOG_TAG, "ftp server can be reached (username + password are ok)!");
-	*/
-
     //iterate over files:
     DIR *d;
     struct dirent *dir;
@@ -365,7 +350,7 @@ int share_data(const char* ftp_url) {
     if (d) {
     	while ((dir = readdir(d)) != NULL) {
     		//now dir->d_name stores name of file in dir
-    		if (strncmp(dir->d_name, "logs_",5) == 0 && strcmp(strrchr(dir->d_name, '.'), ".tar") == 0)
+    		if (strncmp(dir->d_name, "logs_",5) == 0 && strcmp(strrchr(dir->d_name, '.'), ".zip") == 0)
     		{
     			dlog_print(DLOG_INFO, LOG_TAG, "processing file %s", dir->d_name);
     			//set correct file_path
@@ -386,6 +371,7 @@ int share_data(const char* ftp_url) {
     				dlog_print(DLOG_INFO, LOG_TAG, "file is empty?");
     				free(data_path);
     				device_power_release_lock(POWER_LOCK_CPU);
+        			fclose(fd);
     				return -1; /* can't continue */
     			}
 
@@ -426,15 +412,14 @@ int share_data(const char* ftp_url) {
     					dlog_print(DLOG_INFO, LOG_TAG, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
     					free(data_path);
     					device_power_release_lock(POWER_LOCK_CPU);
+        				curl_easy_cleanup(curl);
+            			fclose(fd);
     					return -1;
     				} else {
     					dlog_print(DLOG_INFO, LOG_TAG, "file uploaded!");
     					/* now extract transfer info */
     					curl_easy_getinfo(curl, CURLINFO_SPEED_UPLOAD, &speed_upload);
     					curl_easy_getinfo(curl, CURLINFO_TOTAL_TIME, &total_time);
-
-    					dlog_print(DLOG_INFO, LOG_TAG, "Upload speed %.0f bytes/sec", speed_upload);
-
 
     					dlog_print(DLOG_INFO, LOG_TAG, "Speed: %.0f bytes/sec during %.1f seconds", speed_upload, total_time);
 
@@ -465,7 +450,7 @@ int share_data(const char* ftp_url) {
 	//release cpu-lock
 	device_power_release_lock(POWER_LOCK_CPU);
 
-	return 1;
+	return 0;
 }
 
 //send notification
@@ -924,15 +909,30 @@ void service_app_control(app_control_h app_control, void *data)
         	app_control_h reply;
     		app_control_create(&reply);
     		app_control_get_app_id(app_control, &app_id);
-
     		app_control_add_extra_data(reply, APP_CONTROL_DATA_SELECTED, ad->running ? "1" : "0");
-
     		app_control_reply_to_launch_request(reply, app_control, APP_CONTROL_RESULT_SUCCEEDED);
             dlog_print(DLOG_INFO, LOG_TAG, "reply sent (%d)", ad->running);
 
     		app_control_destroy(reply);
 
     		free(app_id);
+
+        } else if((caller_id != NULL) && (action_value != NULL)
+                && (!strncmp(caller_id, MYSERVICELAUNCHER_APP_ID, STRNCMP_LIMIT))
+                && (!strncmp(action_value, "compress_logs", STRNCMP_LIMIT)))
+        {
+        	//// >>>> COMPRESS ALL LOGS <<<< ////
+        	dlog_print(DLOG_INFO, LOG_TAG, "Compressing logs!");
+        	int success = compress_logs(); //compress all locally stored logs
+      		//tell UI if compression failed
+        	char *app_id;
+           	app_control_h reply;
+           	app_control_create(&reply);
+           	app_control_get_app_id(app_control, &app_id);
+           	app_control_reply_to_launch_request(reply, app_control, (success==0) ? APP_CONTROL_RESULT_SUCCEEDED : APP_CONTROL_RESULT_FAILED);
+            app_control_destroy(reply);
+           	free(app_id);
+            dlog_print(DLOG_INFO, LOG_TAG, "reply sent");
 
         } else if((caller_id != NULL) && (action_value != NULL)
                 && (!strncmp(caller_id, MYSERVICELAUNCHER_APP_ID, STRNCMP_LIMIT))
@@ -976,8 +976,7 @@ void service_app_control(app_control_h app_control, void *data)
                	app_control_h reply;
                	app_control_create(&reply);
                	app_control_get_app_id(app_control, &app_id);
-               	app_control_add_extra_data(reply, APP_CONTROL_DATA_SELECTED, (success==-1) ? "-1" : "0");
-               	app_control_reply_to_launch_request(reply, app_control, APP_CONTROL_RESULT_SUCCEEDED);
+               	app_control_reply_to_launch_request(reply, app_control, (success==0) ? APP_CONTROL_RESULT_SUCCEEDED : APP_CONTROL_RESULT_FAILED);
                 dlog_print(DLOG_INFO, LOG_TAG, "reply sent");
 
                 app_control_destroy(reply);

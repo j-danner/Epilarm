@@ -117,6 +117,7 @@
 				</li>
 			</ul>
 		</div>
+	
 		
 		<!-- popup for uploading of logs/info/reseting params -->
 		<div class="ui-popup" id="UploadPopup">
@@ -124,29 +125,51 @@
 				<div class="small-processing-container">
 					<div class="ui-processing" style="-webkit-transform: scale(1.08); position: relative;">
 					</div>
-					<div class="ui-processing-text" style="position:relative; margin-top: 22px;">
-						uploading logs...
+					<div id="UploadPopupText" class="ui-processing-text" style="position:relative; margin-top: 22px;">
+						compressing logs...
 					</div>
 				</div>
 			</div>
 		</div>
-		<div class="ui-popup" id="ResetPopup">
+		
+			
+		<div class="ui-popup" id="UploadFailedPopup">
 			<div class="ui-popup-header">
 				Warning!
 			</div>
 			<div class="ui-popup-content">
-				You are about to reset your parameters to the default.
-				Do you want to proceed?
+				FTP upload failed!
+				
+				<br />
+				
+				Check your internet connection and the FTP-server settings!
 			</div>
-			<div class="ui-popup-footer ui-side-button ui-grid-col-2">
-				<a class="ui-btn ui-btn-delete" data-rel="back" href="#">
-					Cancel
-				</a>
-				<a class="ui-btn ui-btn-check" data-rel="back" href="#" onclick="reset_params()">
+			<div class="ui-popup-footer ui-bottom-button">
+				<a class="ui-btn" data-rel="back" href="#" id="1btnPopup-cancel">
 					OK
 				</a>
 			</div>
 		</div>
+		
+		<div class="ui-popup" id="CompressionFailedPopup">
+			<div class="ui-popup-header">
+				Warning!
+			</div>
+			<div class="ui-popup-content">
+				Compression of log files failed!
+				
+				<br />
+				
+				This is due to an internal error, try again!
+				If the error persists, please contact the developers!
+			</div>
+			<div class="ui-popup-footer ui-bottom-button">
+				<a class="ui-btn" data-rel="back" href="#" id="1btnPopup-cancel">
+					OK
+				</a>
+			</div>
+		</div>
+
 		<div class="ui-popup" id="InfoPopup">
 			<div class="ui-popup-header">
 				Epilarm
@@ -180,25 +203,25 @@
 				</a>
 			</div>
 		</div>
-		<div class="ui-popup" id="UploadFailedPopup">
+		
+		<div class="ui-popup" id="ResetPopup">
 			<div class="ui-popup-header">
 				Warning!
 			</div>
 			<div class="ui-popup-content">
-				FTP upload failed!
-				
-				<br />
-				
-				Check your internet connection and the FTP-server settings!
+				You are about to reset your parameters to the default.
+				Do you want to proceed?
 			</div>
-			<div class="ui-popup-footer ui-bottom-button">
-				<a class="ui-btn" data-rel="back" href="#" id="1btnPopup-cancel">
+			<div class="ui-popup-footer ui-side-button ui-grid-col-2">
+				<a class="ui-btn ui-btn-delete" data-rel="back" href="#">
+					Cancel
+				</a>
+				<a class="ui-btn ui-btn-check" data-rel="back" href="#" onclick="reset_params()">
 					OK
 				</a>
 			</div>
 		</div>
 
-		
 
 	</div>
 	<script src="js/app.js"></script>
