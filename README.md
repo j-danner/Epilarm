@@ -38,16 +38,16 @@ Below you can find a task-list which indicates the current state of the project 
   - [x] UI that allows starting and stopping of analysis of native service app
   - [x] basic setup of UI (three pages: _settings_ - _on-off-switch_ - _graphs_)
   - [x] check on start of UI if service app is running (and initialize button correctly!)
-  - [ ] button for sending collected internal data via FTP to specified IP address
+  - [x] button for sending collected internal data via FTP to specified IP address
   - [x] settings (that are sent to service app on startup):
    - **mandatory** warnTime, mult_thresh, roi_thresh, min|maxFreq (only in 0.5Hz steps)
    - **optional**  FTP server info 
-  - [ ] UI to change default values of *mandatory*/*optional* settings (see above)
+  - [x] UI to change default values of *mandatory*/*optional* settings (see above)
   - [x] save settings to local storage
 
 
 other todos:
  - [ ] generate widget that shows if the app and service are running correctly (?)
  - [ ] create logo
- - [ ] make first prototype available to first _real_ test person (not just my shaky hand)
+ - [x] make first prototype available to first _real_ test person (not just my shaky hand)
  
