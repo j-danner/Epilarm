@@ -29,6 +29,7 @@ Below you can find a task-list which indicates the current state of the project 
   - [x] send notification on shutdown (if not triggered by UI) to detect when it _crashes_
   - [x] complete logging of (analyzed) data (in order to later optimize default values); collect data for up to one week (timestamp, minFreq, maxFreq, complete simplified freqs, alarmstate, avg_roi_x|y|z, avg_nroi_x|y|z, avg_roi, multRatio --> 62 data points per second)
   - [x] implement data transfer to Raspberry Pi 4 (running home assistant) via FTP (to be triggered via button in UI)
+  - [x] zip all log files before upload
   - [x] implement basic functionality for ftp upload
   - [x] start UI (web app) if alarmstate changes (and app is not running)
   - [ ] raise alarm by initializing phone call and/or send SMS (write companion app for Android or stick to LTE version of smart watch/can we use Samsung's very own SOS system?)
@@ -45,9 +46,15 @@ Below you can find a task-list which indicates the current state of the project 
   - [x] UI to change default values of *mandatory*/*optional* settings (see above)
   - [x] save settings to local storage
 
-
+- Python Log Analysis:
+  - [ ] download zips from ftp server
+  - [x] convert json into python-dicts
+  - [x] automatic analysis of 'gaps' between measurements
+  - [ ] using list of timestamps from actual seazures and their corresponding logs, optimize params of analysis
+  
 other todos:
  - [ ] generate widget that shows if the app and service are running correctly (?)
  - [ ] create logo
  - [x] make first prototype available to first _real_ test person (not just my shaky hand)
+ - [ ] clarify which LICENSE can be used
  
