@@ -151,12 +151,14 @@ function start_service_app() {
             },
             function(e) {
                 console.log('Launch Service failed : ' + e.message);
+                tau.openPopup('#StartFailedPopup');
             }, null);
     } catch (e) {
         window.alert('Error when starting appcontrol for starting seizure detection! error msg:' + e.toString());
         running=false;
     }
 }
+
 
 function stop_service_app() {
     console.log('stopping service app...');
