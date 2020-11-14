@@ -39,11 +39,11 @@
 <ReportId>3</ReportId>
 <Report>
    <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-   <LINE>329</LINE>
-   <COLUMN>11</COLUMN>
-   <Type>Resource Leak</Type>
+   <LINE>324</LINE>
+   <COLUMN>6</COLUMN>
+   <Type>Argument with 'nonnull' attribute passed null</Type>
    <Severity>MID</Severity>
-   <DES><![CDATA[Opened file is never closed; potential resource leak]]></DES>
+   <DES><![CDATA[Null pointer passed as an argument to a 'nonnull' parameter]]></DES>
    <Events>
       <Event>
          <Id>1</Id>
@@ -62,93 +62,37 @@
       <Event>
          <Id>3</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>257</LINE>
-         <COLUMN>2</COLUMN>
-         <DES><![CDATA[Calling 'mtar_open']]></DES>
+         <LINE>268</LINE>
+         <COLUMN>5</COLUMN>
+         <DES><![CDATA[Value assigned to 'd']]></DES>
       </Event>
       <Event>
          <Id>4</Id>
-         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\microtar.c</FILE>
-         <LINE>189</LINE>
-         <COLUMN>3</COLUMN>
-         <DES><![CDATA[Taking false branch]]></DES>
-      </Event>
-      <Event>
-         <Id>5</Id>
-         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\microtar.c</FILE>
-         <LINE>190</LINE>
-         <COLUMN>3</COLUMN>
-         <DES><![CDATA[Taking false branch]]></DES>
-      </Event>
-      <Event>
-         <Id>6</Id>
-         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\microtar.c</FILE>
-         <LINE>191</LINE>
-         <COLUMN>3</COLUMN>
-         <DES><![CDATA[Taking false branch]]></DES>
-      </Event>
-      <Event>
-         <Id>7</Id>
-         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\microtar.c</FILE>
-         <LINE>193</LINE>
-         <COLUMN>17</COLUMN>
-         <DES><![CDATA[File is opened]]></DES>
-      </Event>
-      <Event>
-         <Id>8</Id>
-         <FILE>C:/Program Files (x86)\Tizen_Studio\tools\smart-build-interface\..\..\platforms\tizen-4.0\wearable\rootstraps\wearable-4.0-device.core\usr\include\zconf.h</FILE>
-         <LINE>526</LINE>
-         <COLUMN>26</COLUMN>
-         <DES><![CDATA[Assuming the condition is false]]></DES>
-      </Event>
-      <Event>
-         <Id>9</Id>
-         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\microtar.c</FILE>
-         <LINE>194</LINE>
-         <COLUMN>3</COLUMN>
-         <DES><![CDATA[Taking false branch]]></DES>
-      </Event>
-      <Event>
-         <Id>10</Id>
-         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\microtar.c</FILE>
-         <LINE>198</LINE>
-         <COLUMN>3</COLUMN>
-         <DES><![CDATA[Taking false branch]]></DES>
-      </Event>
-      <Event>
-         <Id>11</Id>
-         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>257</LINE>
-         <COLUMN>2</COLUMN>
-         <DES><![CDATA[Opened File]]></DES>
-      </Event>
-      <Event>
-         <Id>12</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
          <LINE>270</LINE>
          <COLUMN>9</COLUMN>
          <DES><![CDATA[Assuming 'd' is null]]></DES>
       </Event>
       <Event>
-         <Id>13</Id>
+         <Id>5</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
          <LINE>270</LINE>
          <COLUMN>5</COLUMN>
          <DES><![CDATA[Taking false branch]]></DES>
       </Event>
       <Event>
-         <Id>14</Id>
+         <Id>6</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>329</LINE>
-         <COLUMN>11</COLUMN>
-         <DES><![CDATA[Opened file is never closed; potential resource leak]]></DES>
+         <LINE>324</LINE>
+         <COLUMN>6</COLUMN>
+         <DES><![CDATA[Null pointer passed as an argument to a 'nonnull' parameter]]></DES>
       </Event>
    </Events>
 </Report>
 <ReportId>4</ReportId>
 <Report>
    <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-   <LINE>357</LINE>
+   <LINE>358</LINE>
    <COLUMN>21</COLUMN>
    <Type>Resource Leak</Type>
    <Severity>MID</Severity>
@@ -207,7 +151,7 @@
          <Id>8</Id>
          <FILE>C:/Program Files (x86)\Tizen_Studio\tools\smart-build-interface\..\..\platforms\tizen-4.0\wearable\rootstraps\wearable-4.0-device.core\usr\include\zconf.h</FILE>
          <LINE>526</LINE>
-         <COLUMN>26</COLUMN>
+         <COLUMN>29</COLUMN>
          <DES><![CDATA[Assuming the condition is false]]></DES>
       </Event>
       <Event>
@@ -262,28 +206,28 @@
       <Event>
          <Id>16</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>353</LINE>
+         <LINE>354</LINE>
          <COLUMN>5</COLUMN>
          <DES><![CDATA[Loop condition is true.  Entering loop body]]></DES>
       </Event>
       <Event>
          <Id>17</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>355</LINE>
+         <LINE>356</LINE>
          <COLUMN>13</COLUMN>
          <DES><![CDATA[Assuming the condition is true]]></DES>
       </Event>
       <Event>
          <Id>18</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>355</LINE>
+         <LINE>356</LINE>
          <COLUMN>9</COLUMN>
          <DES><![CDATA[Taking true branch]]></DES>
       </Event>
       <Event>
          <Id>19</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>357</LINE>
+         <LINE>358</LINE>
          <COLUMN>21</COLUMN>
          <DES><![CDATA[Opened file is never closed; potential resource leak]]></DES>
       </Event>
@@ -292,7 +236,7 @@
 <ReportId>5</ReportId>
 <Report>
    <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-   <LINE>357</LINE>
+   <LINE>358</LINE>
    <COLUMN>21</COLUMN>
    <Type>Resource Leak</Type>
    <Severity>MID</Severity>
@@ -448,28 +392,28 @@
       <Event>
          <Id>22</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>353</LINE>
+         <LINE>354</LINE>
          <COLUMN>5</COLUMN>
          <DES><![CDATA[Loop condition is true.  Entering loop body]]></DES>
       </Event>
       <Event>
          <Id>23</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>355</LINE>
+         <LINE>356</LINE>
          <COLUMN>13</COLUMN>
          <DES><![CDATA[Assuming the condition is true]]></DES>
       </Event>
       <Event>
          <Id>24</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>355</LINE>
+         <LINE>356</LINE>
          <COLUMN>9</COLUMN>
          <DES><![CDATA[Taking true branch]]></DES>
       </Event>
       <Event>
          <Id>25</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>357</LINE>
+         <LINE>358</LINE>
          <COLUMN>21</COLUMN>
          <DES><![CDATA[Opened file is never closed; potential resource leak of resource pointed to by 'fd']]></DES>
       </Event>
@@ -478,7 +422,7 @@
 <ReportId>6</ReportId>
 <Report>
    <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-   <LINE>368</LINE>
+   <LINE>369</LINE>
    <COLUMN>14</COLUMN>
    <Type>Resource Leak</Type>
    <Severity>MID</Severity>
@@ -537,7 +481,7 @@
          <Id>8</Id>
          <FILE>C:/Program Files (x86)\Tizen_Studio\tools\smart-build-interface\..\..\platforms\tizen-4.0\wearable\rootstraps\wearable-4.0-device.core\usr\include\zconf.h</FILE>
          <LINE>526</LINE>
-         <COLUMN>26</COLUMN>
+         <COLUMN>29</COLUMN>
          <DES><![CDATA[Assuming the condition is false]]></DES>
       </Event>
       <Event>
@@ -592,63 +536,63 @@
       <Event>
          <Id>16</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>353</LINE>
+         <LINE>354</LINE>
          <COLUMN>5</COLUMN>
          <DES><![CDATA[Loop condition is true.  Entering loop body]]></DES>
       </Event>
       <Event>
          <Id>17</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>355</LINE>
+         <LINE>356</LINE>
          <COLUMN>13</COLUMN>
          <DES><![CDATA[Assuming the condition is false]]></DES>
       </Event>
       <Event>
          <Id>18</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>355</LINE>
+         <LINE>356</LINE>
          <COLUMN>9</COLUMN>
          <DES><![CDATA[Taking false branch]]></DES>
       </Event>
       <Event>
          <Id>19</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>359</LINE>
+         <LINE>360</LINE>
          <COLUMN>13</COLUMN>
          <DES><![CDATA[Assuming 'len' is equal to 0]]></DES>
       </Event>
       <Event>
          <Id>20</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>359</LINE>
+         <LINE>360</LINE>
          <COLUMN>9</COLUMN>
          <DES><![CDATA[Taking true branch]]></DES>
       </Event>
       <Event>
          <Id>21</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>359</LINE>
+         <LINE>360</LINE>
          <COLUMN>23</COLUMN>
-         <DES><![CDATA[ Execution continues on line 363]]></DES>
+         <DES><![CDATA[ Execution continues on line 364]]></DES>
       </Event>
       <Event>
          <Id>22</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>364</LINE>
+         <LINE>365</LINE>
          <COLUMN>9</COLUMN>
          <DES><![CDATA[Assuming the condition is true]]></DES>
       </Event>
       <Event>
          <Id>23</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>364</LINE>
+         <LINE>365</LINE>
          <COLUMN>5</COLUMN>
          <DES><![CDATA[Taking true branch]]></DES>
       </Event>
       <Event>
          <Id>24</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>368</LINE>
+         <LINE>369</LINE>
          <COLUMN>14</COLUMN>
          <DES><![CDATA[Opened file is never closed; potential resource leak]]></DES>
       </Event>
@@ -657,7 +601,7 @@
 <ReportId>7</ReportId>
 <Report>
    <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-   <LINE>368</LINE>
+   <LINE>369</LINE>
    <COLUMN>14</COLUMN>
    <Type>Resource Leak</Type>
    <Severity>MID</Severity>
@@ -813,63 +757,63 @@
       <Event>
          <Id>22</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>353</LINE>
+         <LINE>354</LINE>
          <COLUMN>5</COLUMN>
          <DES><![CDATA[Loop condition is true.  Entering loop body]]></DES>
       </Event>
       <Event>
          <Id>23</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>355</LINE>
+         <LINE>356</LINE>
          <COLUMN>13</COLUMN>
          <DES><![CDATA[Assuming the condition is false]]></DES>
       </Event>
       <Event>
          <Id>24</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>355</LINE>
+         <LINE>356</LINE>
          <COLUMN>9</COLUMN>
          <DES><![CDATA[Taking false branch]]></DES>
       </Event>
       <Event>
          <Id>25</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>359</LINE>
+         <LINE>360</LINE>
          <COLUMN>13</COLUMN>
          <DES><![CDATA[Assuming 'len' is equal to 0]]></DES>
       </Event>
       <Event>
          <Id>26</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>359</LINE>
+         <LINE>360</LINE>
          <COLUMN>9</COLUMN>
          <DES><![CDATA[Taking true branch]]></DES>
       </Event>
       <Event>
          <Id>27</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>359</LINE>
+         <LINE>360</LINE>
          <COLUMN>23</COLUMN>
-         <DES><![CDATA[ Execution continues on line 363]]></DES>
+         <DES><![CDATA[ Execution continues on line 364]]></DES>
       </Event>
       <Event>
          <Id>28</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>364</LINE>
+         <LINE>365</LINE>
          <COLUMN>9</COLUMN>
          <DES><![CDATA[Assuming the condition is true]]></DES>
       </Event>
       <Event>
          <Id>29</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>364</LINE>
+         <LINE>365</LINE>
          <COLUMN>5</COLUMN>
          <DES><![CDATA[Taking true branch]]></DES>
       </Event>
       <Event>
          <Id>30</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>368</LINE>
+         <LINE>369</LINE>
          <COLUMN>14</COLUMN>
          <DES><![CDATA[Opened file is never closed; potential resource leak of resource pointed to by 'fd']]></DES>
       </Event>
@@ -878,7 +822,7 @@
 <ReportId>8</ReportId>
 <Report>
    <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-   <LINE>378</LINE>
+   <LINE>379</LINE>
    <COLUMN>12</COLUMN>
    <Type>Resource Leak</Type>
    <Severity>MID</Severity>
@@ -937,7 +881,7 @@
          <Id>8</Id>
          <FILE>C:/Program Files (x86)\Tizen_Studio\tools\smart-build-interface\..\..\platforms\tizen-4.0\wearable\rootstraps\wearable-4.0-device.core\usr\include\zconf.h</FILE>
          <LINE>526</LINE>
-         <COLUMN>26</COLUMN>
+         <COLUMN>29</COLUMN>
          <DES><![CDATA[Assuming the condition is false]]></DES>
       </Event>
       <Event>
@@ -992,63 +936,63 @@
       <Event>
          <Id>16</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>353</LINE>
+         <LINE>354</LINE>
          <COLUMN>5</COLUMN>
          <DES><![CDATA[Loop condition is true.  Entering loop body]]></DES>
       </Event>
       <Event>
          <Id>17</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>355</LINE>
+         <LINE>356</LINE>
          <COLUMN>13</COLUMN>
          <DES><![CDATA[Assuming the condition is false]]></DES>
       </Event>
       <Event>
          <Id>18</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>355</LINE>
+         <LINE>356</LINE>
          <COLUMN>9</COLUMN>
          <DES><![CDATA[Taking false branch]]></DES>
       </Event>
       <Event>
          <Id>19</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>359</LINE>
+         <LINE>360</LINE>
          <COLUMN>13</COLUMN>
          <DES><![CDATA[Assuming 'len' is equal to 0]]></DES>
       </Event>
       <Event>
          <Id>20</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>359</LINE>
+         <LINE>360</LINE>
          <COLUMN>9</COLUMN>
          <DES><![CDATA[Taking true branch]]></DES>
       </Event>
       <Event>
          <Id>21</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>359</LINE>
+         <LINE>360</LINE>
          <COLUMN>23</COLUMN>
-         <DES><![CDATA[ Execution continues on line 363]]></DES>
+         <DES><![CDATA[ Execution continues on line 364]]></DES>
       </Event>
       <Event>
          <Id>22</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>364</LINE>
+         <LINE>365</LINE>
          <COLUMN>9</COLUMN>
          <DES><![CDATA[Assuming the condition is false]]></DES>
       </Event>
       <Event>
          <Id>23</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>364</LINE>
+         <LINE>365</LINE>
          <COLUMN>5</COLUMN>
          <DES><![CDATA[Taking false branch]]></DES>
       </Event>
       <Event>
          <Id>24</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>378</LINE>
+         <LINE>379</LINE>
          <COLUMN>12</COLUMN>
          <DES><![CDATA[Opened file is never closed; potential resource leak]]></DES>
       </Event>
@@ -1057,7 +1001,7 @@
 <ReportId>9</ReportId>
 <Report>
    <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-   <LINE>378</LINE>
+   <LINE>379</LINE>
    <COLUMN>12</COLUMN>
    <Type>Resource Leak</Type>
    <Severity>MID</Severity>
@@ -1213,63 +1157,63 @@
       <Event>
          <Id>22</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>353</LINE>
+         <LINE>354</LINE>
          <COLUMN>5</COLUMN>
          <DES><![CDATA[Loop condition is true.  Entering loop body]]></DES>
       </Event>
       <Event>
          <Id>23</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>355</LINE>
+         <LINE>356</LINE>
          <COLUMN>13</COLUMN>
          <DES><![CDATA[Assuming the condition is false]]></DES>
       </Event>
       <Event>
          <Id>24</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>355</LINE>
+         <LINE>356</LINE>
          <COLUMN>9</COLUMN>
          <DES><![CDATA[Taking false branch]]></DES>
       </Event>
       <Event>
          <Id>25</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>359</LINE>
+         <LINE>360</LINE>
          <COLUMN>13</COLUMN>
          <DES><![CDATA[Assuming 'len' is equal to 0]]></DES>
       </Event>
       <Event>
          <Id>26</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>359</LINE>
+         <LINE>360</LINE>
          <COLUMN>9</COLUMN>
          <DES><![CDATA[Taking true branch]]></DES>
       </Event>
       <Event>
          <Id>27</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>359</LINE>
+         <LINE>360</LINE>
          <COLUMN>23</COLUMN>
-         <DES><![CDATA[ Execution continues on line 363]]></DES>
+         <DES><![CDATA[ Execution continues on line 364]]></DES>
       </Event>
       <Event>
          <Id>28</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>364</LINE>
+         <LINE>365</LINE>
          <COLUMN>9</COLUMN>
          <DES><![CDATA[Assuming the condition is false]]></DES>
       </Event>
       <Event>
          <Id>29</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>364</LINE>
+         <LINE>365</LINE>
          <COLUMN>5</COLUMN>
          <DES><![CDATA[Taking false branch]]></DES>
       </Event>
       <Event>
          <Id>30</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>378</LINE>
+         <LINE>379</LINE>
          <COLUMN>12</COLUMN>
          <DES><![CDATA[Opened file is never closed; potential resource leak of resource pointed to by 'fd']]></DES>
       </Event>
@@ -1278,7 +1222,7 @@
 <ReportId>10</ReportId>
 <Report>
    <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-   <LINE>448</LINE>
+   <LINE>449</LINE>
    <COLUMN>9</COLUMN>
    <Type>Potential insecure memory buffer bounds restriction in call 'strcpy'</Type>
    <Severity>MID</Severity>
@@ -1287,7 +1231,7 @@
       <Event>
          <Id>1</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>448</LINE>
+         <LINE>449</LINE>
          <COLUMN>9</COLUMN>
          <DES><![CDATA[Call to function 'strcpy' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcpy'. CWE-119]]></DES>
       </Event>
@@ -1296,7 +1240,7 @@
 <ReportId>11</ReportId>
 <Report>
    <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-   <LINE>449</LINE>
+   <LINE>450</LINE>
    <COLUMN>9</COLUMN>
    <Type>Potential insecure memory buffer bounds restriction in call 'strcat'</Type>
    <Severity>MID</Severity>
@@ -1305,7 +1249,7 @@
       <Event>
          <Id>1</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>449</LINE>
+         <LINE>450</LINE>
          <COLUMN>9</COLUMN>
          <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
       </Event>
@@ -1314,7 +1258,7 @@
 <ReportId>12</ReportId>
 <Report>
    <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-   <LINE>1025</LINE>
+   <LINE>1026</LINE>
    <COLUMN>11</COLUMN>
    <Type>Potential insecure memory buffer bounds restriction in call 'strcpy'</Type>
    <Severity>MID</Severity>
@@ -1323,31 +1267,13 @@
       <Event>
          <Id>1</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>1025</LINE>
+         <LINE>1026</LINE>
          <COLUMN>11</COLUMN>
          <DES><![CDATA[Call to function 'strcpy' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcpy'. CWE-119]]></DES>
       </Event>
    </Events>
 </Report>
 <ReportId>13</ReportId>
-<Report>
-   <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-   <LINE>1026</LINE>
-   <COLUMN>11</COLUMN>
-   <Type>Potential insecure memory buffer bounds restriction in call 'strcat'</Type>
-   <Severity>MID</Severity>
-   <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
-   <Events>
-      <Event>
-         <Id>1</Id>
-         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
-         <LINE>1026</LINE>
-         <COLUMN>11</COLUMN>
-         <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
-      </Event>
-   </Events>
-</Report>
-<ReportId>14</ReportId>
 <Report>
    <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
    <LINE>1027</LINE>
@@ -1365,7 +1291,7 @@
       </Event>
    </Events>
 </Report>
-<ReportId>15</ReportId>
+<ReportId>14</ReportId>
 <Report>
    <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
    <LINE>1028</LINE>
@@ -1383,7 +1309,7 @@
       </Event>
    </Events>
 </Report>
-<ReportId>16</ReportId>
+<ReportId>15</ReportId>
 <Report>
    <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
    <LINE>1029</LINE>
@@ -1401,7 +1327,7 @@
       </Event>
    </Events>
 </Report>
-<ReportId>17</ReportId>
+<ReportId>16</ReportId>
 <Report>
    <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
    <LINE>1030</LINE>
@@ -1419,7 +1345,7 @@
       </Event>
    </Events>
 </Report>
-<ReportId>18</ReportId>
+<ReportId>17</ReportId>
 <Report>
    <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
    <LINE>1031</LINE>
@@ -1437,7 +1363,7 @@
       </Event>
    </Events>
 </Report>
-<ReportId>19</ReportId>
+<ReportId>18</ReportId>
 <Report>
    <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
    <LINE>1032</LINE>
@@ -1455,7 +1381,7 @@
       </Event>
    </Events>
 </Report>
-<ReportId>20</ReportId>
+<ReportId>19</ReportId>
 <Report>
    <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
    <LINE>1033</LINE>
@@ -1473,7 +1399,7 @@
       </Event>
    </Events>
 </Report>
-<ReportId>21</ReportId>
+<ReportId>20</ReportId>
 <Report>
    <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
    <LINE>1034</LINE>
@@ -1491,7 +1417,7 @@
       </Event>
    </Events>
 </Report>
-<ReportId>22</ReportId>
+<ReportId>21</ReportId>
 <Report>
    <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
    <LINE>1035</LINE>
@@ -1504,6 +1430,24 @@
          <Id>1</Id>
          <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
          <LINE>1035</LINE>
+         <COLUMN>11</COLUMN>
+         <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+      </Event>
+   </Events>
+</Report>
+<ReportId>22</ReportId>
+<Report>
+   <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+   <LINE>1036</LINE>
+   <COLUMN>11</COLUMN>
+   <Type>Potential insecure memory buffer bounds restriction in call 'strcat'</Type>
+   <Severity>MID</Severity>
+   <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+   <Events>
+      <Event>
+         <Id>1</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+         <LINE>1036</LINE>
          <COLUMN>11</COLUMN>
          <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
       </Event>

@@ -16,6 +16,8 @@ http://tizen.org/privilege/display
 
 http://tizen.org/privilege/display
 
+http://tizen.org/privilege/display
+
 http://tizen.org/privilege/notification
 
 http://tizen.org/privilege/notification

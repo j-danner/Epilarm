@@ -321,6 +321,7 @@ int compress_logs() {
 	} else {
 		dlog_print(DLOG_INFO, LOG_TAG, "directory does not exist or cannot be opened!");
 		free(data_path);
+    	closedir(d);
 
 	    mtar_finalize(&tar);
 	    mtar_close(&tar);
@@ -642,7 +643,7 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 		//dlog_print(DLOG_INFO, LOG_TAG, "sensors read!");
 
 		//each second perform fft analysis -> a second has passed if sampleRate number of new entries were made in rb_X, i.e., if rb_x->idx % sampleRate == 0
-		if((ad->rb_x)->idx % 1 == 0)
+		if((ad->rb_x)->idx % sampleRate == 0)
 		{
 			//TODO remove after extensive testing!!!
 
