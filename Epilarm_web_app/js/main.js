@@ -35,6 +35,9 @@ function load_params() {
 
 //start compression of logs and upload of those to ftp server 
 function start_ftp_upload() {
+	//make sure screen stays on!
+	tizen.power.request('SCREEN', 'SCREEN_NORMAL');
+	
 	console.log('ftp_upload: checking if wifi is on... TODO'); //TODO
 	//TODO automatically switch on wifi if necessary...
 	/*if(navigator.connection.type != Connection.WIFI) {
@@ -100,6 +103,8 @@ function start_ftp_upload() {
                 //reset popup text
                 document.getElementById('UploadPopupText').innerHTML = 'compressing logs...';
                 
+                //make screen turn off again:
+            	tizen.power.release('SCREEN');
             },
             // callee returned failure
             onfailure: function() {
@@ -107,7 +112,10 @@ function start_ftp_upload() {
                 //end loading popup
                 tau.closePopup();
                 //show upload failed popup
-                tau.openPopup('#CompressionFailedPopup'); //TODO
+                tau.openPopup('#CompressionFailedPopup');
+                
+                //make screen turn off again:
+            	tizen.power.release('SCREEN');
             }
         };
     try {
@@ -123,6 +131,7 @@ function start_ftp_upload() {
         window.alert('ftp_upload: Error when starting appcontrol for compressing logs! error msg:' + e.toString());
     }
 }
+
 
 
 function start_service_app() {
@@ -207,13 +216,31 @@ function update_start_stop_checkbox() {
     }
 }
 
+/*
+function toggle_settings_visibility() {
+	 var setting_elems = document.querySelectorAll('*[id^="settings_"]');
+	 
+	 for(elem in setting_elems) {
+		 if (elem.style.opacity < 1.0) {
+			 elem.style.opacity = 1.0;
+			 elem.style.click(true);
+		 } else {
+			 elem.style.opacity = 0.5;
+			 elem.style.click(false);
+		 }
+	 }
+}*/
+
 function start_stop(id) {
     if (document.getElementById(id).checked) {
         start_service_app();
+        //toggle_settings_visibility();
     } else {
         stop_service_app();
+        //toggle_settings_visibility();
     }
 }
+
 
 
 function toggle_logging(id) {
@@ -224,6 +251,7 @@ function toggle_logging(id) {
     }
     save_params();
 }
+
 
 function reset_params() {
 	//default values
@@ -252,11 +280,12 @@ function reset_params() {
     };
 }
 
+
 window.onload = function() {
     //leave screen on
     //tizen.power.request('SCREEN', 'SCREEN_NORMAL');
 
-    //load user settings
+	//load user settings
     load_params();
 
     //make sure that checkboxes are in correct state on startup

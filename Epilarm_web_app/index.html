@@ -45,7 +45,7 @@
   				<li class="ui-li-group-index">
 					Settings
 				</li>
-				<li class="li-has-multiline">
+				<li class="li-has-multiline" id="settings_minfreq">
 					<a href="contents/settings/minfreq-picker.html">
 						minimal frequency
 						<span class="ui-li-sub-text">
@@ -53,7 +53,7 @@
 						</span>
 					</a>
 				</li>
-				<li class="li-has-multiline">
+				<li class="li-has-multiline" id="settings_maxfreq">
 					<a href="contents/settings/maxfreq-picker.html">
 						maximal frequency
 						<span class="ui-li-sub-text">
@@ -61,7 +61,7 @@
 						</span>
 					</a>
 				</li>
-				<li class="li-has-multiline">
+				<li class="li-has-multiline"  id="settings_avgthresh">
 					<a href="contents/settings/avgroithresh-picker.html">
 						average threshold
 						<span class="ui-li-sub-text">
@@ -69,15 +69,15 @@
 						</span>
 					</a>
 				</li>
-				<li class="li-has-multiline">
+				<li class="li-has-multiline" id="settings_multthresh">
 					<a href="contents/settings/multthresh-picker.html">
 						ratio threshold
 						<span class="ui-li-sub-text">
-							(of ROI over total average)
+							(ROI over total average)
 						</span>
 					</a>
 				</li>
-				<li class="li-has-multiline">
+				<li class="li-has-multiline" id="settings_warntime">
 					<a href="contents/settings/warntime-picker.html">
 						warning time
 						<span class="ui-li-sub-text">
@@ -86,7 +86,7 @@
 					</a>
 				</li>
 				
- 				<li class="li-has-toggle">
+ 				<li class="li-has-toggle" id="settings_logging">
       				<label>
          				Logging
          				<div class="ui-toggleswitch">
@@ -95,7 +95,7 @@
          				</div>
       				</label>
    				</li>
-				<li class="li-has-multiline">
+				<li class="li-has-multiline" id="settings_ftp">
 					<a href="contents/settings/ftp-input.html">
 						FTP-Server
 						<span class="ui-li-sub-text">
@@ -107,11 +107,12 @@
 				
 				<li class="ui-li-group-index"></li>
 
-				<li>
+				<li id="settings_restore">
 					<a data-rel="popup" href="#ResetPopup">
 						Restore settings
 					</a>
 				</li>
+				
 				<li>
 					<a data-rel="popup" href="#InfoPopup">
 						info
