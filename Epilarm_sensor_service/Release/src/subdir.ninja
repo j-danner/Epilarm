@@ -16,13 +16,13 @@ build src/fft.o.ast: build_c_fast_ast ../src/fft.c
 build $sareportdir/src/fft.o.xml: build_c_fast_sa src/fft.o.ast || externalFnMap.txt
 build src/fft.o.txt: build_c_api ../src/fft.c 
 build $coveragedir/src/fft.o.cov: build_cov ../src/fft.c 
+build src/microtar.o: build_c ../src/microtar.c 
+build src/microtar.o.ast: build_c_fast_ast ../src/microtar.c 
+build $sareportdir/src/microtar.o.xml: build_c_fast_sa src/microtar.o.ast || externalFnMap.txt
+build src/microtar.o.txt: build_c_api ../src/microtar.c 
+build $coveragedir/src/microtar.o.cov: build_cov ../src/microtar.c 
 build src/rb.o: build_c ../src/rb.c 
 build src/rb.o.ast: build_c_fast_ast ../src/rb.c 
 build $sareportdir/src/rb.o.xml: build_c_fast_sa src/rb.o.ast || externalFnMap.txt
 build src/rb.o.txt: build_c_api ../src/rb.c 
 build $coveragedir/src/rb.o.cov: build_cov ../src/rb.c 
-build src/zip.o: build_c ../src/zip.c 
-build src/zip.o.ast: build_c_fast_ast ../src/zip.c 
-build $sareportdir/src/zip.o.xml: build_c_fast_sa src/zip.o.ast || externalFnMap.txt
-build src/zip.o.txt: build_c_api ../src/zip.c 
-build $coveragedir/src/zip.o.cov: build_cov ../src/zip.c 

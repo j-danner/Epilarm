@@ -21,8 +21,10 @@
 #include <glib-object.h>
 #include <json-glib/json-glib.h>
 
-//#define _LARGEFILE64_SOURCE 1
-#include <zip.h>
+#define _FILE_OFFSET_BITS 64
+#include <zlib.h>
+#include <microtar.h>
+#define BUFLEN      16384
 
 
 //own modules
@@ -236,9 +238,10 @@ int compress_logs() {
 		return -1;
 	}
 
-	char file_path[MAX_PATH];
+	char file_path[256];
 	char* data_path = app_get_data_path();
-	char zip_path[MAX_PATH];
+	char tar_path[256];
+	char buff[2048]; //must be large enough to fit one log-file (!!)
 
 	//create tar file with appropriate name
 	struct timespec tmnow;
@@ -247,52 +250,131 @@ int compress_logs() {
 	clock_gettime(CLOCK_REALTIME, &tmnow);
 	tm = localtime(&tmnow.tv_sec);
 	strftime(timebuf, 30, "%Y_%m_%dT%H_%M_%S", tm);
-	snprintf(zip_path, sizeof(zip_path), "%slogs_%s.%s", data_path, timebuf, "zip");
-
+	snprintf(tar_path, sizeof(tar_path), "%slogs_%s.tar", data_path, timebuf);
 	strcat(data_path, "logs/");
 
-    DIR *dir;
-    struct dirent *entry;
-    struct stat s;
+	mtar_t tar;
+	mtar_open(&tar, tar_path, "wb");
 
-    dir = opendir(data_path);
-    if (!dir) {
+    //iterate over files
+	struct stat file_info;
+	FILE *fd;
+    DIR *d;
+    struct dirent *dir;
+
+    int no_files_tar = 0;
+    size_t tar_size = 0;
+
+    d = opendir(data_path);
+	dlog_print(DLOG_INFO, LOG_TAG, "reading data in %s", data_path);
+    if (d) {
+    	while ((dir = readdir(d)) != NULL) {
+    		//now dir->d_name stores name of file in dir
+    		if (strncmp(dir->d_name,"log_",4) == 0 && strcmp(strrchr(dir->d_name, '.'), ".json") == 0)
+    		{
+    			//dlog_print(DLOG_INFO, LOG_TAG, "processing file %s", dir->d_name);
+    			//set correct file_path
+    			snprintf(file_path, sizeof(file_path), "%s%s", data_path, dir->d_name);
+
+    			//dlog_print(DLOG_INFO, LOG_TAG, "reading %s", file_path);
+
+    			fd = fopen(file_path, "rb"); /* open file to add to tar */
+    			if(!fd) {
+    				//dlog_print(DLOG_INFO, LOG_TAG, "could not open file! (skipping file!)");
+    				continue; //skip this file!
+    			}
+
+    			/* to get the file size */
+    			if(fstat(fileno(fd), &file_info) != 0) {
+    				//dlog_print(DLOG_INFO, LOG_TAG, "file is empty? (skipping file!)");
+    				continue; //skip file
+    			}
+				//dlog_print(DLOG_INFO, LOG_TAG, "log-file %s has size %d.", dir->d_name, file_info.st_size);
+
+    			//read data
+    			fgets(buff, file_info.st_size+1, fd);
+    			fclose(fd);
+    			//dlog_print(DLOG_INFO, LOG_TAG, "file content read into buffer.");
+    			tar_size = tar_size + file_info.st_size+1;
+
+				//attach file to tar
+				mtar_write_file_header(&tar, dir->d_name, file_info.st_size);
+    			//dlog_print(DLOG_INFO, LOG_TAG, "updated header.");
+				mtar_write_data(&tar, buff, file_info.st_size);
+    			//dlog_print(DLOG_INFO, LOG_TAG, "wrote data.");
+				no_files_tar = no_files_tar + 1;
+
+				//remove local log file
+				remove(file_path);
+				dlog_print(DLOG_INFO, LOG_TAG, "%d: log-file %s added to tar and deleted. (total size: %d)", no_files_tar, dir->d_name, tar_size);
+
+				//end appending of logs, if tar gets too large ,i.e., larger than 2^32 bytes.
+				if (no_files_tar > 2097151) { // 2^32/2048 = 2097152
+					break;
+				}
+    		} else {
+    			//dir is either no regular file, its name is shorter than 5 chars or it does not end with .json
+    			//dlog_print(DLOG_INFO, LOG_TAG, "skipping 'file' %s", dir->d_name);
+    		}
+    	}
+    	closedir(d);
+	} else {
 		dlog_print(DLOG_INFO, LOG_TAG, "directory does not exist or cannot be opened!");
 		free(data_path);
+
+	    mtar_finalize(&tar);
+	    mtar_close(&tar);
+
 		device_power_release_lock(POWER_LOCK_CPU);
 		return -1;
-    }
-    struct zip_t *zip = zip_open(zip_path, ZIP_DEFAULT_COMPRESSION_LEVEL, 'w');
-    while ((entry = readdir(dir))) {
-      // skip "." and ".."
-      if (!strcmp(entry->d_name, ".\0") || !strcmp(entry->d_name, "..\0"))
-        continue;
-
-      dlog_print(DLOG_INFO, LOG_TAG, "processing file %s", entry->d_name);
-
-      snprintf(file_path, sizeof(file_path), "%s%s", data_path, entry->d_name);
-      stat(file_path, &s);
-      if (!S_ISDIR(s.st_mode)) {
-        dlog_print(DLOG_INFO, LOG_TAG, "processing file %s", entry->d_name);
-
-        zip_entry_open(zip, file_path);
-        int success = zip_entry_fwrite(zip, file_path);
-        if (success < 0) {
-        	dlog_print(DLOG_INFO, LOG_TAG, "adding to zip failed! File will not be deleted!");
-        } else {
-        	remove(file_path);
-        	dlog_print(DLOG_INFO, LOG_TAG, "adding to zip succeeded! File was deleted!");
-        }
-        zip_entry_close(zip);
-      }
-    }
-    closedir(dir);
-    zip_close(zip);
+	}
 
 	free(data_path);
+
+    /* Finalize -- this needs to be the last thing done before closing */
+    mtar_finalize(&tar);
+    /* Close archive */
+    mtar_close(&tar);
+
+	dlog_print(DLOG_INFO, LOG_TAG, "tarring %d log-files finished of total size %d", no_files_tar, tar_size);
+
+    char tar_gz_path[256];
+	snprintf(tar_gz_path, sizeof(tar_gz_path), "%s.gz", tar_path);
+
+	dlog_print(DLOG_INFO, LOG_TAG, "compression started. (%s)", tar_gz_path);
+
+	//code taken from function 'gz_compress' of minigzip ('https://github.com/madler/zlib/blob/master/test/minigzip.c')
+    FILE   *in = fopen(tar_path, "rb");
+    gzFile out = gzopen(tar_gz_path, "w");
+
+    char buf[BUFLEN];
+    int len;
+    int err;
+    for (;;) {
+        len = (int)fread(buf, 1, sizeof(buf), in);
+        if (ferror(in)) {
+        	dlog_print(DLOG_INFO, LOG_TAG, "error in fread when compressing!");
+            return -1;
+        }
+        if (len == 0) break;
+
+        if (gzwrite(out, buf, (unsigned)len) != len) dlog_print(DLOG_INFO, LOG_TAG, "gzerror: %s", gzerror(out, &err));
+    }
+    fclose(in);
+    if (gzclose(out) != Z_OK) {
+    	dlog_print(DLOG_INFO, LOG_TAG, "failed gzclose");
+
+    	device_power_release_lock(POWER_LOCK_CPU);
+    	return -1;
+    }
+
+    //remove tar-file
+    remove(tar_path);
+
+    dlog_print(DLOG_INFO, LOG_TAG, "finished compression.");
+
 	device_power_release_lock(POWER_LOCK_CPU);
 
-	dlog_print(DLOG_INFO, LOG_TAG, "compression finished! (%s)", zip_path);
     return 0;
 }
 
@@ -331,7 +413,7 @@ int share_data(const char* ftp_url) {
     if (d) {
     	while ((dir = readdir(d)) != NULL) {
     		//now dir->d_name stores name of file in dir
-    		if (strncmp(dir->d_name, "logs_",5) == 0 && strcmp(strrchr(dir->d_name, '.'), ".zip") == 0)
+    		if (strncmp(dir->d_name, "logs_",5) == 0 && strcmp(strrchr(dir->d_name, '.'), ".gz") == 0)
     		{
     			dlog_print(DLOG_INFO, LOG_TAG, "processing file %s", dir->d_name);
     			//set correct file_path
@@ -413,7 +495,7 @@ int share_data(const char* ftp_url) {
     			fclose(fd);
     		} else {
     			//dir is either no regular file, its name is shorter than 5 chars or it does not end with .json
-    			dlog_print(DLOG_INFO, LOG_TAG, "skipping 'file' %s", dir->d_name);
+    			//dlog_print(DLOG_INFO, LOG_TAG, "skipping 'file' %s", dir->d_name);
     		}
     	}
     	closedir(d);
@@ -766,7 +848,7 @@ void sensor_start(void *data)
 				ad->running = true;
 				//create folder for logs
 				if(ad->logging) {
-					char logs_path[MAX_PATH];
+					char logs_path[256];
 					char* data_path = app_get_data_path();
 					snprintf(logs_path, sizeof(logs_path), "%s/logs", data_path);
 					free(data_path);
@@ -921,7 +1003,7 @@ void service_app_control(app_control_h app_control, void *data)
            	app_control_reply_to_launch_request(reply, app_control, (success==0) ? APP_CONTROL_RESULT_SUCCEEDED : APP_CONTROL_RESULT_FAILED);
             app_control_destroy(reply);
            	free(app_id);
-            dlog_print(DLOG_INFO, LOG_TAG, "reply sent");
+            dlog_print(DLOG_INFO, LOG_TAG, "reply sent (%d)", success==0);
 
         } else if((caller_id != NULL) && (action_value != NULL)
                 && (!strncmp(caller_id, MYSERVICELAUNCHER_APP_ID, STRNCMP_LIMIT))
@@ -966,7 +1048,7 @@ void service_app_control(app_control_h app_control, void *data)
                	app_control_create(&reply);
                	app_control_get_app_id(app_control, &app_id);
                	app_control_reply_to_launch_request(reply, app_control, (success==0) ? APP_CONTROL_RESULT_SUCCEEDED : APP_CONTROL_RESULT_FAILED);
-                dlog_print(DLOG_INFO, LOG_TAG, "reply sent");
+                dlog_print(DLOG_INFO, LOG_TAG, "reply sent (%d)", success==0);
 
                 app_control_destroy(reply);
                	free(app_id);

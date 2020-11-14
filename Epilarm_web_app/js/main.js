@@ -33,8 +33,9 @@ function load_params() {
     }
 }
 
+//start compression of logs and upload of those to ftp server 
 function start_ftp_upload() {
-	console.log('ftp_upload: checking if wifi is on...');
+	console.log('ftp_upload: checking if wifi is on... TODO'); //TODO
 	//TODO automatically switch on wifi if necessary...
 	/*if(navigator.connection.type != Connection.WIFI) {
 		console.log("ftp_upload: wifi is on, ftp upload can be started!");
@@ -43,7 +44,6 @@ function start_ftp_upload() {
 		
 	}*/
 	//start data compression!
-    console.log('stopping service app...');
     var obj = new tizen.ApplicationControlData('service_action', ['compress_logs']); //you'll find the app id in config.xml file.
     var obj1 = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
         null,
@@ -57,7 +57,7 @@ function start_ftp_upload() {
                 //end loading symbol...
                 tau.closePopup();
                 
-            	//if compression of logs is done, start ftp-upload
+            	//compression of logs is done, start ftp-upload now
                 console.log('ftp_upload: starting service app for ftp upload...');
                 var obj = new tizen.ApplicationControlData('service_action', ['log_upload']);
                 var obj_params = new tizen.ApplicationControlData('params', params.ftpToString());
@@ -99,6 +99,7 @@ function start_ftp_upload() {
                 }
                 //reset popup text
                 document.getElementById('UploadPopupText').innerHTML = 'compressing logs...';
+                
             },
             // callee returned failure
             onfailure: function() {
@@ -113,15 +114,14 @@ function start_ftp_upload() {
         tizen.application.launchAppControl(obj1,
             SERVICE_APP_ID,
             function() {
-                console.log('Starting compression of logs succeeded.');
+                console.log('ftp_upload: Starting compression of logs succeeded.');
             },
             function(e) {
-                console.log('Starting compression of logs failed : ' + e.message);
-            }, null);
+                console.log('ftp_upload: Starting compression of logs failed : ' + e.message);
+            }, appControlReplyCallback);
     } catch (e) {
-        window.alert('Error when starting appcontrol for compressing logs! error msg:' + e.toString());
+        window.alert('ftp_upload: Error when starting appcontrol for compressing logs! error msg:' + e.toString());
     }
-
 }
 
 
