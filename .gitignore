@@ -1,6 +1,16 @@
 Epilarm_web_app/.sign/*
+Epilarm_web_app/.settings/*
+Epilarm_web_app/.package/*
 Epilarm_sensor_service/Debug/*
+Epilarm_sensor_service/Release/*
+Epilarm_sensor_service/SA_Report/*
 Epilarm_sensor_service/.sign/*
 *.tmp
 *.wgt
 log_analysis/logs/*
+*/.cproject
+*/.exportMap
+*/.package-stamp
+*/.project
+*/.tproject
+
