@@ -1,6 +1,5 @@
-build main_build: phony epilarm_sensor_service
+build main_build: phony epilarm_sensor_service sa
 build all: phony main_build
 default all
 edje-cc-dep-options = -deps $out.d
-apichecker-options = -api-version=4.0 -current-profile=wearable -privilege-list=http://tizen.org/privilege/appmanager.launch,http://tizen.org/privilege/internet,http://tizen.org/privilege/notification,http://tizen.org/privilege/display
 binaryName = epilarm_sensor_service

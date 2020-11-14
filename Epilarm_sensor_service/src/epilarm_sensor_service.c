@@ -20,7 +20,9 @@
 #include <fcntl.h>
 #include <glib-object.h>
 #include <json-glib/json-glib.h>
-#include <miniz.h>
+
+//#define _LARGEFILE64_SOURCE 1
+#include <zip.h>
 
 
 //own modules
@@ -119,7 +121,7 @@ void save_log(void *data) {
 	//find appropriate file name and path
 	char file_path[256];
 	char* data_path = app_get_data_path();
-	snprintf(file_path, sizeof(file_path), "%slog_%s.%s", data_path, timebuf, "json");
+	snprintf(file_path, sizeof(file_path), "%s/logs/log_%s.%s", data_path, timebuf, "json");
 	free(data_path);
 
 	dlog_print(DLOG_INFO, LOG_TAG, "save_log: data_path=%s", file_path);
@@ -231,13 +233,12 @@ int compress_logs() {
 	if(device_power_request_lock(POWER_LOCK_CPU, 0) != DEVICE_ERROR_NONE)
 	{
 		dlog_print(DLOG_INFO, LOG_TAG, "could not lock CPU for log compression!");
+		return -1;
 	}
 
-
-	char file_path[256];
+	char file_path[MAX_PATH];
 	char* data_path = app_get_data_path();
-	char zip_path[256];
-	char buff[4096]; //must be large enough to fit one log-file (!!)
+	char zip_path[MAX_PATH];
 
 	//create tar file with appropriate name
 	struct timespec tmnow;
@@ -248,70 +249,50 @@ int compress_logs() {
 	strftime(timebuf, 30, "%Y_%m_%dT%H_%M_%S", tm);
 	snprintf(zip_path, sizeof(zip_path), "%slogs_%s.%s", data_path, timebuf, "zip");
 
+	strcat(data_path, "logs/");
 
-     //iterate over files
-	struct stat file_info;
-	FILE *fd;
-    DIR *d;
-    struct dirent *dir;
-    d = opendir(data_path);
-	dlog_print(DLOG_INFO, LOG_TAG, "reading data in %s", data_path);
-    if (d) {
-    	while ((dir = readdir(d)) != NULL) {
-    		//now dir->d_name stores name of file in dir
-    		if (strncmp(dir->d_name,"log_",4) == 0 && strcmp(strrchr(dir->d_name, '.'), ".json") == 0)
-    		{
-    			dlog_print(DLOG_INFO, LOG_TAG, "processing file %s", dir->d_name);
-    			//set correct file_path
-    			snprintf(file_path, sizeof(file_path), "%s%s", data_path, dir->d_name);
+    DIR *dir;
+    struct dirent *entry;
+    struct stat s;
 
-    			dlog_print(DLOG_INFO, LOG_TAG, "reading %s", file_path);
-
-    			fd = fopen(file_path, "rb"); /* open file to upload */
-    			if(!fd) {
-    				dlog_print(DLOG_INFO, LOG_TAG, "could not open file! (skipping file!)");
-    				continue; // skip this file!
-    			}
-
-    			/* to get the file size */
-    			if(fstat(fileno(fd), &file_info) != 0) {
-    				dlog_print(DLOG_INFO, LOG_TAG, "file is empty? (skipping file!)");
-    				continue; //skip file
-    			}
-
-    			//read data
-    			fgets(buff, file_info.st_size+1, fd); //size+1 as the null char is counted, otherwise last char is cut off
-    			fclose(fd);
-
-				//attach file to zip
-    			int status = mz_zip_add_mem_to_archive_file_in_place(zip_path, dir->d_name, buff, file_info.st_size, "", strlen(""), MZ_BEST_COMPRESSION);
-    			if (!status)
-    			{
-    				dlog_print(DLOG_INFO, LOG_TAG, "mz_zip_add_mem_to_archive_file_in_place failed!");
-    				free(data_path);
-    				device_power_release_lock(POWER_LOCK_CPU);
-    				return -1;
-    			}
-
-				//remove local log file
-				remove(file_path);
-				dlog_print(DLOG_INFO, LOG_TAG, "log-file added to zip and deleted.");
-
-    		} else {
-    			//dir is either no regular file, its name is shorter than 5 chars or it does not end with .json
-    			dlog_print(DLOG_INFO, LOG_TAG, "skipping 'file' %s", dir->d_name);
-    		}
-    	}
-    	closedir(d);
-	} else {
+    dir = opendir(data_path);
+    if (!dir) {
 		dlog_print(DLOG_INFO, LOG_TAG, "directory does not exist or cannot be opened!");
 		free(data_path);
 		device_power_release_lock(POWER_LOCK_CPU);
 		return -1;
-	}
+    }
+    struct zip_t *zip = zip_open(zip_path, ZIP_DEFAULT_COMPRESSION_LEVEL, 'w');
+    while ((entry = readdir(dir))) {
+      // skip "." and ".."
+      if (!strcmp(entry->d_name, ".\0") || !strcmp(entry->d_name, "..\0"))
+        continue;
+
+      dlog_print(DLOG_INFO, LOG_TAG, "processing file %s", entry->d_name);
+
+      snprintf(file_path, sizeof(file_path), "%s%s", data_path, entry->d_name);
+      stat(file_path, &s);
+      if (!S_ISDIR(s.st_mode)) {
+        dlog_print(DLOG_INFO, LOG_TAG, "processing file %s", entry->d_name);
+
+        zip_entry_open(zip, file_path);
+        int success = zip_entry_fwrite(zip, file_path);
+        if (success < 0) {
+        	dlog_print(DLOG_INFO, LOG_TAG, "adding to zip failed! File will not be deleted!");
+        } else {
+        	remove(file_path);
+        	dlog_print(DLOG_INFO, LOG_TAG, "adding to zip succeeded! File was deleted!");
+        }
+        zip_entry_close(zip);
+      }
+    }
+    closedir(dir);
+    zip_close(zip);
 
 	free(data_path);
 	device_power_release_lock(POWER_LOCK_CPU);
+
+	dlog_print(DLOG_INFO, LOG_TAG, "compression finished! (%s)", zip_path);
     return 0;
 }
 
@@ -579,7 +560,7 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 		//dlog_print(DLOG_INFO, LOG_TAG, "sensors read!");
 
 		//each second perform fft analysis -> a second has passed if sampleRate number of new entries were made in rb_X, i.e., if rb_x->idx % sampleRate == 0
-		if((ad->rb_x)->idx % sampleRate == 0)
+		if((ad->rb_x)->idx % 1 == 0)
 		{
 			//TODO remove after extensive testing!!!
 
@@ -783,6 +764,14 @@ void sensor_start(void *data)
 			{
 				dlog_print(DLOG_INFO, LOG_TAG, "Sensor listener started.");
 				ad->running = true;
+				//create folder for logs
+				if(ad->logging) {
+					char logs_path[MAX_PATH];
+					char* data_path = app_get_data_path();
+					snprintf(logs_path, sizeof(logs_path), "%s/logs", data_path);
+					free(data_path);
+					mkdir(logs_path, 0700);
+				}
 			}
 		}
 	}

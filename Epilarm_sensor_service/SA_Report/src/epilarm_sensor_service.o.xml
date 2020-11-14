@@ -1,0 +1,452 @@
+<?xml version= "1.0"?>
+<ConsolidatedReport>
+<ReportId>1</ReportId>
+<Report>
+   <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+   <LINE>119</LINE>
+   <COLUMN>2</COLUMN>
+   <Type>Potential insecure memory buffer bounds restriction in call 'strcat'</Type>
+   <Severity>MID</Severity>
+   <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+   <Events>
+      <Event>
+         <Id>1</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+         <LINE>119</LINE>
+         <COLUMN>2</COLUMN>
+         <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+      </Event>
+   </Events>
+</Report>
+<ReportId>2</ReportId>
+<Report>
+   <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+   <LINE>252</LINE>
+   <COLUMN>2</COLUMN>
+   <Type>Potential insecure memory buffer bounds restriction in call 'strcat'</Type>
+   <Severity>MID</Severity>
+   <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+   <Events>
+      <Event>
+         <Id>1</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+         <LINE>252</LINE>
+         <COLUMN>2</COLUMN>
+         <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+      </Event>
+   </Events>
+</Report>
+<ReportId>3</ReportId>
+<Report>
+   <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+   <LINE>296</LINE>
+   <COLUMN>12</COLUMN>
+   <Type>Resource Leak</Type>
+   <Severity>MID</Severity>
+   <DES><![CDATA[Opened file is never closed; potential resource leak]]></DES>
+   <Events>
+      <Event>
+         <Id>1</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+         <LINE>233</LINE>
+         <COLUMN>5</COLUMN>
+         <DES><![CDATA[Assuming the condition is false]]></DES>
+      </Event>
+      <Event>
+         <Id>2</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+         <LINE>233</LINE>
+         <COLUMN>2</COLUMN>
+         <DES><![CDATA[Taking false branch]]></DES>
+      </Event>
+      <Event>
+         <Id>3</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+         <LINE>259</LINE>
+         <COLUMN>9</COLUMN>
+         <DES><![CDATA[Assuming 'dir' is non-null]]></DES>
+      </Event>
+      <Event>
+         <Id>4</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+         <LINE>259</LINE>
+         <COLUMN>5</COLUMN>
+         <DES><![CDATA[Taking false branch]]></DES>
+      </Event>
+      <Event>
+         <Id>5</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+         <LINE>265</LINE>
+         <COLUMN>25</COLUMN>
+         <DES><![CDATA[Calling 'zip_open']]></DES>
+      </Event>
+      <Event>
+         <Id>6</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\zip.c</FILE>
+         <LINE>181</LINE>
+         <COLUMN>7</COLUMN>
+         <DES><![CDATA[Left side of '||' is false]]></DES>
+      </Event>
+      <Event>
+         <Id>7</Id>
+         <FILE>C:/Program Files (x86)\Tizen_Studio\tools\smart-build-interface\..\..\platforms\tizen-4.0\wearable\rootstraps\wearable-4.0-device.core\usr\include\glib-2.0\gio\giostream.h</FILE>
+         <LINE>131</LINE>
+         <COLUMN>26</COLUMN>
+         <DES><![CDATA[Assuming the condition is false]]></DES>
+      </Event>
+      <Event>
+         <Id>8</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\zip.c</FILE>
+         <LINE>181</LINE>
+         <COLUMN>3</COLUMN>
+         <DES><![CDATA[Taking false branch]]></DES>
+      </Event>
+      <Event>
+         <Id>9</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\zip.c</FILE>
+         <LINE>186</LINE>
+         <COLUMN>3</COLUMN>
+         <DES><![CDATA[Taking false branch]]></DES>
+      </Event>
+      <Event>
+         <Id>10</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\zip.c</FILE>
+         <LINE>188</LINE>
+         <COLUMN>3</COLUMN>
+         <DES><![CDATA[Taking false branch]]></DES>
+      </Event>
+      <Event>
+         <Id>11</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\zip.c</FILE>
+         <LINE>194</LINE>
+         <COLUMN>7</COLUMN>
+         <DES><![CDATA[Assuming 'zip' is non-null]]></DES>
+      </Event>
+      <Event>
+         <Id>12</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\zip.c</FILE>
+         <LINE>194</LINE>
+         <COLUMN>3</COLUMN>
+         <DES><![CDATA[Taking false branch]]></DES>
+      </Event>
+      <Event>
+         <Id>13</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\zip.c</FILE>
+         <LINE>198</LINE>
+         <COLUMN>3</COLUMN>
+         <DES><![CDATA[Control jumps to 'case 119:'  at line 199]]></DES>
+      </Event>
+      <Event>
+         <Id>14</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\zip.c</FILE>
+         <LINE>201</LINE>
+         <COLUMN>10</COLUMN>
+         <DES><![CDATA[Calling 'mz_zip_writer_init_file']]></DES>
+      </Event>
+      <Event>
+         <Id>15</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\inc\miniz.h</FILE>
+         <LINE>5870</LINE>
+         <COLUMN>3</COLUMN>
+         <DES><![CDATA[Taking false branch]]></DES>
+      </Event>
+      <Event>
+         <Id>17</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\inc\miniz.h</FILE>
+         <LINE>5872</LINE>
+         <COLUMN>24</COLUMN>
+         <DES><![CDATA[Within macro expansion, File is opened]]></DES>
+      </Event>
+      <Event>
+         <Id>18</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\inc\miniz.h</FILE>
+         <LINE>5872</LINE>
+         <COLUMN>3</COLUMN>
+         <DES><![CDATA[Taking false branch]]></DES>
+      </Event>
+      <Event>
+         <Id>19</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\inc\miniz.h</FILE>
+         <LINE>5877</LINE>
+         <COLUMN>3</COLUMN>
+         <DES><![CDATA[Taking false branch]]></DES>
+      </Event>
+      <Event>
+         <Id>20</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\zip.c</FILE>
+         <LINE>201</LINE>
+         <COLUMN>10</COLUMN>
+         <DES><![CDATA[Opened File]]></DES>
+      </Event>
+      <Event>
+         <Id>21</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\zip.c</FILE>
+         <LINE>201</LINE>
+         <COLUMN>5</COLUMN>
+         <DES><![CDATA[Taking false branch]]></DES>
+      </Event>
+      <Event>
+         <Id>22</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\zip.c</FILE>
+         <LINE>205</LINE>
+         <COLUMN>5</COLUMN>
+         <DES><![CDATA[ Execution continues on line 228]]></DES>
+      </Event>
+      <Event>
+         <Id>23</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+         <LINE>265</LINE>
+         <COLUMN>25</COLUMN>
+         <DES><![CDATA[Opened File]]></DES>
+      </Event>
+      <Event>
+         <Id>24</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+         <LINE>266</LINE>
+         <COLUMN>5</COLUMN>
+         <DES><![CDATA[Loop condition is false. Execution continues on line 289]]></DES>
+      </Event>
+      <Event>
+         <Id>25</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+         <LINE>296</LINE>
+         <COLUMN>12</COLUMN>
+         <DES><![CDATA[Opened file is never closed; potential resource leak]]></DES>
+      </Event>
+   </Events>
+</Report>
+<ReportId>4</ReportId>
+<Report>
+   <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+   <LINE>366</LINE>
+   <COLUMN>9</COLUMN>
+   <Type>Potential insecure memory buffer bounds restriction in call 'strcpy'</Type>
+   <Severity>MID</Severity>
+   <DES><![CDATA[Call to function 'strcpy' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcpy'. CWE-119]]></DES>
+   <Events>
+      <Event>
+         <Id>1</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+         <LINE>366</LINE>
+         <COLUMN>9</COLUMN>
+         <DES><![CDATA[Call to function 'strcpy' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcpy'. CWE-119]]></DES>
+      </Event>
+   </Events>
+</Report>
+<ReportId>5</ReportId>
+<Report>
+   <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+   <LINE>367</LINE>
+   <COLUMN>9</COLUMN>
+   <Type>Potential insecure memory buffer bounds restriction in call 'strcat'</Type>
+   <Severity>MID</Severity>
+   <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+   <Events>
+      <Event>
+         <Id>1</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+         <LINE>367</LINE>
+         <COLUMN>9</COLUMN>
+         <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+      </Event>
+   </Events>
+</Report>
+<ReportId>6</ReportId>
+<Report>
+   <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+   <LINE>943</LINE>
+   <COLUMN>11</COLUMN>
+   <Type>Potential insecure memory buffer bounds restriction in call 'strcpy'</Type>
+   <Severity>MID</Severity>
+   <DES><![CDATA[Call to function 'strcpy' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcpy'. CWE-119]]></DES>
+   <Events>
+      <Event>
+         <Id>1</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+         <LINE>943</LINE>
+         <COLUMN>11</COLUMN>
+         <DES><![CDATA[Call to function 'strcpy' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcpy'. CWE-119]]></DES>
+      </Event>
+   </Events>
+</Report>
+<ReportId>7</ReportId>
+<Report>
+   <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+   <LINE>944</LINE>
+   <COLUMN>11</COLUMN>
+   <Type>Potential insecure memory buffer bounds restriction in call 'strcat'</Type>
+   <Severity>MID</Severity>
+   <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+   <Events>
+      <Event>
+         <Id>1</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+         <LINE>944</LINE>
+         <COLUMN>11</COLUMN>
+         <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+      </Event>
+   </Events>
+</Report>
+<ReportId>8</ReportId>
+<Report>
+   <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+   <LINE>945</LINE>
+   <COLUMN>11</COLUMN>
+   <Type>Potential insecure memory buffer bounds restriction in call 'strcat'</Type>
+   <Severity>MID</Severity>
+   <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+   <Events>
+      <Event>
+         <Id>1</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+         <LINE>945</LINE>
+         <COLUMN>11</COLUMN>
+         <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+      </Event>
+   </Events>
+</Report>
+<ReportId>9</ReportId>
+<Report>
+   <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+   <LINE>946</LINE>
+   <COLUMN>11</COLUMN>
+   <Type>Potential insecure memory buffer bounds restriction in call 'strcat'</Type>
+   <Severity>MID</Severity>
+   <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+   <Events>
+      <Event>
+         <Id>1</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+         <LINE>946</LINE>
+         <COLUMN>11</COLUMN>
+         <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+      </Event>
+   </Events>
+</Report>
+<ReportId>10</ReportId>
+<Report>
+   <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+   <LINE>947</LINE>
+   <COLUMN>11</COLUMN>
+   <Type>Potential insecure memory buffer bounds restriction in call 'strcat'</Type>
+   <Severity>MID</Severity>
+   <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+   <Events>
+      <Event>
+         <Id>1</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+         <LINE>947</LINE>
+         <COLUMN>11</COLUMN>
+         <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+      </Event>
+   </Events>
+</Report>
+<ReportId>11</ReportId>
+<Report>
+   <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+   <LINE>948</LINE>
+   <COLUMN>11</COLUMN>
+   <Type>Potential insecure memory buffer bounds restriction in call 'strcat'</Type>
+   <Severity>MID</Severity>
+   <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+   <Events>
+      <Event>
+         <Id>1</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+         <LINE>948</LINE>
+         <COLUMN>11</COLUMN>
+         <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+      </Event>
+   </Events>
+</Report>
+<ReportId>12</ReportId>
+<Report>
+   <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+   <LINE>949</LINE>
+   <COLUMN>11</COLUMN>
+   <Type>Potential insecure memory buffer bounds restriction in call 'strcat'</Type>
+   <Severity>MID</Severity>
+   <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+   <Events>
+      <Event>
+         <Id>1</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+         <LINE>949</LINE>
+         <COLUMN>11</COLUMN>
+         <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+      </Event>
+   </Events>
+</Report>
+<ReportId>13</ReportId>
+<Report>
+   <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+   <LINE>950</LINE>
+   <COLUMN>11</COLUMN>
+   <Type>Potential insecure memory buffer bounds restriction in call 'strcat'</Type>
+   <Severity>MID</Severity>
+   <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+   <Events>
+      <Event>
+         <Id>1</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+         <LINE>950</LINE>
+         <COLUMN>11</COLUMN>
+         <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+      </Event>
+   </Events>
+</Report>
+<ReportId>14</ReportId>
+<Report>
+   <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+   <LINE>951</LINE>
+   <COLUMN>11</COLUMN>
+   <Type>Potential insecure memory buffer bounds restriction in call 'strcat'</Type>
+   <Severity>MID</Severity>
+   <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+   <Events>
+      <Event>
+         <Id>1</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+         <LINE>951</LINE>
+         <COLUMN>11</COLUMN>
+         <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+      </Event>
+   </Events>
+</Report>
+<ReportId>15</ReportId>
+<Report>
+   <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+   <LINE>952</LINE>
+   <COLUMN>11</COLUMN>
+   <Type>Potential insecure memory buffer bounds restriction in call 'strcat'</Type>
+   <Severity>MID</Severity>
+   <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+   <Events>
+      <Event>
+         <Id>1</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+         <LINE>952</LINE>
+         <COLUMN>11</COLUMN>
+         <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+      </Event>
+   </Events>
+</Report>
+<ReportId>16</ReportId>
+<Report>
+   <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+   <LINE>953</LINE>
+   <COLUMN>11</COLUMN>
+   <Type>Potential insecure memory buffer bounds restriction in call 'strcat'</Type>
+   <Severity>MID</Severity>
+   <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+   <Events>
+      <Event>
+         <Id>1</Id>
+         <FILE>C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\..\src\epilarm_sensor_service.c</FILE>
+         <LINE>953</LINE>
+         <COLUMN>11</COLUMN>
+         <DES><![CDATA[Call to function 'strcat' is insecure as it does not provide bounding of the memory buffer. Replace unbounded copy functions with analogous functions that support length arguments such as 'strlcat'. CWE-119]]></DES>
+      </Event>
+   </Events>
+</Report>
+</ConsolidatedReport>
