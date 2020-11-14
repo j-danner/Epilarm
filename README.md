@@ -29,32 +29,41 @@ Below you can find a task-list which indicates the current state of the project 
   - [x] send notification on shutdown (if not triggered by UI) to detect when it _crashes_
   - [x] complete logging of (analyzed) data (in order to later optimize default values); collect data for up to one week (timestamp, minFreq, maxFreq, complete simplified freqs, alarmstate, avg_roi_x|y|z, avg_nroi_x|y|z, avg_roi, multRatio --> 62 data points per second)
   - [x] implement data transfer to Raspberry Pi 4 (running home assistant) via FTP (to be triggered via button in UI)
-  - [x] zip all log files before upload
+  - [x] tar and gzip all log files before upload
+  - [ ] optimize analysis, i.e., remove the (unnecessary) aggregation of the spectra in 0.5Hz bins
   - [x] implement basic functionality for ftp upload
   - [x] start UI (web app) if alarmstate changes (and app is not running)
   - [ ] raise alarm by initializing phone call and/or send SMS (write companion app for Android or stick to LTE version of smart watch/can we use Samsung's very own SOS system?)
   - [ ] read GPS data every now and then s.t. it can be sent as an attachment of the alarm notification 
  
-- Tizen Web Application (javascript):
-  - [x] UI that allows starting and stopping of analysis of native service app
-  - [x] basic setup of UI (three pages: _settings_ - _on-off-switch_ - _graphs_)
+ 
+- [Tizen Web Application](https://docs.tizen.org/application/web/index) (javascript):
+  - [x] UI that allows starting and stopping of seizure detection of native service app
+  - [x] basic setup of UI (one list, on the top switch to toggle analysis, below settings, last infos on app)
   - [x] check on start of UI if service app is running (and initialize button correctly!)
   - [x] button for sending collected internal data via FTP to specified IP address
-  - [x] settings (that are sent to service app on startup):
-   - **mandatory** warnTime, mult_thresh, roi_thresh, min|maxFreq (only in 0.5Hz steps)
-   - **optional**  FTP server info 
-  - [x] UI to change default values of *mandatory*/*optional* settings (see above)
-  - [x] save settings to local storage
+  - [x] settings, sent to service app on startup of seizure detection:
+   - warnTime, mult_thresh, roi_thresh, min|maxFreq (only in 0.5Hz steps)
+  - [x] settings, sent to service app when compressing logs and uploading to FTP server:
+   - hostname, port, username, password, path
+  - [x] UI to change default values of params (see above)
+  - [x] save settings to local storage and load them from there
+  - [x] if something goes wrong in the service app, give appropriate popup warnings in UI (compression failed, upload failed, seizure detection failed)
+
 
 - Python Log Analysis:
-  - [ ] download zips from ftp server
+  - [ ] download tars from ftp server
   - [x] convert json into python-dicts
-  - [x] automatic analysis of 'gaps' between measurements
+  - [x] (automatic) analysis of 'gaps' between measurements
+  - [ ] verify c-implementation that multRatio, avgROI (etc) are computed correctly from the spectrum, then remove those from the logs
   - [ ] using list of timestamps from actual seazures and their corresponding logs, optimize params of analysis
   
 other todos:
- - [ ] generate widget that shows if the app and service are running correctly (?)
- - [ ] create logo
+ - [ ] optimize battery usage (currently 4.2%/h battery on SM-R820 with logging enabled)
+  - with/without logging (try to minimize the difference, logging is (at least for now) extremely important!)
+  - decrease sampleRate (beware of aliasing effects!)
  - [x] make first prototype available to first _real_ test person (not just my shaky hand)
  - [ ] clarify which LICENSE can be used
+ - [ ] create logo
+
  
