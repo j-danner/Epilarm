@@ -56,6 +56,49 @@ function start_ftp_upload() {
                 console.log('ftp_upload: compression done.');
                 //end loading symbol...
                 tau.closePopup();
+                
+            	//if compression of logs is done, start ftp-upload
+                console.log('ftp_upload: starting service app for ftp upload...');
+                var obj = new tizen.ApplicationControlData('service_action', ['log_upload']);
+                var obj_params = new tizen.ApplicationControlData('params', params.ftpToString());
+                var obj1 = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
+                    null,
+                    null,
+                    null, [obj, obj_params]
+                );
+                var appControlReplyCallback = {
+                    // callee sent a reply
+                    onsuccess: function(data) {
+                        console.log('ftp_upload: ftp-upload done.');
+                        //end loading symbol...
+                        tau.closePopup();
+                    },
+                    // callee returned failure
+                    onfailure: function() {
+                        console.log('ftp_upload: ftp-upload failed.');
+                        //end loading popup
+                        tau.closePopup();
+                        //show upload failed popup
+                        tau.openPopup('#UploadFailedPopup');
+                    }
+                };
+                try {
+                    tizen.application.launchAppControl(obj1,
+                        SERVICE_APP_ID,
+                        function() {
+                            console.log('ftp_upload: Log upload starting succeeded');
+                            //update text in popup
+                            document.getElementById('UploadPopupText').innerHTML = 'uploading logs...';
+                        },
+                        function(e) {
+                            console.log('ftp_upload: Log upload starting failed : ' + e.message);
+                            tau.closePopup();
+                        }, appControlReplyCallback);
+                } catch (e) {
+                    window.alert('ftp_upload: Error when starting appcontrol! error msg:' + e.toString());
+                }
+                //reset popup text
+                document.getElementById('UploadPopupText').innerHTML = 'compressing logs...';
             },
             // callee returned failure
             onfailure: function() {
@@ -79,48 +122,6 @@ function start_ftp_upload() {
         window.alert('Error when starting appcontrol for compressing logs! error msg:' + e.toString());
     }
 
-	
-    console.log('ftp_upload: starting service app for ftp upload...');
-    var obj = new tizen.ApplicationControlData('service_action', ['log_upload']);
-    var obj_params = new tizen.ApplicationControlData('params', params.ftpToString());
-    var obj1 = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
-        null,
-        null,
-        null, [obj, obj_params]
-    );
-    var appControlReplyCallback = {
-        // callee sent a reply
-        onsuccess: function(data) {
-            console.log('ftp_upload: ftp-upload done.');
-            //end loading symbol...
-            tau.closePopup();
-        },
-        // callee returned failure
-        onfailure: function() {
-            console.log('ftp_upload: ftp-upload failed.');
-            //end loading popup
-            tau.closePopup();
-            //show upload failed popup
-            tau.openPopup('#UploadFailedPopup');
-        }
-    };
-    try {
-        tizen.application.launchAppControl(obj1,
-            SERVICE_APP_ID,
-            function() {
-                console.log('ftp_upload: Log upload starting succeeded');
-                //update text in popup
-                document.getElementById('UploadPopupText').innerHTML = 'uploading logs...';
-            },
-            function(e) {
-                console.log('ftp_upload: Log upload starting failed : ' + e.message);
-                tau.closePopup();
-            }, appControlReplyCallback);
-    } catch (e) {
-        window.alert('ftp_upload: Error when starting appcontrol! error msg:' + e.toString());
-    }
-    //reset popup text
-    document.getElementById('UploadPopupText').innerHTML = 'compressing logs...';
 }
 
 
