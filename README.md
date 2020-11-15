@@ -55,13 +55,14 @@ Below you can find a task-list which indicates the current state of the project 
   - [ ] download tars from ftp server
   - [x] convert json into python-dicts
   - [x] (automatic) analysis of 'gaps' between measurements
-  - [ ] verify c-implementation that multRatio, avgROI (etc) are computed correctly from the spectrum, then remove those from the logs
-  - [ ] using list of timestamps from actual seazures and their corresponding logs, optimize params of analysis
+  - [ ] verify c-implementation, i.e., comptuation of multRatio, avgROI (etc) from the spectrum, then remove those values from the logs
+  - [ ] using list of timestamps from actual seazures and their corresponding logs, optimize params of analysis s.t. less false alarms are raised but still all seizures detected
   
 other todos:
  - [ ] optimize battery usage (currently 4.2%/h battery on SM-R820 with logging enabled)
   - with/without logging (try to minimize the difference, logging is (at least for now) extremely important!)
   - decrease sampleRate (beware of aliasing effects!)
+ - [ ] check whether _night mode_ affects actual sampling rate
  - [x] make first prototype available to first _real_ test person (not just my shaky hand)
  - [ ] clarify which LICENSE can be used
  - [ ] create logo
