@@ -19,11 +19,11 @@ directory and its entire contents into the "local_dir".
 def _is_ftp_dir(ftp_handle, name, guess_by_extension=True):
     """ simply determines if an item listed on the ftp server is a valid directory or not """
 
-    # if the name has a "." in the fourth to last position, its probably a file extension
+    # if the name has a "." in the fourth or fifth to last position, its probably a file extension
     # this is MUCH faster than trying to set every file to a working directory, and will work 99% of time.
     if guess_by_extension is True:
         if len(name) >= 4:
-            if name[-4] == '.':
+            if name[-4] == '.' or name[-5] == '.':
                 return False
 
     original_cwd = ftp_handle.pwd()  # remember the current working directory
@@ -33,11 +33,11 @@ def _is_ftp_dir(ftp_handle, name, guess_by_extension=True):
         return True
 
     except ftplib.error_perm as e:
-        print(e)
+        #print(e)
         return False
 
     except Exception as e:
-        print(e)
+        #print(e)
         return False
 
 

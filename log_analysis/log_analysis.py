@@ -1,33 +1,48 @@
+### download tar.gz of log files ###
 import ftplib
 import ftp
 
-### download log files ###
 mysite = "192.168.178.33"
 username = "admin"
 password = "T5tUZKVKWq8FPAh5"
-remote_dir = "share/epilarm/log/"
-local_dir = "/home/julian/Epilarm/log_analysis/logs/"
+port = "21"
+remote_dir = "share/epilarm/log/jul/"
+#url = 'ftp://'+username+":"+password+"@"+mysite+":"+port+"/"+remote_dir+"/"
 ftp_server = ftplib.FTP(mysite, username, password)
 ftp.download_ftp_tree(ftp_server, remote_dir, local_dir, overwrite=False, guess_by_extension=True)
 
 
-### read json files ###
-import os
-import json
 
+### extract log files ###
+import tarfile
+import os
+
+dir = local_dir + remote_dir
+log_dir = dir + "json_logs/"
+
+for filename in os.listdir(dir):
+    if filename.endswith(".tar.gz"):
+        tar = tarfile.open(dir+filename, "r:gz")
+        tar.extractall(path=dir+"/json_logs")
+        tar.close()
+
+# json-log-files can now be found in log_dir
+
+
+
+### read json files ###
+import json
 
 def parse_nan_inf(arg):
     print("got:",arg)
     c = {"-Infinity":-float("inf"), "Infinity":float("inf"), "NaN":float("nan")}
     return c[arg]
 
-
-dir = local_dir + remote_dir
 logs = []
 
-for filename in os.listdir(dir):
+for filename in os.listdir(log_dir):
     if filename.endswith(".json"):
-        f = open(dir + filename)
+        f = open(log_dir + filename)
         try:
           logs.append(json.load(f, parse_constant=parse_nan_inf))
         except ValueError:
@@ -42,7 +57,8 @@ for filename in os.listdir(dir):
 from datetime import datetime, timedelta
 
 for i in range(0,len(logs)):
-  logs[i].update({'time': datetime.strptime(logs[i][u'time'], '%Y-%m-%dT%H:%M:%S.%f')})
+    logs[i].update({'time': datetime.strptime(logs[i][u'time'], '%Y-%m-%dT%H:%M:%S.%f')})
+
 
 #sort by timestamp
 logs = sorted(logs, key=lambda k: k['time']) 
@@ -71,7 +87,7 @@ def find_gaps(logs, timeframe_hours=24, gap_size_secs=1.5, gap_size_secs_max=-1)
     print ("The average length of a gap was " + str(avg_gap_len/no_gaps))
 
 
-find_gaps(logs, timeframe_hours=12, gap_size_secs=1.5, gap_size_secs_max=600)
+find_gaps(logs, timeframe_hours=3, gap_size_secs=1.2, gap_size_secs_max=6000)
 
 
 #remove logs older than 1 day
