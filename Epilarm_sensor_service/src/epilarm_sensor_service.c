@@ -12,6 +12,7 @@
 //tizen...
 #include <sensor.h>
 #include <device/power.h>
+#include <device/battery.h>
 #include <notification.h>
 
 //ftp
@@ -120,6 +121,10 @@ void save_log(void *data) {
 	sprintf(nsec_buf, "%d", (int) round(tmnow.tv_nsec/1000000));
 	strcat(timebuf, nsec_buf);
 
+        //read battery status
+        int battery_status = -1;
+        device_battery_get_percent(battery_status);
+
 	//find appropriate file name and path
 	char file_path[256];
 	char* data_path = app_get_data_path();
@@ -135,6 +140,10 @@ void save_log(void *data) {
 	//add timestamp
 	json_builder_set_member_name (builder, "time");
 	json_builder_add_string_value (builder, timebuf);
+
+	//add battery percentage
+	json_builder_set_member_name (builder, "battery");
+	json_builder_add_int_value (builder, battery_status);
 
 	//add alarmstate
 	json_builder_set_member_name (builder, "alarmstate");

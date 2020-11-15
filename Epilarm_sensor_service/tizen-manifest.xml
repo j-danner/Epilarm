@@ -16,6 +16,7 @@
         <privilege>http://tizen.org/privilege/notification</privilege>
         <privilege>http://tizen.org/privilege/display</privilege>
     </privileges>
+    <feature name="http://tizen.org/feature/battery">true</feature>
     <feature name="http://tizen.org/feature/network.internet">true</feature>
     <feature name="http://tizen.org/feature/sensor.linear_acceleration">true</feature>
 </manifest>
