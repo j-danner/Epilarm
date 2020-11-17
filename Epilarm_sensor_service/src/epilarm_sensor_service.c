@@ -18,14 +18,12 @@
 //ftp
 #include <curl/curl.h>
 #include <sys/stat.h>
-#include <fcntl.h>
 #include <glib-object.h>
 #include <json-glib/json-glib.h>
 
 #define _FILE_OFFSET_BITS 64
 #include <zlib.h>
 #include <microtar.h>
-#define BUFLEN      16384
 
 
 
@@ -35,6 +33,9 @@
 
 
 
+#define BUFLEN 16384
+#define MAX_PATH 256
+#define MAX_URL_LEN 256
 
 
 // some constant values used in the app
@@ -127,7 +128,7 @@ void save_log(void *data) {
     device_battery_get_percent(&battery_status);
 
 	//find appropriate file name and path
-	char file_path[256];
+	char file_path[MAX_PATH];
 	char* data_path = app_get_data_path();
 	snprintf(file_path, sizeof(file_path), "%s/logs/log_%s.%s", data_path, timebuf, "json");
 	free(data_path);
@@ -247,9 +248,9 @@ int compress_logs() {
 		return -1;
 	}
 
-	char file_path[256];
+	char file_path[MAX_PATH];
 	char* data_path = app_get_data_path();
-	char tar_path[256];
+	char tar_path[MAX_PATH];
 	char buff[2048]; //must be large enough to fit one log-file (!!)
 
 	//create tar file with appropriate name
@@ -327,7 +328,6 @@ int compress_logs() {
 	} else {
 		dlog_print(DLOG_INFO, LOG_TAG, "directory does not exist or cannot be opened!");
 		free(data_path);
-    	closedir(d);
 
 	    mtar_finalize(&tar);
 	    mtar_close(&tar);
@@ -343,7 +343,7 @@ int compress_logs() {
 
 	dlog_print(DLOG_INFO, LOG_TAG, "tarring %d log-files finished of total size %d", no_files_tar, tar_size);
 
-    char tar_gz_path[256];
+    char tar_gz_path[MAX_PATH];
 	snprintf(tar_gz_path, sizeof(tar_gz_path), "%s.gz", tar_path);
 
 	dlog_print(DLOG_INFO, LOG_TAG, "compression started. (%s)", tar_gz_path);
@@ -425,9 +425,9 @@ int share_data(const char* ftp_url) {
 	FILE *fd;
 
     //get local data path
-	char file_path[256];
+	char file_path[MAX_PATH];
 	char* data_path = app_get_data_path();
-	char URL[256]; //should be large enough to store ad->ftp_url + filename!
+	char URL[MAX_URL_LEN]; //should be large enough to store ad->ftp_url + filename!
 
     //iterate over files:
     DIR *d;
@@ -666,7 +666,7 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 		//dlog_print(DLOG_INFO, LOG_TAG, "sensors read!");
 
 		//each second perform fft analysis -> a second has passed if sampleRate number of new entries were made in rb_X, i.e., if rb_x->idx % sampleRate == 0
-		if((ad->rb_x)->idx % 1 == 0)
+		if((ad->rb_x)->idx % sampleRate == 0)
 		{
 			//TODO remove after extensive testing!!!
 
@@ -872,7 +872,7 @@ void sensor_start(void *data)
 				ad->running = true;
 				//create folder for logs
 				if(ad->logging) {
-					char logs_path[256];
+					char logs_path[MAX_PATH];
 					char* data_path = app_get_data_path();
 					snprintf(logs_path, sizeof(logs_path), "%s/logs", data_path);
 					free(data_path);
@@ -1044,7 +1044,7 @@ void service_app_control(app_control_h app_control, void *data)
             			length, params[0], params[1], params[2], params[3], params[4]);
             	//set new params
             	dlog_print(DLOG_INFO, LOG_TAG, "Starting sharing of logs!");
-               	char ftp_url[256];
+               	char ftp_url[MAX_URL_LEN];
             	//assemble ftp url
         		strcpy(ftp_url, "ftp://");
         		strcat(ftp_url, params[2]); //username
