@@ -30,7 +30,7 @@ More information on the current state, future plans and other todos can be found
 
 
 ## Libraries/Files used in this project
- - [c-ringbuf](https://github.com/dhess/c-ringbuf) for fast ringbuffers in c
+ - [c-ringbuf](https://github.com/dhess/c-ringbuf) for (fast) ringbuffers in c (removed all unnecessary parts)
  - [fft-c](https://github.com/adis300/fft-c) for FFT computation, based on [FFTPack](http://www.netlib.org/fftpack/)
  - [MicroTar](https://github.com/rxi/microtar) for tarring of logs before compression (to be precise we use this [PR](https://github.com/byronhe/microtar))
  - apart from that only the standard C-libraries and those included in the [Tizen API](https://docs.tizen.org/application/native/api/wearable/5.5/group__CAPI__BASE__FRAMEWORK.html) are used (among others [glibc](http://www.gnu.org/software/libc/) and [zlib](http://www.zlib.net/)).
