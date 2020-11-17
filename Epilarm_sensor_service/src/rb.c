@@ -7,8 +7,6 @@
 #include <stdlib.h>
 
 
-
-
 //create new ringbuf
 ringbuf_t ringbuf_new(int capacity)
 {

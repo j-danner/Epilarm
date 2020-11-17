@@ -28,6 +28,7 @@
 #define BUFLEN      16384
 
 
+
 //own modules
 #include <fft.h>
 #include <rb.h>
@@ -118,12 +119,12 @@ void save_log(void *data) {
 	clock_gettime(CLOCK_REALTIME, &tmnow);
 	tm = localtime(&tmnow.tv_sec);
 	strftime(timebuf, 30, "%Y-%m-%dT%H:%M:%S.", tm);
-	sprintf(nsec_buf, "%d", (int) round(tmnow.tv_nsec/1000000));
+	sprintf(nsec_buf, "%03d", (int) round(tmnow.tv_nsec/1000000));
 	strcat(timebuf, nsec_buf);
 
-        //read battery status
-        int battery_status = -1;
-        device_battery_get_percent(battery_status);
+    //read battery status
+    int battery_status = -1;
+    device_battery_get_percent(&battery_status);
 
 	//find appropriate file name and path
 	char file_path[256];
@@ -229,7 +230,6 @@ void save_log(void *data) {
 
 	dlog_print(DLOG_INFO, LOG_TAG, "save_log: content with len %d is = '%s'", strlen(str), str);
 
-
 	//write contents to file
     FILE *fp;
     fp = fopen(file_path, "w");
@@ -237,7 +237,7 @@ void save_log(void *data) {
     fclose(fp);
 }
 
-//compress all locally stored logs (all files ending with .json)
+//compress all locally stored logs (all files ending with .json) (after successful compression, log-files are deleted)
 int compress_logs() {
 	dlog_print(DLOG_INFO, LOG_TAG, "compress_logs: start");
 
@@ -303,19 +303,16 @@ int compress_logs() {
     			//read data
     			fgets(buff, file_info.st_size+1, fd);
     			fclose(fd);
-    			//dlog_print(DLOG_INFO, LOG_TAG, "file content read into buffer.");
     			tar_size = tar_size + file_info.st_size+1;
 
 				//attach file to tar
 				mtar_write_file_header(&tar, dir->d_name, file_info.st_size);
-    			//dlog_print(DLOG_INFO, LOG_TAG, "updated header.");
 				mtar_write_data(&tar, buff, file_info.st_size);
-    			//dlog_print(DLOG_INFO, LOG_TAG, "wrote data.");
 				no_files_tar = no_files_tar + 1;
 
 				//remove local log file
 				remove(file_path);
-				dlog_print(DLOG_INFO, LOG_TAG, "%d: log-file %s added to tar and deleted. (total size: %d)", no_files_tar, dir->d_name, tar_size);
+				dlog_print(DLOG_INFO, LOG_TAG, "%d: log-file %s added to tar. (total size: %d)", no_files_tar, dir->d_name, tar_size);
 
 				//end appending of logs, if tar gets too large ,i.e., larger than 2^32 bytes.
 				if (no_files_tar > 2097151) { // 2^32/2048 = 2097152
@@ -338,8 +335,6 @@ int compress_logs() {
 		device_power_release_lock(POWER_LOCK_CPU);
 		return -1;
 	}
-
-	free(data_path);
 
     /* Finalize -- this needs to be the last thing done before closing */
     mtar_finalize(&tar);
@@ -378,10 +373,29 @@ int compress_logs() {
     	return -1;
     }
 
+    //remove tar- and log-files
+    dlog_print(DLOG_INFO, LOG_TAG, "removing tar- and log-files.");
     //remove tar-file
     remove(tar_path);
+    //traverse log-files and delete them
+    d = opendir(data_path);
+    if(!d) dlog_print(DLOG_INFO, LOG_TAG, "could no open directory to delete log-files!"); //since we opened them just before, we should still be able to open them ;)
+   	while ((dir = readdir(d)) != NULL) {
+   		if (strncmp(dir->d_name,"log_",4) == 0 && strcmp(strrchr(dir->d_name, '.'), ".json") == 0)
+   		{
+   			//set correct file_path
+   			snprintf(file_path, sizeof(file_path), "%s%s", data_path, dir->d_name);
+			//remove log file
+			remove(file_path);
+			//WARNING! here ALL files are deleted, it may happen that if tar is too large, some logs are skipped, this - however - only
+			//         comes into play, when more than 2^21 logs have to be tarred. This is data worth ~3.5 weeks of continuous logging, so we may ignore this case!
+			//         (I suspect that the space on the watch runs out before that many logs are created anyways^^)
+    	}
+    }
+    closedir(d);
+	free(data_path);
 
-    dlog_print(DLOG_INFO, LOG_TAG, "finished compression.");
+    dlog_print(DLOG_INFO, LOG_TAG, "finished compression and deleted all log-files.");
 
 	device_power_release_lock(POWER_LOCK_CPU);
 
@@ -390,7 +404,7 @@ int compress_logs() {
 
 
 
-//function for sharing locally stored zip-data (logs first need to be zipped via compress_logs (!!))
+//function for sharing locally stored zip-data (logs first need to be zipped via compress_logs)
 //returns -1 if it did not finish because of FTP server issues
 //returns 0 otherwise
 int share_data(const char* ftp_url) {
@@ -489,7 +503,7 @@ int share_data(const char* ftp_url) {
             			fclose(fd);
     					return -1;
     				} else {
-    					dlog_print(DLOG_INFO, LOG_TAG, "file uploaded!");
+    					dlog_print(DLOG_INFO, LOG_TAG, "file uploaded! (size=%d)", file_info.st_size);
     					/* now extract transfer info */
     					curl_easy_getinfo(curl, CURLINFO_SPEED_UPLOAD, &speed_upload);
     					curl_easy_getinfo(curl, CURLINFO_TOTAL_TIME, &total_time);
@@ -652,7 +666,7 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 		//dlog_print(DLOG_INFO, LOG_TAG, "sensors read!");
 
 		//each second perform fft analysis -> a second has passed if sampleRate number of new entries were made in rb_X, i.e., if rb_x->idx % sampleRate == 0
-		if((ad->rb_x)->idx % sampleRate == 0)
+		if((ad->rb_x)->idx % 1 == 0)
 		{
 			//TODO remove after extensive testing!!!
 
