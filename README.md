@@ -1,7 +1,7 @@
 # Epilarm (for Galaxy Watch Active 2)
 Detection of generalized tonic-clonic seizures using the linear accelerometer of a Galaxy Watch Active 2.
 
-The general framework is heavily inspired by the project [OpenSeizureDetector](https://github.com/OpenSeizureDetector) which has the same goal but targets Garmin, Pebble, and PineTime smartwatches.
+The general framework is heavily inspired by the project [OpenSeizureDetector](https://github.com/OpenSeizureDetector) which has the same goal but targets Garmin, Pebble, and (recently) PineTime smartwatches.
 This project targets the use of the smartwatch **Galaxy Watch Active 2**, which - in my opinion - looks nicer on your wrist and offers slightly more functionality ;)
 
 (The project's main goal is to give my girlfriend a little more freedom.)
@@ -24,14 +24,15 @@ These parameters, including the bounds of the ROI, can be chosen in the UI appli
 
 
 ## Current state
-As of now, NO notifications are sent to your phone or predefined phone numbers, the notifications are only local to your watch. (This will change as soon as I have confirmation that seizures can be reliably detected with this approach, and have confirmation that one cannot use Samsung's very own _SOS feature_ for that.)
+As of now, NO notifications are sent to your phone or predefined phone numbers, the notifications are only local to your watch. (This will change as soon as I have confirmation that seizures can be reliably detected with this approach, and I have confirmation that it is not possible to use Samsung's very own _SOS feature_ for that.)
 
 More information on the current state, future plans and other todos can be found [here](current_state.md).
 
 
 ## Libraries/Files used in this project
  - [c-ringbuf](https://github.com/dhess/c-ringbuf) for fast ringbuffers in c
- - [fft-c](https://github.com/adis300/fft-c] for FFT computation, based on (FFTPack)[http://www.netlib.org/fftpack/)
- - [MicroTar](https://github.com/rxi/microtar) for tarring of logs before compression (to be precise we use the [PR](https://github.com/byronhe/microtar))
+ - [fft-c](https://github.com/adis300/fft-c) for FFT computation, based on [FFTPack](http://www.netlib.org/fftpack/)
+ - [MicroTar](https://github.com/rxi/microtar) for tarring of logs before compression (to be precise we use this [PR](https://github.com/byronhe/microtar))
+ - apart from that only the standard C-libraries and those included in the [Tizen API](https://docs.tizen.org/application/native/api/wearable/5.5/group__CAPI__BASE__FRAMEWORK.html) are used (among others [glibc](http://www.gnu.org/software/libc/) and [zlib](http://www.zlib.net/)).
 
-Special thanks also go out to _Graham Jones_ for his good and detailed explanations of his approach with [OpenSeizureDetector](https://github.com/OpenSeizureDetector) ([technical details][http://openseizuredetector.github.io/OpenSeizureDetector/meta/2015/02/01/Pebble_Watch_Version/] and [general overview][https://github.com/OpenSeizureDetector/Presentations/blob/master/01_CfAI_Seminar_Aug2020_Issue_1.pdf]).
+Special thanks also go out to _Graham Jones_ of [OpenSeizureDetector](https://github.com/OpenSeizureDetector) for his good and detailed explanations ([technical details](http://openseizuredetector.github.io/OpenSeizureDetector/meta/2015/02/01/Pebble_Watch_Version/) and [general overview](https://github.com/OpenSeizureDetector/Presentations/blob/master/01_CfAI_Seminar_Aug2020_Issue_1.pdf)).
