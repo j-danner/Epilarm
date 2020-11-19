@@ -16,6 +16,7 @@ Below you can find a task-list which indicates the current state of the project 
   - [x] start UI (web app) if alarmstate changes (and app is not running)
   - [ ] raise alarm by initializing phone call and/or send SMS (write companion app for Android or stick to LTE version of smart watch/can we use Samsung's very own SOS system?)
   - [ ] read GPS data every now and then s.t. it can be sent as an attachment of the alarm notification
+  - [ ] automatically start and stop analysis at given times (use Alarm API?!)
 
 
 - [Tizen Web Application](https://docs.tizen.org/application/web/index) (javascript):
