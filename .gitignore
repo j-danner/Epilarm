@@ -4,10 +4,9 @@
 Debug/
 Release/
 SA_Report/
-.sign/
 *.tmp
 *.wgt
-log_analysis/logs
+log_analysis/logs/
 .cproject
 .exportMap
 .package-stamp
