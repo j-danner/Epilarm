@@ -357,33 +357,24 @@ function add_alarms() {
     );
 	console.log('add_alarm: created application controls.');
 	
-	var notification_content_stop =
-	{
-	  content: 'Automatically started seizure detection!',
-	  actions: {vibration: true}
-	};
+	var notification_content_stop = {content: 'Automatically started seizure detection!', actions: {vibration: true}};
 	var notification_stop = new tizen.UserNotification('SIMPLE', 'Epilarm', notification_content_stop);
 
-	var notification_content_start =
-	{
-	  content: 'Automatically stopped seizure detection!',
-	  actions: {vibration: true}
-	  //actions: {soundPath: "music/Over the horizon.mp3", vibration: true}
-	};
+	var notification_content_start ={content: 'Automatically stopped seizure detection!', actions: {vibration: true}};
 	var notification_start = new tizen.UserNotification('SIMPLE', 'Epilarm', notification_content_start);
 	console.log('add_alarm: created notifications.');
 
-	var alarm_notification_start = new tizen.AlarmAbsolute(params.alarm_start_date);//, params.alarm_days);
-	var alarm_notification_stop = new tizen.AlarmAbsolute(params.alarm_stop_date);//, params.alarm_days);
+	//var alarm_notification_start = new tizen.AlarmAbsolute(params.alarm_start_date, params.alarm_days); //TODO do we additionally need notifications?
+	//var alarm_notification_stop = new tizen.AlarmAbsolute(params.alarm_stop_date, params.alarm_days);
 	var alarm_start = new tizen.AlarmAbsolute(params.alarm_start_date);//, params.alarm_days);
 	var alarm_stop = new tizen.AlarmAbsolute(params.alarm_stop_date);//, params.alarm_days);
 	console.log('add_alarm: created alarms.');
 	
-	tizen.alarm.addAlarmNotification(alarm_notification_start, notification_start);
-	tizen.alarm.addAlarmNotification(alarm_notification_stop, notification_stop);
+	//tizen.alarm.addAlarmNotification(alarm_notification_start, notification_start);
+	//tizen.alarm.addAlarmNotification(alarm_notification_stop, notification_stop);
 	console.log('add_alarm: scheduled notifications.');
 
-	tizen.alarm.add(alarm_stop, APP_ID); //, appcontrol_stop);
+	tizen.alarm.add(alarm_stop, APP_ID, appcontrol_stop);
 	console.log('add_alarm: scheduled stop appcontrol.');
 	tizen.alarm.add(alarm_start, APP_ID, appcontrol_start);
 	console.log('add_alarm: scheduled start appcontrol.');
@@ -437,8 +428,8 @@ function reset_params() {
         
         //alarm info
         alarm: false,
-        alarm_start_date: new Date(Date.parse("2020-11-22T16:20")),
-        alarm_stop_date: new Date(Date.parse("2020-11-22T16:30")),
+        alarm_start_date: new Date(Date.parse("2020-11-23T06:00")),
+        alarm_stop_date: new Date(Date.parse("2020-11-23T18:00")),
         alarm_days: ["MO", "TU", "WE", "TH", "FR", "SA", "SU"],
 
 
@@ -452,6 +443,25 @@ function reset_params() {
 }
 
 
+function test() {
+    var obj_start = new tizen.ApplicationControlData('service_action', ['start']);
+    var appcontrol_start = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
+        null,
+        null,
+        null, [obj_start],
+        'GROUP'
+    );
+    tizen.application.launchAppControl(appcontrol_start,
+            APP_ID,
+            function() {
+                console.log('Starting appcontrol succeeded.');
+            },
+            function(e) {
+                console.log('Starting appcontrol failed : ' + e.message);
+            }, null);
+
+}
+
 
 window.onload = function() {
     //leave screen on
@@ -459,20 +469,34 @@ window.onload = function() {
 
 	//load user settings
     load_params();
+    
+    //check whether app was launched due to some appControl:
+    var reqAppControl = tizen.application.getCurrentApplication().getRequestedAppControl();
+    if (reqAppControl) {
+    	if (reqAppControl.appControl.operation != 'http://tizen.org/appcontrol/operation/default') {
+    		console.log('launched by appcontrol!');
+    	    console.log(reqAppControl);
+    	}
+        if (reqAppControl.appControl.data.length>0 && reqAppControl.appControl.operation === 'http://tizen.org/appcontrol/operation/service') {
+        	if (reqAppControl.appControl.data[0].key === 'service_action' && reqAppControl.appControl.data[0].value[0] === 'start') {
+        		console.log('appcontrol with service action _start_ received!');
+        		start_service_app();
+        		//open popup informing user that seizure detection was automatically started!
+        		tau.openPopup('#AutomaticDetectionStartPopup');
+    		} else if (reqAppControl.appControl.data[0].key === 'service_action' && reqAppControl.appControl.data[0].value[0] === 'stop') {
+        		console.log('appcontrol with service action _stop_ received!');
+    			stop_service_app();
+        		//open popup informing user that seizure detection was automatically stopped!
+        		tau.openPopup('#AutomaticDetectionStopPopup');
+			}
+        }
+    } else {
+        console.log('not launched by appcontrol.');
+    }
 
     //make sure that checkboxes are in correct state on startup, also this changes to main page!
     update_checkboxes();
 
-    window.addEventListener('appcontrol', function onAppControl() {
-        var reqAppControl = tizen.application.getCurrentApplication.getRequestedAppControl();
-        if (reqAppControl) {
-            if (reqAppControl.appControl.data === 'start') {
-            	start_sensor_service();
-            } else if (reqAppConttrol.appControl.data === 'stop') {
-				stop_service_app();
-			}
-        }
-    });
 
     console.log('UI started!');
 };
