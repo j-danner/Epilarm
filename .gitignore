@@ -13,6 +13,3 @@ log_analysis/logs
 .package-stamp
 .project
 .tproject
-
-*.o
-Epilarm_sensor_service/Release/*

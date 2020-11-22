@@ -1,7 +1,8 @@
 //parameters, must be initialized by reset_params() or loaded from localstorage. Simply use load_params() once!
 var params;
 
-var SERVICE_APP_ID = 'QOeM6aBGp0.epilarm_sensor_service';
+var SERVICE_APP_ID = tizen.application.getCurrentApplication().appInfo.packageId + '.epilarm_sensor_service'; //'QOeM6aBGp0.epilarm_sensor_service';
+var APP_ID = tizen.application.getCurrentApplication().appInfo.id;
 
 //save params to local storage, must be called after changing any value
 function save_params() {
@@ -132,8 +133,7 @@ function start_ftp_upload() {
     }
 }
 
-
-
+//start service app and seizure detection
 function start_service_app() {
     console.log('starting service app...');
     var obj = new tizen.ApplicationControlData('service_action', ['start']);
@@ -155,11 +155,10 @@ function start_service_app() {
             }, null);
     } catch (e) {
         window.alert('Error when starting appcontrol for starting seizure detection! error msg:' + e.toString());
-        running=false;
     }
 }
 
-
+//stop service app and seizure detection
 function stop_service_app() {
     console.log('stopping service app...');
     var obj = new tizen.ApplicationControlData('service_action', ['stop']); //you'll find the app id in config.xml file.
@@ -172,17 +171,19 @@ function stop_service_app() {
         tizen.application.launchAppControl(obj1,
             SERVICE_APP_ID,
             function() {
-                console.log('Stopping Service succeeded');
+                console.log('Stopping Service Request succeeded');
             },
             function(e) {
-                console.log('Stopping Service failed : ' + e.message);
+                console.log('Stopping Service Request failed : ' + e.message);
             }, null);
     } catch (e) {
-        window.alert('Error when starting appcontrol for stoppint seizure detection! error msg:' + e.toString());
+        window.alert('Error when starting appcontrol for stopping seizure detection! error msg:' + e.toString());
     }
 }
 
-function update_start_stop_checkbox() {
+//update seizure detection, logging and alarm
+
+function update_checkboxes() {
     console.log('ask service app if the sensor listener is running...');
     var obj = new tizen.ApplicationControlData('service_action', ['running?']); //you'll find the app id in config.xml file.
     var obj1 = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
@@ -197,10 +198,18 @@ function update_start_stop_checkbox() {
             document.getElementById('start_stop_checkbox').checked = (data[0].value[0] === '1');
             console.log('received: ' + data[0].value[0]);
             console.log('updated checkbox! (to ' + (data[0].value[0] === '1') + ')');
+            
+            //change from loading page to mainpage
+            tau.changePage('#main');
         },
         // callee returned failure
         onfailure: function() {
             console.log('reply failed');
+            
+            //change from loading page to mainpage
+            tau.changePage('#main');
+            //create warning for user!
+            tau.openPopup('#RunningFailedPopup');
         }
     };
     try {
@@ -216,6 +225,15 @@ function update_start_stop_checkbox() {
     } catch (e) {
         window.alert('Error when starting appcontrol to detect whether seizure detection is running! error msg:' + e.toString());
     }
+    
+    //update logging and alarm checkbox
+    console.log('updating logging checkbox');
+    var logging_box = document.querySelector('#logging_checkbox');
+    logging_box.checked = params.logging;
+    //logging_box.addEventListener('load', listener, useCapture)
+    console.log('updating alarm checkbox');
+    var alarm_box = document.querySelector('#alarm_checkbox');
+    alarm_box.checked = params.alarm;
 }
 
 /*
@@ -233,6 +251,8 @@ function toggle_settings_visibility() {
 	 }
 }*/
 
+
+
 function start_stop(id) {
     if (document.getElementById(id).checked) {
         start_service_app();
@@ -244,7 +264,6 @@ function start_stop(id) {
 }
 
 
-
 function toggle_logging(id) {
     if (document.getElementById(id).checked) {
         params.logging = true;
@@ -253,6 +272,149 @@ function toggle_logging(id) {
     }
     save_params();
 }
+
+/*
+//this function directly calls the applicationcontrols that start the seizure detection of sensor-service.
+//due to the fact that (for some non-understandable reason) the API allows only appcontrols of UI applications, we cannot use this :(
+//instead we call the UI itself s.t. it starts/stops the service for us!
+function add_alarms() {
+	console.log('add_alarm: start.');
+	remove_alarms();
+	console.log('add_alarm: alarms removed.');
+
+	//generate appcontrol to be called on remove_alarm
+    var obj_stop = new tizen.ApplicationControlData('service_action', ['stop']); //you'll find the app id in config.xml file.
+    var appcontrol_stop = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
+        null,
+        null,
+        null, [obj_stop]
+    );
+   
+    var obj_start = new tizen.ApplicationControlData('service_action', ['start']);
+    var obj_params_start = new tizen.ApplicationControlData('params', params.analysisToString());
+    var appcontrol_start = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
+        null,
+        null,
+        null, [obj_start, obj_params_start]
+    );
+	console.log('add_alarm: created application controls.');
+	
+	var notification_content_stop =
+	{
+	  content: 'Automatically started seizure detection!',
+	  actions: {vibration: true}
+	};
+	var notification_stop = new tizen.UserNotification('SIMPLE', 'Epilarm', notification_content_stop);
+
+	var notification_content_start =
+	{
+	  content: 'Automatically stopped seizure detection!',
+	  actions: {vibration: true}
+	  //actions: {soundPath: "music/Over the horizon.mp3", vibration: true}
+	};
+	var notification_start = new tizen.UserNotification('SIMPLE', 'Epilarm', notification_content_start);
+	console.log('add_alarm: created notifications.');
+
+	var alarm_notification_start = new tizen.AlarmAbsolute(params.alarm_start_date);//, params.alarm_days);
+	var alarm_notification_stop = new tizen.AlarmAbsolute(params.alarm_stop_date);//, params.alarm_days);
+	var alarm_start = new tizen.AlarmAbsolute(params.alarm_start_date);//, params.alarm_days);
+	var alarm_stop = new tizen.AlarmAbsolute(params.alarm_stop_date);//, params.alarm_days);
+	console.log('add_alarm: created alarms.');
+	
+	tizen.alarm.addAlarmNotification(alarm_notification_start, notification_start);
+	tizen.alarm.addAlarmNotification(alarm_notification_stop, notification_stop);
+	console.log('add_alarm: scheduled notifications.');
+
+	tizen.alarm.add(alarm_stop, SERVICE_APP_ID); //, appcontrol_stop);
+	console.log('add_alarm: scheduled stop appcontrol.');
+	tizen.alarm.add(alarm_start, SERVICE_APP_ID, appcontrol_start);
+	console.log('add_alarm: scheduled start appcontrol.');
+
+	console.log('add_alarm: scheduled appcontrols.');
+
+	console.log('add_alarm: done.');
+}
+*/
+
+function add_alarms() {
+	console.log('add_alarm: start.');
+	remove_alarms();
+	console.log('add_alarm: alarms removed.');
+
+	//generate appcontrol to be called on remove_alarm
+    var obj_stop = new tizen.ApplicationControlData('service_action', ['stop']); //you'll find the app id in config.xml file.
+    var appcontrol_stop = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
+        null,
+        null,
+        null, [obj_stop]
+    );
+   
+    var obj_start = new tizen.ApplicationControlData('service_action', ['start']);
+    var appcontrol_start = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
+        null,
+        null,
+        null, [obj_start]
+    );
+	console.log('add_alarm: created application controls.');
+	
+	var notification_content_stop =
+	{
+	  content: 'Automatically started seizure detection!',
+	  actions: {vibration: true}
+	};
+	var notification_stop = new tizen.UserNotification('SIMPLE', 'Epilarm', notification_content_stop);
+
+	var notification_content_start =
+	{
+	  content: 'Automatically stopped seizure detection!',
+	  actions: {vibration: true}
+	  //actions: {soundPath: "music/Over the horizon.mp3", vibration: true}
+	};
+	var notification_start = new tizen.UserNotification('SIMPLE', 'Epilarm', notification_content_start);
+	console.log('add_alarm: created notifications.');
+
+	var alarm_notification_start = new tizen.AlarmAbsolute(params.alarm_start_date);//, params.alarm_days);
+	var alarm_notification_stop = new tizen.AlarmAbsolute(params.alarm_stop_date);//, params.alarm_days);
+	var alarm_start = new tizen.AlarmAbsolute(params.alarm_start_date);//, params.alarm_days);
+	var alarm_stop = new tizen.AlarmAbsolute(params.alarm_stop_date);//, params.alarm_days);
+	console.log('add_alarm: created alarms.');
+	
+	tizen.alarm.addAlarmNotification(alarm_notification_start, notification_start);
+	tizen.alarm.addAlarmNotification(alarm_notification_stop, notification_stop);
+	console.log('add_alarm: scheduled notifications.');
+
+	tizen.alarm.add(alarm_stop, APP_ID); //, appcontrol_stop);
+	console.log('add_alarm: scheduled stop appcontrol.');
+	tizen.alarm.add(alarm_start, APP_ID, appcontrol_start);
+	console.log('add_alarm: scheduled start appcontrol.');
+
+	console.log('add_alarm: scheduled appcontrols.');
+
+	console.log('add_alarm: done.');
+}
+
+
+//removes all scheduled alarms of app (i.e. all scheduled starting and stopping calls to service app)
+function remove_alarms() {
+	console.log('remove_alarm: start.');
+	tizen.alarm.removeAll();
+	console.log('remove_alarm: removed all scheduled alarms.');
+	console.log('remove_alarm: done.');
+}
+
+
+
+function toggle_alarm(id) {
+    if (document.getElementById(id).checked) {
+        params.alarm = true;
+        add_alarms();
+    } else {
+        params.alarm = false;
+        remove_alarms();
+    }
+    save_params();
+}
+
 
 
 function reset_params() {
@@ -272,6 +434,13 @@ function reset_params() {
         ftpUsername: 'sam-gal-act-2-jul', //username
         ftpPassword: 'T5tUZKVKWq8FPAh5', //password
         ftpPath: 'share/epilarm/log/jul', //path on ftp server to store files in
+        
+        //alarm info
+        alarm: false,
+        alarm_start_date: new Date(Date.parse("2020-11-22T16:20")),
+        alarm_stop_date: new Date(Date.parse("2020-11-22T16:30")),
+        alarm_days: ["MO", "TU", "WE", "TH", "FR", "SA", "SU"],
+
 
         analysisToString: function() {
             return [this.minFreq.toString(), this.maxFreq.toString(), this.avgRoiThresh.toString(), this.multThresh.toString(), this.warnTime.toString(), (this.logging ? '1' : '0')];
@@ -283,6 +452,7 @@ function reset_params() {
 }
 
 
+
 window.onload = function() {
     //leave screen on
     //tizen.power.request('SCREEN', 'SCREEN_NORMAL');
@@ -290,11 +460,19 @@ window.onload = function() {
 	//load user settings
     load_params();
 
-    //make sure that checkboxes are in correct state on startup
-    update_start_stop_checkbox();
+    //make sure that checkboxes are in correct state on startup, also this changes to main page!
+    update_checkboxes();
+
+    window.addEventListener('appcontrol', function onAppControl() {
+        var reqAppControl = tizen.application.getCurrentApplication.getRequestedAppControl();
+        if (reqAppControl) {
+            if (reqAppControl.appControl.data === 'start') {
+            	start_sensor_service();
+            } else if (reqAppConttrol.appControl.data === 'stop') {
+				stop_service_app();
+			}
+        }
+    });
 
     console.log('UI started!');
-
-    //start_service_app();
-    //setTimeout(() => {  stop_service_app(); }, 25000);	//automatically stop sensor service after 12secs
 };

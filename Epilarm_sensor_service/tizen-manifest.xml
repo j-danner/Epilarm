@@ -6,17 +6,22 @@
         <icon>epilarm_sensor_service.png</icon>
         <app-control>
             <operation name="http://tizen.org/appcontrol/operation/service"/>
+            <privilege>http://tizen.org/privilege/appmanager.launch</privilege>
+            <privilege>http://tizen.org/privilege/internet</privilege>
+            <privilege>http://tizen.org/privilege/notification</privilege>
         </app-control>
         <background-category value="sensor"/>
         <background-category value="background-network"/>
     </service-application>
     <privileges>
         <privilege>http://tizen.org/privilege/appmanager.launch</privilege>
+        <privilege>http://tizen.org/privilege/alarm.get</privilege>
         <privilege>http://tizen.org/privilege/internet</privilege>
         <privilege>http://tizen.org/privilege/notification</privilege>
         <privilege>http://tizen.org/privilege/display</privilege>
+        <privilege>http://tizen.org/privilege/alarm.set</privilege>
     </privileges>
-    <feature name="http://tizen.org/feature/battery">true</feature>
     <feature name="http://tizen.org/feature/network.internet">true</feature>
+    <feature name="http://tizen.org/feature/battery">true</feature>
     <feature name="http://tizen.org/feature/sensor.linear_acceleration">true</feature>
 </manifest>
