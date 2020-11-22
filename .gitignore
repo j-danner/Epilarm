@@ -14,3 +14,5 @@ log_analysis/logs
 .project
 .tproject
 
+*.o
+Epilarm_sensor_service/Release/*
