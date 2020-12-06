@@ -64,7 +64,7 @@ int bufferSize = sampleRate*dataAnalysisInterval; //size of stored data on which
 typedef struct appdata
 {
 	sensor_h sensor; // sensor handle
-	sensor_listener_h listener; // sensor listener handle
+	sensor_listener_h listener = NULL; // sensor listener handle, must always be NULL if listener is not running!
 
 	//params of analysis (set by UI on startup)
 	double minFreq;
@@ -79,9 +79,6 @@ typedef struct appdata
 	double avgRoi;
 	//logging of data AND sending over ftp to broker
 	bool logging;
-
-    //indicate if analysis and sensor listener are running... (required to give appropriate debugging output when receiving appcontrol)
-    bool running;
 
 	//current alarmState
     int alarmState;
@@ -845,11 +842,18 @@ bool service_app_create(void *data)
 
     ad->alarmState = 0;
 
-    ad->running = false;
-
     ad->logging = false;
 
 	return true;
+}
+
+//checks whether analysis is running, by checking if sensor listener is running
+int isRunning(void *data)
+{
+	// Extracting application data
+	appdata_s* ad = (appdata_s*)data;
+
+	return ad->listener == NULL;
 }
 
 void sensor_start(void *data)
@@ -869,7 +873,6 @@ void sensor_start(void *data)
 			if (sensor_listener_start(ad->listener) == SENSOR_ERROR_NONE)
 			{
 				dlog_print(DLOG_INFO, LOG_TAG, "Sensor listener started.");
-				ad->running = true;
 				//create folder for logs
 				if(ad->logging) {
 					char logs_path[MAX_PATH];
@@ -889,16 +892,21 @@ void sensor_stop(void *data, int sendNot)
 	// Extracting application data
 	appdata_s* ad = (appdata_s*)data;
 
-	if(!ad->running) {
+	if(device_power_release_lock(POWER_LOCK_CPU) != DEVICE_ERROR_NONE) {
+		dlog_print(DLOG_INFO, LOG_TAG, "could not release cpu lock!");
+	}
+
+	if(isRunning(ad)) {
 		dlog_print(DLOG_INFO, LOG_TAG, "Sensor listener already destroyed.");
+		//dlog_print(DLOG_INFO, LOG_TAG, "(destroying is attempted nonetheless!)");
 		return;
 	}
 	//Stopping & destroying sensor listener
 	if ((sensor_listener_stop(ad->listener) == SENSOR_ERROR_NONE)
 		&& (sensor_destroy_listener(ad->listener) == SENSOR_ERROR_NONE))
 	{
+		ad->listener = NULL;
 		dlog_print(DLOG_INFO, LOG_TAG, "Sensor listener destroyed.");
-		ad->running = false;
 		if (sendNot != 0) { //send notification that sensorlistener is destroyed
 			dlog_print(DLOG_INFO, LOG_TAG, "Unscheduled shutdown of Epilarm-service! (Restart via UI!)");
 			issue_unplanned_shutdown_notification();
@@ -911,9 +919,6 @@ void sensor_stop(void *data, int sendNot)
 		dlog_print(DLOG_INFO, LOG_TAG, "Error occurred when destroying sensor listener: listener was never created!");
 	}
 
-	if(device_power_release_lock(POWER_LOCK_CPU) != DEVICE_ERROR_NONE) {
-		dlog_print(DLOG_INFO, LOG_TAG, "could not release cpu lock!");
-	}
 }
 
 void service_app_terminate(void *data)
@@ -979,7 +984,7 @@ void service_app_control(app_control_h app_control, void *data)
         		ad->logging = atoi(params[5]);
 
         		dlog_print(DLOG_INFO, LOG_TAG, "Starting epilarm sensor service!");
-        		sensor_start(ad);
+        		sensor_start(ad); //TODO add return value in case starting of sensor listener fails!
         	} else {
         		dlog_print(DLOG_INFO, LOG_TAG, "receiving params failed! sensor not started!");
         	}
@@ -1004,9 +1009,9 @@ void service_app_control(app_control_h app_control, void *data)
         	app_control_h reply;
     		app_control_create(&reply);
     		app_control_get_app_id(app_control, &app_id);
-    		app_control_add_extra_data(reply, APP_CONTROL_DATA_SELECTED, ad->running ? "1" : "0");
+    		app_control_add_extra_data(reply, APP_CONTROL_DATA_SELECTED, isRunning(ad) ? "1" : "0");
     		app_control_reply_to_launch_request(reply, app_control, APP_CONTROL_RESULT_SUCCEEDED);
-            dlog_print(DLOG_INFO, LOG_TAG, "reply sent (%d)", ad->running);
+            dlog_print(DLOG_INFO, LOG_TAG, "reply sent (%d)", isRunning(ad));
 
     		app_control_destroy(reply);
 
