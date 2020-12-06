@@ -18,14 +18,6 @@
 </head>
 
 <body>
-	<!--  loading page shown at startup -->
-	<div id="loading" class="ui-page">
-		<div class="ui-processing"></div>
-		<div class="ui-processing-text">
- 			Starting Epilarm...
-		</div>
-	</div>
-
 	<!--  main page -->
 	<div id="main" class="ui-page" data-go-to-top-button="true">
 		<header class="ui-header">
@@ -140,6 +132,18 @@
 		</div>
 		
 		<!-- popup for uploading of logs/info/reseting params -->
+		<div class="ui-popup" id="StartingPopup">
+			<div class="ui-popup-content">
+				<div class="small-processing-container">
+					<div class="ui-processing" style="-webkit-transform: scale(1.08); position: relative;">
+					</div>
+					<div id="UploadPopupText" class="ui-processing-text" style="position:relative; margin-top: 22px;">
+						Starting Epilarm...
+					</div>
+				</div>
+			</div>
+		</div>
+		
 		<div class="ui-popup" id="UploadPopup">
 			<div class="ui-popup-content">
 				<div class="small-processing-container">
@@ -202,7 +206,7 @@
 				<br />
 				
 				This is probably due to some internal error!
-				Please close the application and its background service and try again!
+				Please close the application (and its background service) and try again!
 				
 				<br />
 				
@@ -220,12 +224,12 @@
 				Warning!
 			</div>
 			<div class="ui-popup-content">
-				Seizure detection currently not available!
+				Seizure detection service not found!
 				
 				<br />
 				
 				This is probably due to some internal error!
-				Please close the application and its background service and try again!
+				Please close the application (and its background service) and try again!
 				
 				<br />
 				
@@ -290,8 +294,7 @@
 				More information and the source code can be found at 
 				<a class="ui-content ui-hyperlink" href="http://github.com/j-danner/Epilarm">
 					github.com/j-danner/Epilarm
-				</a>
-				
+				</a>				
 			</div>
 			<div class="ui-popup-footer ui-bottom-button">
 				<a class="ui-btn" data-rel="back" href="#" id="1btnPopup-cancel">

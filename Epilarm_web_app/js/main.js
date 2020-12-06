@@ -52,7 +52,7 @@ function start_ftp_upload() {
     var obj1 = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
         null,
         null,
-        null, [obj]
+        null, [obj], 'SINGLE'
     );
     var appControlReplyCallback = {
     		// callee sent a reply
@@ -68,7 +68,7 @@ function start_ftp_upload() {
                 var obj1 = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
                     null,
                     null,
-                    null, [obj, obj_params]
+                    null, [obj, obj_params], 'SINGLE'
                 );
                 var appControlReplyCallback = {
                     // callee sent a reply
@@ -141,7 +141,7 @@ function start_service_app() {
     var obj1 = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
         null,
         null,
-        null, [obj, obj_params]
+        null, [obj, obj_params], 'SINGLE'
     );
     try {
         tizen.application.launchAppControl(obj1,
@@ -165,7 +165,7 @@ function stop_service_app() {
     var obj1 = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
         null,
         null,
-        null, [obj]
+        null, [obj], 'SINGLE'
     );
     try {
         tizen.application.launchAppControl(obj1,
@@ -181,15 +181,26 @@ function stop_service_app() {
     }
 }
 
-//update seizure detection, logging and alarm
+function update_logging_alarm_checkboxes() {
+    //update logging and alarm checkbox
+    console.log('updating logging checkbox');
+    var logging_box = document.querySelector('#logging_checkbox');
+    logging_box.checked = params.logging;
+    //logging_box.addEventListener('load', listener, useCapture)
+    console.log('updating alarm checkbox');
+    var alarm_box = document.querySelector('#alarm_checkbox');
+    alarm_box.checked = params.alarm;
+}
 
-function update_checkboxes() {
+//update seizure detection, logging and alarm
+function update_seizure_detection_checkbox() {
+    //update checkbox indicating whether service app is running:
     console.log('ask service app if the sensor listener is running...');
-    var obj = new tizen.ApplicationControlData('service_action', ['running?']); //you'll find the app id in config.xml file.
+    var obj = new tizen.ApplicationControlData('service_action', ['running?']);
     var obj1 = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
         null,
         null,
-        null, [obj]
+        null, [obj], 'SINGLE'
     );
     var appControlReplyCallback = {
         // callee sent a reply
@@ -200,7 +211,7 @@ function update_checkboxes() {
             console.log('updated checkbox! (to ' + (data[0].value[0] === '1') + ')');
             
             //change from loading page to mainpage
-            tau.changePage('#main');
+            tau.closePopup();
         },
         // callee returned failure
         onfailure: function() {
@@ -225,15 +236,6 @@ function update_checkboxes() {
     } catch (e) {
         window.alert('Error when starting appcontrol to detect whether seizure detection is running! error msg:' + e.toString());
     }
-    
-    //update logging and alarm checkbox
-    console.log('updating logging checkbox');
-    var logging_box = document.querySelector('#logging_checkbox');
-    logging_box.checked = params.logging;
-    //logging_box.addEventListener('load', listener, useCapture)
-    console.log('updating alarm checkbox');
-    var alarm_box = document.querySelector('#alarm_checkbox');
-    alarm_box.checked = params.alarm;
 }
 
 /*
@@ -346,23 +348,50 @@ function add_alarms() {
     var appcontrol_stop = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
         null,
         null,
-        null, [obj_stop]
+        null, [obj_stop], 'SINGLE'
     );
    
     var obj_start = new tizen.ApplicationControlData('service_action', ['start']);
     var appcontrol_start = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
         null,
         null,
-        null, [obj_start]
+        null, [obj_start], 'SINGLE'
     );
 	console.log('add_alarm: created application controls.');
 	
-	var notification_content_stop = {content: 'Automatically started seizure detection!', actions: {vibration: true}};
-	var notification_stop = new tizen.UserNotification('SIMPLE', 'Epilarm', notification_content_stop);
+	//var notification_content_stop = {content: 'Automatically started seizure detection!', actions: {vibration: true}};
+	//var notification_stop = new tizen.UserNotification('SIMPLE', 'Epilarm', notification_content_stop);
 
-	var notification_content_start ={content: 'Automatically stopped seizure detection!', actions: {vibration: true}};
-	var notification_start = new tizen.UserNotification('SIMPLE', 'Epilarm', notification_content_start);
-	console.log('add_alarm: created notifications.');
+	//var notification_content_start ={content: 'Automatically stopped seizure detection!', actions: {vibration: true}};
+	//var notification_start = new tizen.UserNotification('SIMPLE', 'Epilarm', notification_content_start);
+	//console.log('add_alarm: created notifications.');
+	
+	//adapt alarm date days, s.t. they are in the future (but at the next occurance of the specified time!)
+	//change year, month, date to today's
+	const today = new Date()
+	params.alarm_start_date.setFullYear(today.getFullYear());
+	params.alarm_start_date.setMonth(today.getMonth());
+	params.alarm_start_date.setDate(today.getDate());
+
+	params.alarm_stop_date.setFullYear(today.getFullYear());
+	params.alarm_stop_date.setMonth(today.getMonth());
+	params.alarm_stop_date.setDate(today.getDate());
+	
+	//in case these dates have already passed, change year, month, date to tomorrow's
+	const tomorrow = new Date(today)	
+	tomorrow.setDate(tomorrow.getDate() + 1)
+
+	if (params.alarm_start_date < today) {
+		params.alarm_start_date.setFullYear(tomorrow.getFullYear());
+		params.alarm_start_date.setMonth(tomorrow.getMonth());
+		params.alarm_start_date.setDate(tomorrow.getDate());
+	}
+	if (params.alarm_stop_date < today) {
+		params.alarm_stop_date.setFullYear(tomorrow.getFullYear());
+		params.alarm_stop_date.setMonth(tomorrow.getMonth());
+		params.alarm_stop_date.setDate(tomorrow.getDate());
+	}
+	//params's alarm dates are now set to the next occuring time in the future!
 
 	//var alarm_notification_start = new tizen.AlarmAbsolute(params.alarm_start_date, params.alarm_days); //TODO do we additionally need notifications?
 	//var alarm_notification_stop = new tizen.AlarmAbsolute(params.alarm_stop_date, params.alarm_days);
@@ -372,7 +401,7 @@ function add_alarms() {
 	
 	//tizen.alarm.addAlarmNotification(alarm_notification_start, notification_start);
 	//tizen.alarm.addAlarmNotification(alarm_notification_stop, notification_stop);
-	console.log('add_alarm: scheduled notifications.');
+	//console.log('add_alarm: scheduled notifications.');
 
 	tizen.alarm.add(alarm_stop, APP_ID, appcontrol_stop);
 	console.log('add_alarm: scheduled stop appcontrol.');
@@ -419,7 +448,7 @@ function reset_params() {
 
 
         //variables that can be changed in settings:
-        logging: true, //boolean to decide if sensordata should be stored
+        logging: false, //boolean to decide if sensordata should be stored
         ftpHostname: '192.168.178.33', //address of your (local) ftp server to which logs are uploaded
         ftpPort: '21', //port under which the broker is found
         ftpUsername: 'sam-gal-act-2-jul', //username
@@ -428,8 +457,8 @@ function reset_params() {
         
         //alarm info
         alarm: false,
-        alarm_start_date: new Date(Date.parse("2020-11-23T06:00")),
-        alarm_stop_date: new Date(Date.parse("2020-11-23T18:00")),
+        alarm_start_date: new Date(Date.parse("2020-11-23T16:28")),
+        alarm_stop_date: new Date(Date.parse("2020-11-23T16:29")),
         alarm_days: ["MO", "TU", "WE", "TH", "FR", "SA", "SU"],
 
 
@@ -443,13 +472,32 @@ function reset_params() {
 }
 
 
-function test() {
+function test_start() {
     var obj_start = new tizen.ApplicationControlData('service_action', ['start']);
     var appcontrol_start = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
         null,
         null,
         null, [obj_start],
-        'GROUP'
+        'SINGLE'
+    );
+    tizen.application.launchAppControl(appcontrol_start,
+            APP_ID,
+            function() {
+                console.log('Starting appcontrol succeeded.');
+            },
+            function(e) {
+                console.log('Starting appcontrol failed : ' + e.message);
+            }, null);
+
+}
+
+function test_stop() {
+    var obj_start = new tizen.ApplicationControlData('service_action', ['stop']);
+    var appcontrol_start = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
+        null,
+        null,
+        null, [obj_start],
+        'SINGLE'
     );
     tizen.application.launchAppControl(appcontrol_start,
             APP_ID,
@@ -466,9 +514,16 @@ function test() {
 window.onload = function() {
     //leave screen on
     //tizen.power.request('SCREEN', 'SCREEN_NORMAL');
+	
+	//open starting popup:
+	tau.openPopup('#StartingPopup');
 
 	//load user settings
     load_params();
+    
+    //update 'simple' checkboxes (where service app must not be asked for)
+    update_logging_alarm_checkboxes();
+    //seizure detection checkbox is only updated after 
     
     //check whether app was launched due to some appControl:
     var reqAppControl = tizen.application.getCurrentApplication().getRequestedAppControl();
@@ -494,9 +549,9 @@ window.onload = function() {
         console.log('not launched by appcontrol.');
     }
 
-    //make sure that checkboxes are in correct state on startup, also this changes to main page!
-    update_checkboxes();
 
+    //make sure that checkboxes are in correct state on startup, also this changes to main page!
+    update_seizure_detection_checkbox(); //this closes the 'StartingPopup' !!
 
     console.log('UI started!');
 };

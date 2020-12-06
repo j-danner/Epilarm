@@ -64,7 +64,7 @@ int bufferSize = sampleRate*dataAnalysisInterval; //size of stored data on which
 typedef struct appdata
 {
 	sensor_h sensor; // sensor handle
-	sensor_listener_h listener = NULL; // sensor listener handle, must always be NULL if listener is not running!
+	sensor_listener_h listener; // sensor listener handle, must always be NULL if listener is not running!
 
 	//params of analysis (set by UI on startup)
 	double minFreq;
@@ -226,7 +226,7 @@ void save_log(void *data) {
 	g_object_unref(gen);
 	g_object_unref(builder);
 
-	dlog_print(DLOG_INFO, LOG_TAG, "save_log: content with len %d is = '%s'", strlen(str), str);
+	//dlog_print(DLOG_INFO, LOG_TAG, "save_log: content with len %d is = '%s'", strlen(str), str);
 
 	//write contents to file
     FILE *fp;
@@ -677,7 +677,7 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 			fft_forward(ad->fft_z, ad->fft_z_spec);
 			//dlog_print(DLOG_INFO, LOG_TAG, "FFT done.");
 
-			//rearrange transform output s.t. sin and cos parts are not seperated, also normalize them, i.e., take their absolute values
+			//rearrange transform output s.t. sin and cos parts are not separated, also normalize them, i.e., take their absolute values
 			for (int i = 0; i < bufferSize/2; ++i) {
 				ad->fft_x_spec[i] = sqrt(ad->fft_x_spec[2*i]*ad->fft_x_spec[2*i] + ad->fft_x_spec[2*i+1]*ad->fft_x_spec[2*i+1]);
 				ad->fft_y_spec[i] = sqrt(ad->fft_y_spec[2*i]*ad->fft_y_spec[2*i] + ad->fft_y_spec[2*i+1]*ad->fft_y_spec[2*i+1]);
@@ -733,15 +733,15 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 			ad->avg_nroi_z = (ad->avg_nroi_z - ad->avg_roi_z) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
 			ad->avg_roi_z = ad->avg_roi_z / (2*ad->maxFreq-2*ad->minFreq+1);
 
-			dlog_print(DLOG_INFO, LOG_TAG, "minfreq: %f, maxfeq: %f", ad->minFreq, ad->maxFreq);
+			//dlog_print(DLOG_INFO, LOG_TAG, "minfreq: %f, maxfeq: %f", ad->minFreq, ad->maxFreq);
 
 
-			dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_x: %f, avgRoi_x: %f, (max_x_roi: %f)", ad->avg_nroi_x, ad->avg_roi_x, max_x);
-			dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_y: %f, avgRoi_y: %f, (max_y_roi: %f)", ad->avg_nroi_y, ad->avg_roi_y, max_y);
-			dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_z: %f, avgRoi_z: %f, (max_z_roi: %f)", ad->avg_nroi_z, ad->avg_roi_z, max_z);
+			//dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_x: %f, avgRoi_x: %f, (max_x_roi: %f)", ad->avg_nroi_x, ad->avg_roi_x, max_x);
+			//dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_y: %f, avgRoi_y: %f, (max_y_roi: %f)", ad->avg_nroi_y, ad->avg_roi_y, max_y);
+			//dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_z: %f, avgRoi_z: %f, (max_z_roi: %f)", ad->avg_nroi_z, ad->avg_roi_z, max_z);
 
 			//print comp freqs 0-1Hz 1-2Hz 2-3Hz ... 9-10Hz
-			dlog_print(DLOG_INFO, LOG_TAG, "x: %f  %f  %f  %f  %f  %f  %f  %f  %f  %f", ad->fft_x_spec_simplified[0]+ad->fft_x_spec_simplified[1], ad->fft_x_spec_simplified[2]+ad->fft_x_spec_simplified[3],
+			/*dlog_print(DLOG_INFO, LOG_TAG, "x: %f  %f  %f  %f  %f  %f  %f  %f  %f  %f", ad->fft_x_spec_simplified[0]+ad->fft_x_spec_simplified[1], ad->fft_x_spec_simplified[2]+ad->fft_x_spec_simplified[3],
 					ad->fft_x_spec_simplified[4]+ad->fft_x_spec_simplified[5], ad->fft_x_spec_simplified[6]+ad->fft_x_spec_simplified[7], ad->fft_x_spec_simplified[8]+ad->fft_x_spec_simplified[9],
 					ad->fft_x_spec_simplified[10]+ad->fft_x_spec_simplified[11], ad->fft_x_spec_simplified[12]+ad->fft_x_spec_simplified[13], ad->fft_x_spec_simplified[14]+ad->fft_x_spec_simplified[15],
 					ad->fft_x_spec_simplified[16]+ad->fft_x_spec_simplified[17], ad->fft_x_spec_simplified[18]+ad->fft_x_spec_simplified[19]);
@@ -753,6 +753,7 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 					ad->fft_z_spec_simplified[4]+ad->fft_z_spec_simplified[5], ad->fft_z_spec_simplified[7]+ad->fft_z_spec_simplified[6], ad->fft_z_spec_simplified[9]+ad->fft_z_spec_simplified[8],
 					ad->fft_z_spec_simplified[11]+ad->fft_z_spec_simplified[10], ad->fft_z_spec_simplified[13]+ad->fft_z_spec_simplified[12], ad->fft_z_spec_simplified[15]+ad->fft_z_spec_simplified[14],
 					ad->fft_z_spec_simplified[17]+ad->fft_z_spec_simplified[16], ad->fft_z_spec_simplified[19]+ad->fft_z_spec_simplified[18]);
+			*/
 
 			ad->multRatio = ((ad->avg_roi_x/ad->avg_nroi_x) + (ad->avg_roi_y/ad->avg_nroi_y) + (ad->avg_roi_z/ad->avg_nroi_z)) / 3.0;
 
@@ -763,12 +764,12 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 			if (ad->avgRoi >= ad->avgRoiThresh)
 				dlog_print(DLOG_INFO, LOG_TAG, "---> avgRoiThresh reached");
 			else
-				dlog_print(DLOG_INFO, LOG_TAG, "---> avgRoiThresh NOT reached");
+				//dlog_print(DLOG_INFO, LOG_TAG, "---> avgRoiThresh NOT reached");
 
 			if (ad->multRatio >= ad->multThresh)
 				dlog_print(DLOG_INFO, LOG_TAG, "---> multThresh reached");
 			else
-				dlog_print(DLOG_INFO, LOG_TAG, "---> multThresh NOT reached");
+				//dlog_print(DLOG_INFO, LOG_TAG, "---> multThresh NOT reached");
 
 			//check both conditions for increasing alarmstate
 			if(ad->multRatio >= ad->multThresh && ad->avgRoi >= ad->avgRoiThresh) {
@@ -814,9 +815,12 @@ bool service_app_create(void *data)
 	if (sensor_is_supported(SENSOR_LINEAR_ACCELERATION, &sensor_supported) != SENSOR_ERROR_NONE || sensor_supported == false)
 	{
 		dlog_print(DLOG_ERROR, LOG_TAG, "Accelerometer not supported! Service is useless, exiting...");
+		//TODO notify user over UI?!
 		service_app_exit();
 		return false;
 	}
+
+	ad->listener = NULL; //make sure that at startup listener is NULL, i.e., isRunning indicates that listener is not registered!
 
 	//create fft_transformers
 	ad->fft_x = create_fft_transformer(bufferSize, FFT_SCALED_OUTPUT);
@@ -853,7 +857,7 @@ int isRunning(void *data)
 	// Extracting application data
 	appdata_s* ad = (appdata_s*)data;
 
-	return ad->listener == NULL;
+	return ad->listener != NULL;
 }
 
 void sensor_start(void *data)
@@ -892,15 +896,12 @@ void sensor_stop(void *data, int sendNot)
 	// Extracting application data
 	appdata_s* ad = (appdata_s*)data;
 
-	if(device_power_release_lock(POWER_LOCK_CPU) != DEVICE_ERROR_NONE) {
-		dlog_print(DLOG_INFO, LOG_TAG, "could not release cpu lock!");
-	}
-
-	if(isRunning(ad)) {
+	if(!isRunning(ad)) {
 		dlog_print(DLOG_INFO, LOG_TAG, "Sensor listener already destroyed.");
 		//dlog_print(DLOG_INFO, LOG_TAG, "(destroying is attempted nonetheless!)");
 		return;
 	}
+
 	//Stopping & destroying sensor listener
 	if ((sensor_listener_stop(ad->listener) == SENSOR_ERROR_NONE)
 		&& (sensor_destroy_listener(ad->listener) == SENSOR_ERROR_NONE))
@@ -917,6 +918,10 @@ void sensor_stop(void *data, int sendNot)
 	else
 	{
 		dlog_print(DLOG_INFO, LOG_TAG, "Error occurred when destroying sensor listener: listener was never created!");
+	}
+
+	if(device_power_release_lock(POWER_LOCK_CPU) != DEVICE_ERROR_NONE) {
+		dlog_print(DLOG_INFO, LOG_TAG, "could not release cpu lock!");
 	}
 
 }
@@ -983,8 +988,12 @@ void service_app_control(app_control_h app_control, void *data)
         		ad->warnTime = atoi(params[4]);
         		ad->logging = atoi(params[5]);
 
-        		dlog_print(DLOG_INFO, LOG_TAG, "Starting epilarm sensor service!");
-        		sensor_start(ad); //TODO add return value in case starting of sensor listener fails!
+        		if(!isRunning(ad)) {
+        			dlog_print(DLOG_INFO, LOG_TAG, "Starting epilarm sensor service!");
+        			sensor_start(ad); //TODO add return value in case starting of sensor listener fails!
+        		} else {
+        			dlog_print(DLOG_INFO, LOG_TAG, "Service already running! Not started again!");
+        		}
         	} else {
         		dlog_print(DLOG_INFO, LOG_TAG, "receiving params failed! sensor not started!");
         	}
