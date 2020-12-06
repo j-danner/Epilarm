@@ -1,5 +1,0 @@
-build main_build: phony epilarm_sensor_service sa
-build all: phony main_build
-default all
-edje-cc-dep-options = -deps $out.d
-binaryName = epilarm_sensor_service

@@ -1,4 +1,0 @@
-3
-C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\src\rb.o.ast 4 _Z11ringbuf_new _Z12ringbuf_free _Z12ringbuf_push _Z15ringbuf_get_buf
-C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\src\microtar.o.ast 5 _Z10mtar_close _Z13mtar_finalize _Z15mtar_write_data _Z22mtar_write_file_header _Z9mtar_open
-C:\Users\Julian\workspace\Epilarm\Epilarm_sensor_service\Release\src\fft.o.ast 3 _Z11fft_forward _Z20free_fft_transformer _Z22create_fft_transformer
