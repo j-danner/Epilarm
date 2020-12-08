@@ -1,7 +1,7 @@
 (function (window) {
 	"use strict";
 	var page, content, element, SAVED_NUMBER_KEY, spin = null;
-	//choose correct vlaues based on calling page
+	//change correct values based on calling page
 	if (document.getElementById("minfreq-spin-page")) {
 		page=document.getElementById("minfreq-spin-page");
 		SAVED_NUMBER_KEY = "minFreq";
