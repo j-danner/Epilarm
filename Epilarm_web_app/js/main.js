@@ -91,7 +91,7 @@ function start_ftp_upload() {
             	//compression of logs is done, start ftp-upload now
                 console.log('ftp_upload: starting service app for ftp upload...');
                 var obj = new tizen.ApplicationControlData('service_action', ['log_upload']);
-                var obj_params = new tizen.ApplicationControlData('params', params.ftpToString());
+                var obj_params = new tizen.ApplicationControlData('params', ftpParamsToString());
                 var obj1 = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
                     null,
                     null,
@@ -167,7 +167,7 @@ function start_service_app() {
 	
     console.log('starting service app...');
     var obj = new tizen.ApplicationControlData('service_action', ['start']);
-    var obj_params = new tizen.ApplicationControlData('params', params.analysisToString());
+    var obj_params = new tizen.ApplicationControlData('params', analysisParamsToString());
     var obj1 = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
         null,
         null,
@@ -332,7 +332,7 @@ function add_alarms() {
     );
    
     var obj_start = new tizen.ApplicationControlData('service_action', ['start']);
-    var obj_params_start = new tizen.ApplicationControlData('params', params.analysisToString());
+    var obj_params_start = new tizen.ApplicationControlData('params', analysisParamsToString());
     var appcontrol_start = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
         null,
         null,
@@ -473,6 +473,13 @@ function toggle_alarm() {
 }
 
 
+function analysisParamsToString() {
+    return [params.minFreq.toString(), params.maxFreq.toString(), params.avgRoiThresh.toString(), params.multThresh.toString(), params.warnTime.toString(), (params.logging ? '1' : '0')];
+}
+
+function ftpParamsToString() {
+    return [params.ftpHostname, params.ftpPort, params.ftpUsername, params.ftpPassword, params.ftpPath];
+}
 
 function reset_params() {
 	//default values
@@ -497,14 +504,6 @@ function reset_params() {
         alarm_start_date: new Date(Date.parse("2020-11-23T16:28")),
         alarm_stop_date: new Date(Date.parse("2020-11-23T16:29")),
         alarm_days: ["MO", "TU", "WE", "TH", "FR", "SA", "SU"],
-
-
-        analysisToString: function() {
-            return [this.minFreq.toString(), this.maxFreq.toString(), this.avgRoiThresh.toString(), this.multThresh.toString(), this.warnTime.toString(), (this.logging ? '1' : '0')];
-        },
-        ftpToString: function() {
-            return [this.ftpHostname, this.ftpPort, this.ftpUsername, this.ftpPassword, this.ftpPath];
-        }
     };
     
     //make sure checkboxes are set correctly
