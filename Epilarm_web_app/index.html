@@ -6,12 +6,12 @@
 	<title>
 		Epilarm UI
 	</title>
-	<link href="lib/tau/wearable/theme/default/tau.css" rel="stylesheet" />
-	<link href="lib/tau/wearable/theme/default/tau.circle.css" rel="stylesheet" />
+	<link href="lib/tau/wearable/theme/default/tau.min.css" rel="stylesheet" />
+	<link href="lib/tau/wearable/theme/default/tau.circle.min.css" rel="stylesheet" />
 	<link href="css/style.css" rel="stylesheet" />
 	<link href="css/style.circle.css" rel="stylesheet" />
 	<script src="js/circle-helper.js"></script>
-	<script src="lib/tau/wearable/js/tau.js"></script>
+	<script src="lib/tau/wearable/js/tau.min.js"></script>
 	
 	<!-- custom scipts -->
     <script src="js/main.js"></script>
@@ -26,35 +26,53 @@
 			</h2>
 		</header>
 		<div class="ui-content">
-			<ul class="ui-listview">
-				<li class="li-has-toggle ui-li-grid ui-li-grid-full" >
+			<ul class="ui-listview" id="main_list">
+				<li class="li-has-toggle ui-li-grid ui-li-grid-full" id="start_stop">
 					<div>
 						Seizure-Detection
 					</div>
 					<div class="ui-toggleswitch">
-                        <input type="checkbox" class="ui-switch-input" id="start_stop_checkbox" onchange="start_stop(this.id)"/>
+                        <input type="checkbox" class="ui-switch-input" id="start_stop_checkbox"/>
 						<div class="ui-switch-button"> </div>
 					</div>
 				</li>
 				<!-- temporarily moved upload option to top ! -->
-				<li>
+				<li id="ftp_upload">
 					<a data-rel="popup" href="#UploadPopup" onclick="start_ftp_upload()">
 						Upload logs
 					</a>
+				</li>
+				<li class="li-has-toggle ui-li-grid ui-li-grid-full" id="automatic_analysis">
+					<div>
+						automatic analysis
+					</div>
+					<div class="ui-toggleswitch">
+                        <input type="checkbox" class="ui-switch-input" id="automatic_analysis_checkbox"/>
+						<div class="ui-switch-button"> </div>
+					</div>
 				</li>
 				
   				<li class="ui-li-group-index">
 					Settings
 				</li>
-				<li class="li-has-toggle ui-li-grid ui-li-grid-full" >
-					<div>
-						weekday 6:00-18:00 analysis
-					</div>
-					<div class="ui-toggleswitch">
-                        <input type="checkbox" class="ui-switch-input" id="alarm_checkbox" onchange="toggle_alarm(this.id)"/>
-						<div class="ui-switch-button"> </div>
-					</div>
+				<li class="li-has-multiline" id="settings_alarm_start">
+					<a href="contents/settings/automatic_start_picker.html">
+						start time
+						<span class="ui-li-sub-text">
+							(of automatic daily analysis)
+						</span>
+					</a>
 				</li>
+				<li class="li-has-multiline" id="settings_alarm_stop">
+					<a href="contents/settings/automatic_stop_picker.html">
+						stop time
+						<span class="ui-li-sub-text">
+							(of automatic daily analysis)
+						</span>
+					</a>
+				</li>
+				
+
 				<li class="li-has-multiline" id="settings_minfreq">
 					<a href="contents/settings/minfreq-picker.html">
 						minimal frequency
@@ -95,16 +113,16 @@
 						</span>
 					</a>
 				</li>
-				
- 				<li class="li-has-toggle" id="settings_logging">
-      				<label>
-         				Logging
-         				<div class="ui-toggleswitch">
-            				<input type="checkbox" class="ui-switch-input" id="logging_checkbox" onchange="toggle_logging(this.id)"/>
-         					<div class="ui-switch-button"></div>
-         				</div>
-      				</label>
-   				</li>
+   				<li class="li-has-toggle ui-li-grid ui-li-grid-full" id="settings_logging">
+					<div>
+						Logging
+					</div>
+					<div class="ui-toggleswitch">
+                        <input type="checkbox" class="ui-switch-input" id="logging_checkbox"/>
+						<div class="ui-switch-button"> </div>
+					</div>
+				</li>
+   				
 				<li class="li-has-multiline" id="settings_ftp">
 					<a href="contents/settings/ftp-input.html">
 						FTP-Server
@@ -131,19 +149,7 @@
 			</ul>
 		</div>
 		
-		<!-- popup for uploading of logs/info/reseting params -->
-		<div class="ui-popup" id="StartingPopup">
-			<div class="ui-popup-content">
-				<div class="small-processing-container">
-					<div class="ui-processing" style="-webkit-transform: scale(1.08); position: relative;">
-					</div>
-					<div id="UploadPopupText" class="ui-processing-text" style="position:relative; margin-top: 22px;">
-						Starting Epilarm...
-					</div>
-				</div>
-			</div>
-		</div>
-		
+		<!-- popup for uploading of logs/info/reseting params -->		
 		<div class="ui-popup" id="UploadPopup">
 			<div class="ui-popup-content">
 				<div class="small-processing-container">
