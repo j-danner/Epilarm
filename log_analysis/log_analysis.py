@@ -7,6 +7,7 @@ username = "admin"
 password = "T5tUZKVKWq8FPAh5"
 port = "21"
 remote_dir = "share/epilarm/log/jul/"
+local_dir = "/home/julian/Epilarm/log_analysis/logs/"
 #url = 'ftp://'+username+":"+password+"@"+mysite+":"+port+"/"+remote_dir+"/"
 ftp_server = ftplib.FTP(mysite, username, password)
 ftp.download_ftp_tree(ftp_server, remote_dir, local_dir, overwrite=False, guess_by_extension=True)
@@ -46,7 +47,7 @@ for filename in os.listdir(log_dir):
         try:
           logs.append(json.load(f, parse_constant=parse_nan_inf))
         except ValueError:
-          print(filename + " could not be loaded; probably nan of inf values contained!")
+          print(filename + " could not be loaded; probably nan or inf values contained!")
         continue
     else:
       continue
@@ -84,10 +85,12 @@ def find_gaps(logs, timeframe_hours=24, gap_size_secs=1.5, gap_size_secs_max=-1)
         no_gaps = no_gaps + 1
         avg_gap_len = avg_gap_len + gap
     print("A total of " + str(no_gaps) + " 'gaps' of length between " + str(gap_size_secs) + " and " + str(gap_size_secs_max) + " seconds were detected in the logs of the last " + str(timeframe_hours) + " hours.")
-    print ("The average length of a gap was " + str(avg_gap_len/no_gaps))
+    if no_gaps > 0:
+        print ("The average length of a gap was " + str(avg_gap_len/no_gaps))
 
 
-find_gaps(logs, timeframe_hours=3, gap_size_secs=1.2, gap_size_secs_max=6000)
+
+find_gaps(logs, timeframe_hours=100, gap_size_secs=1.4, gap_size_secs_max=-1)
 
 
 #remove logs older than 1 day
