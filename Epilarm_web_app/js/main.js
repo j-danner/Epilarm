@@ -279,18 +279,21 @@ function update_seizure_detection_checkbox() {
 
 
 function enable_settings() {
+	setting_elems.forEach( (elem) => {elem.disabled = true;});
 	/*for(elem in setting_elems) {
-		elem.style.opacity = 0.5;
-		elem.style.click(false);
+		//elem.style.opacity = 0.5;
+		//elem.style.click(false);
+		elem.disabled = true;
 	}*/
 	//TODO put code that works in here!!
 }
 
 function disable_settings() {
-	/*for(elem in setting_elems) {
+	for(elem in setting_elems) {
 		//elem.style.opacity = 0.5;
-		elem.style.click(false);
-	}*/
+		//elem.style.click(false);
+		elem.disabled = false;
+	}
 	//TODO put code that works in here!!
 }
 
