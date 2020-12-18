@@ -14,6 +14,7 @@ Below you can find a task-list which indicates the current state of the project 
   - [ ] optimize analysis, i.e., remove the (unnecessary) aggregation of the spectra in 0.5Hz bins
   - [x] implement basic functionality for ftp upload
   - [x] start UI (web app) if alarmstate changes (and app is not running)
+  - [ ] appcontrol to delete all log files
   - [ ] raise alarm by initializing phone call and/or send SMS (write companion app for Android or stick to LTE version of smart watch/can we use Samsung's very own SOS system?)
   - [ ] read GPS data every now and then s.t. it can be sent as an attachment of the alarm notification
   - [ ] automatically start and stop analysis at given times (use Alarm API?!)
@@ -32,6 +33,7 @@ Below you can find a task-list which indicates the current state of the project 
   - [x] save settings to local storage and load them from there
   - [x] if something goes wrong in the service app, give appropriate popup warnings in UI (compression failed, upload failed, seizure detection failed)
   - [ ] deactivate settings if sensor listener is running (settings only get applied after restart of listener!)
+  - [ ] button to delete all log files (with confirmation popup, then one can easily erase data each day if no seizure happened...)
 
 
 - Python Log Analysis:

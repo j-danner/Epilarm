@@ -1,6 +1,33 @@
 //parameters, must be initialized by reset_params() or loaded from localstorage. Simply use load_params() once!
 var params;
 
+//list items
+var list;
+//store references to html objects of items
+var start_stop;
+var start_stop_checkbox;
+
+var ftp_upload;
+
+var automatic_analysis;
+var automatic_analysis_checkbox;
+//settings
+var settings_alarm_start;
+var settings_alarm_stop;
+var settings_minfreq;
+var settings_maxfreq;
+var settings_avgthresh;
+var settings_multthresh;
+var settings_warntime;
+var settings_logging;
+var logging_checkbox;
+var settings_ftp;
+var settings_restore;
+//collect all settings in setting_elems
+var setting_elems = [];
+
+
+
 var SERVICE_APP_ID = tizen.application.getCurrentApplication().appInfo.packageId + '.epilarm_sensor_service'; //'QOeM6aBGp0.epilarm_sensor_service';
 var APP_ID = tizen.application.getCurrentApplication().appInfo.id;
 
@@ -64,7 +91,7 @@ function start_ftp_upload() {
             	//compression of logs is done, start ftp-upload now
                 console.log('ftp_upload: starting service app for ftp upload...');
                 var obj = new tizen.ApplicationControlData('service_action', ['log_upload']);
-                var obj_params = new tizen.ApplicationControlData('params', params.ftpToString());
+                var obj_params = new tizen.ApplicationControlData('params', ftpParamsToString());
                 var obj1 = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
                     null,
                     null,
@@ -133,11 +160,14 @@ function start_ftp_upload() {
     }
 }
 
-//start service app and seizure detection
+//start service app and seizure detection (also makes sure that the corr checkbox is in the correct position!)
 function start_service_app() {
+	//disable settings!
+    disable_settings();
+	
     console.log('starting service app...');
     var obj = new tizen.ApplicationControlData('service_action', ['start']);
-    var obj_params = new tizen.ApplicationControlData('params', params.analysisToString());
+    var obj_params = new tizen.ApplicationControlData('params', analysisParamsToString());
     var obj1 = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
         null,
         null,
@@ -148,18 +178,27 @@ function start_service_app() {
             SERVICE_APP_ID,
             function() {
                 console.log('Launch Service succeeded');
+                
+                update_seizure_detection_checkbox()
             },
             function(e) {
                 console.log('Launch Service failed : ' + e.message);
                 tau.openPopup('#StartFailedPopup');
+                
+                update_seizure_detection_checkbox()
             }, null);
     } catch (e) {
         window.alert('Error when starting appcontrol for starting seizure detection! error msg:' + e.toString());
+        
+        update_seizure_detection_checkbox()
     }
 }
 
-//stop service app and seizure detection
+//stop service app and seizure detection (also makes sure that the corr checkbox is in the correct position!)
 function stop_service_app() {
+	//enable settings!
+    enable_settings();
+	
     console.log('stopping service app...');
     var obj = new tizen.ApplicationControlData('service_action', ['stop']); //you'll find the app id in config.xml file.
     var obj1 = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
@@ -172,24 +211,27 @@ function stop_service_app() {
             SERVICE_APP_ID,
             function() {
                 console.log('Stopping Service Request succeeded');
+                
+                update_seizure_detection_checkbox()
             },
             function(e) {
                 console.log('Stopping Service Request failed : ' + e.message);
+                
+                update_seizure_detection_checkbox()
             }, null);
     } catch (e) {
         window.alert('Error when starting appcontrol for stopping seizure detection! error msg:' + e.toString());
+        
+        update_seizure_detection_checkbox()
     }
 }
 
-function update_logging_alarm_checkboxes() {
+function update_checkboxes() {
     //update logging and alarm checkbox
     console.log('updating logging checkbox');
-    var logging_box = document.querySelector('#logging_checkbox');
-    logging_box.checked = params.logging;
-    //logging_box.addEventListener('load', listener, useCapture)
-    console.log('updating alarm checkbox');
-    var alarm_box = document.querySelector('#alarm_checkbox');
-    alarm_box.checked = params.alarm;
+    logging_checkbox.checked = params.logging;
+    console.log('updating automatic_analysis checkbox');
+    automatic_analysis_checkbox.checked = params.alarm;
 }
 
 //update seizure detection, logging and alarm
@@ -206,12 +248,9 @@ function update_seizure_detection_checkbox() {
         // callee sent a reply
         onsuccess: function(data) {
             //update checkbox!
-            document.getElementById('start_stop_checkbox').checked = (data[0].value[0] === '1');
+            start_stop_checkbox.checked = (data[0].value[0] === '1');
             console.log('received: ' + data[0].value[0]);
             console.log('updated checkbox! (to ' + (data[0].value[0] === '1') + ')');
-            
-            //change from loading page to mainpage
-            tau.closePopup();
         },
         // callee returned failure
         onfailure: function() {
@@ -238,36 +277,39 @@ function update_seizure_detection_checkbox() {
     }
 }
 
-/*
-function toggle_settings_visibility() {
-	 var setting_elems = document.querySelectorAll('*[id^="settings_"]');
-	 
-	 for(elem in setting_elems) {
-		 if (elem.style.opacity < 1.0) {
-			 elem.style.opacity = 1.0;
-			 elem.style.click(true);
-		 } else {
-			 elem.style.opacity = 0.5;
-			 elem.style.click(false);
-		 }
-	 }
-}*/
+
+function enable_settings() {
+	setting_elems.forEach( (elem) => {elem.disabled = true;});
+	/*for(elem in setting_elems) {
+		//elem.style.opacity = 0.5;
+		//elem.style.click(false);
+		elem.disabled = true;
+	}*/
+	//TODO put code that works in here!!
+}
+
+function disable_settings() {
+	for(elem in setting_elems) {
+		//elem.style.opacity = 0.5;
+		//elem.style.click(false);
+		elem.disabled = false;
+	}
+	//TODO put code that works in here!!
+}
 
 
 
-function start_stop(id) {
-    if (document.getElementById(id).checked) {
+function toggle_analysis() {
+    if (start_stop_checkbox.checked) {
         start_service_app();
-        //toggle_settings_visibility();
     } else {
         stop_service_app();
-        //toggle_settings_visibility();
     }
 }
 
 
-function toggle_logging(id) {
-    if (document.getElementById(id).checked) {
+function toggle_logging() {
+    if (logging_checkbox.checked) {
         params.logging = true;
     } else {
         params.logging = false;
@@ -293,7 +335,7 @@ function add_alarms() {
     );
    
     var obj_start = new tizen.ApplicationControlData('service_action', ['start']);
-    var obj_params_start = new tizen.ApplicationControlData('params', params.analysisToString());
+    var obj_params_start = new tizen.ApplicationControlData('params', analysisParamsToString());
     var appcontrol_start = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
         null,
         null,
@@ -413,7 +455,6 @@ function add_alarms() {
 	console.log('add_alarm: done.');
 }
 
-
 //removes all scheduled alarms of app (i.e. all scheduled starting and stopping calls to service app)
 function remove_alarms() {
 	console.log('remove_alarm: start.');
@@ -423,9 +464,8 @@ function remove_alarms() {
 }
 
 
-
-function toggle_alarm(id) {
-    if (document.getElementById(id).checked) {
+function toggle_alarm() {
+    if (automatic_analysis_checkbox.checked) {
         params.alarm = true;
         add_alarms();
     } else {
@@ -436,6 +476,13 @@ function toggle_alarm(id) {
 }
 
 
+function analysisParamsToString() {
+    return [params.minFreq.toString(), params.maxFreq.toString(), params.avgRoiThresh.toString(), params.multThresh.toString(), params.warnTime.toString(), (params.logging ? '1' : '0')];
+}
+
+function ftpParamsToString() {
+    return [params.ftpHostname, params.ftpPort, params.ftpUsername, params.ftpPassword, params.ftpPath];
+}
 
 function reset_params() {
 	//default values
@@ -448,7 +495,7 @@ function reset_params() {
 
 
         //variables that can be changed in settings:
-        logging: false, //boolean to decide if sensordata should be stored
+        logging: true, //boolean to decide if sensordata should be stored
         ftpHostname: '192.168.178.33', //address of your (local) ftp server to which logs are uploaded
         ftpPort: '21', //port under which the broker is found
         ftpUsername: 'sam-gal-act-2-jul', //username
@@ -460,18 +507,13 @@ function reset_params() {
         alarm_start_date: new Date(Date.parse("2020-11-23T16:28")),
         alarm_stop_date: new Date(Date.parse("2020-11-23T16:29")),
         alarm_days: ["MO", "TU", "WE", "TH", "FR", "SA", "SU"],
-
-
-        analysisToString: function() {
-            return [this.minFreq.toString(), this.maxFreq.toString(), this.avgRoiThresh.toString(), this.multThresh.toString(), this.warnTime.toString(), (this.logging ? '1' : '0')];
-        },
-        ftpToString: function() {
-            return [this.ftpHostname, this.ftpPort, this.ftpUsername, this.ftpPassword, this.ftpPath];
-        }
     };
+    
+    //make sure checkboxes are set correctly
+    update_checkboxes();
 }
 
-
+//re-launch UI and start seizure detection
 function test_start() {
     var obj_start = new tizen.ApplicationControlData('service_action', ['start']);
     var appcontrol_start = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
@@ -491,6 +533,7 @@ function test_start() {
 
 }
 
+//re-launch UI and stop seizure detection
 function test_stop() {
     var obj_start = new tizen.ApplicationControlData('service_action', ['stop']);
     var appcontrol_start = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
@@ -514,16 +557,52 @@ function test_stop() {
 window.onload = function() {
     //leave screen on
     //tizen.power.request('SCREEN', 'SCREEN_NORMAL');
-	
-	//open starting popup:
-	tau.openPopup('#StartingPopup');
 
-	//load user settings
+	//define vars for all relevant list items and add eventlisteners!
+    list = tau.widget.Listview(document.getElementById('main_list'))._items;
+    
+    //settings:    
+    start_stop = list.find(el => el.id == 'start_stop');
+    start_stop_checkbox = start_stop.childNodes[3].childNodes[1];
+    
+    start_stop_checkbox.addEventListener('change', toggle_analysis);
+    
+    settings_alarm_start = list.find(el => el.id == 'settings_alarm_start');
+    settings_alarm_stop = list.find(el => el.id == 'settings_alarm_stop');
+    
+    automatic_analysis = list.find(el => el.id == 'automatic_analysis');
+    automatic_analysis_checkbox = automatic_analysis.childNodes[3].childNodes[1];
+    
+    automatic_analysis_checkbox.addEventListener('change', toggle_alarm);
+    
+    settings_logging = list.find(el => el.id == 'settings_logging');
+    logging_checkbox = settings_logging.childNodes[3].childNodes[1];
+    
+    logging_checkbox.addEventListener('change', toggle_logging);
+    
+    settings_minfreq = list.find(el => el.id == 'settings_minfreq');
+    settings_maxfreq = list.find(el => el.id == 'settings_maxfreq');
+    settings_avgthresh = list.find(el => el.id == 'settings_avgthresh');
+    settings_multthresh = list.find(el => el.id == 'settings_multthresh');
+    settings_warntime = list.find(el => el.id == 'settings_warntime');
+    
+    settings_ftp = list.find(el => el.id == 'settings_ftp');
+    ftp_upload = list.find(el => el.id == 'ftp_upload');
+    settings_restore = list.find(el => el.id == 'settings_restore');
+
+    //collect all elements which should only be 'changeable' in case analysis is not running
+    setting_elems = [settings_alarm_start, settings_alarm_stop, settings_logging, logging_checkbox,
+                     settings_minfreq, settings_maxfreq, settings_avgthresh, settings_multthresh,
+                     settings_warntime, settings_restore, ftp_upload];
+
+    
+	//load user settings (or default!) //MUST NOT BE DONE BEFORE INITILIZING ALL ELEMENTS OF THE LIST (since it also updates the checkboxes correspondingly!)
     load_params();
+	
     
     //update 'simple' checkboxes (where service app must not be asked for)
-    update_logging_alarm_checkboxes();
-    //seizure detection checkbox is only updated after 
+    update_checkboxes();
+    //seizure detection checkbox is updated when handling appcontrol:
     
     //check whether app was launched due to some appControl:
     var reqAppControl = tizen.application.getCurrentApplication().getRequestedAppControl();
@@ -535,23 +614,21 @@ window.onload = function() {
         if (reqAppControl.appControl.data.length>0 && reqAppControl.appControl.operation === 'http://tizen.org/appcontrol/operation/service') {
         	if (reqAppControl.appControl.data[0].key === 'service_action' && reqAppControl.appControl.data[0].value[0] === 'start') {
         		console.log('appcontrol with service action _start_ received!');
-        		start_service_app();
+        		start_service_app(); //updates seizure detection checkbox aufter launch!
         		//open popup informing user that seizure detection was automatically started!
         		tau.openPopup('#AutomaticDetectionStartPopup');
     		} else if (reqAppControl.appControl.data[0].key === 'service_action' && reqAppControl.appControl.data[0].value[0] === 'stop') {
         		console.log('appcontrol with service action _stop_ received!');
-    			stop_service_app();
+    			stop_service_app(); //updates seizure detection checkbox aufter termination!
         		//open popup informing user that seizure detection was automatically stopped!
         		tau.openPopup('#AutomaticDetectionStopPopup');
 			}
         }
     } else {
         console.log('not launched by appcontrol.');
+        
+        update_seizure_detection_checkbox();
     }
-
-
-    //make sure that checkboxes are in correct state on startup, also this changes to main page!
-    update_seizure_detection_checkbox(); //this closes the 'StartingPopup' !!
 
     console.log('UI started!');
 };

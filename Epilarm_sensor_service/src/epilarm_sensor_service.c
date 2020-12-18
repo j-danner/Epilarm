@@ -15,20 +15,21 @@
 #include <device/battery.h>
 #include <notification.h>
 
-//ftp
+//ftp upload
 #include <curl/curl.h>
 #include <sys/stat.h>
 #include <glib-object.h>
 #include <json-glib/json-glib.h>
 
+//compression
 #define _FILE_OFFSET_BITS 64
 #include <zlib.h>
 #include <microtar.h>
 
 
-
-//own modules
+//FFT
 #include <fft.h>
+//RingBuffer
 #include <rb.h>
 
 
@@ -646,11 +647,154 @@ void start_UI()
 	}
 }
 
-//sensor event callback implementation
-void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_data)
+//given sensor data (with user_data) performs FFT and our seizure detection on this. Also handles raising of alarms.
+void seizure_detection(void *data) {
+	// Extracting application data
+	appdata_s* ad = (appdata_s*)data;
+
+	//dlog_print(DLOG_INFO, LOG_TAG, "read out ringbufs...");
+	ringbuf_get_buf(ad->rb_x, ad->fft_x_spec);
+	ringbuf_get_buf(ad->rb_y, ad->fft_y_spec);
+	ringbuf_get_buf(ad->rb_z, ad->fft_z_spec);
+	//dlog_print(DLOG_INFO, LOG_TAG, "starting FFT...");
+	fft_forward(ad->fft_x, ad->fft_x_spec);
+	fft_forward(ad->fft_y, ad->fft_y_spec);
+	fft_forward(ad->fft_z, ad->fft_z_spec);
+	//dlog_print(DLOG_INFO, LOG_TAG, "FFT done.");
+
+	//rearrange transform output s.t. sin and cos parts are not separated, also normalize them, i.e., take their absolute values
+	for (int i = 0; i < bufferSize/2; ++i) {
+		ad->fft_x_spec[i] = sqrt(ad->fft_x_spec[2*i]*ad->fft_x_spec[2*i] + ad->fft_x_spec[2*i+1]*ad->fft_x_spec[2*i+1]);
+		ad->fft_y_spec[i] = sqrt(ad->fft_y_spec[2*i]*ad->fft_y_spec[2*i] + ad->fft_y_spec[2*i+1]*ad->fft_y_spec[2*i+1]);
+		ad->fft_z_spec[i] = sqrt(ad->fft_z_spec[2*i]*ad->fft_z_spec[2*i] + ad->fft_z_spec[2*i+1]*ad->fft_z_spec[2*i+1]);
+
+	} //note fft_X_spec[i] now contains the magnitudes freq 0.1Hz*i (for i=0 ... sampleSize/2)
+
+	//collect the freqs in bins of 0.5Hz each (in ad->fft_X_spec_simplified); they each have a total of sampleSize bins
+	for (int i = 0; i < sampleRate; ++i) {
+		//dlog_print(DLOG_INFO, LOG_TAG, "i: %i", i);
+		ad->fft_x_spec_simplified[i] = 0;
+		ad->fft_y_spec_simplified[i] = 0;
+		ad->fft_z_spec_simplified[i] = 0;
+		for (int j = i*dataAnalysisInterval/2 + (i==0 ? 1 : 0); j < (i+1)*dataAnalysisInterval/2; ++j) { //skip case j=0 as it contains movement corr to 0Hz movement
+			//dlog_print(DLOG_INFO, LOG_TAG, " j: %i", j);
+			ad->fft_x_spec_simplified[i] += ad->fft_x_spec[j];
+			ad->fft_y_spec_simplified[i] += ad->fft_y_spec[j];
+			ad->fft_z_spec_simplified[i] += ad->fft_z_spec[j];
+		}
+	}
+	//dlog_print(DLOG_INFO, LOG_TAG, "spec simplified!");
+
+	//first step of analysis: compute the average value among the relevant freqs, and
+	//second step of analysis: compute the average value of all other freqs
+	ad->avg_roi_x = 0;
+	ad->avg_roi_y = 0;
+	ad->avg_roi_z = 0;
+	ad->avg_nroi_x = 0;
+	ad->avg_nroi_y = 0;
+	ad->avg_nroi_z = 0;
+
+	double max_x = 0;
+	double max_y = 0;
+	double max_z = 0;
+	for (int i = 2*ad->minFreq; i <= 2*ad->maxFreq; ++i) {
+		ad->avg_roi_x += ad->fft_x_spec_simplified[i];
+		ad->avg_roi_y += ad->fft_y_spec_simplified[i];
+		ad->avg_roi_z += ad->fft_z_spec_simplified[i];
+		if(ad->fft_x_spec_simplified[i] > max_x) max_x = ad->fft_x_spec_simplified[i];
+		if(ad->fft_y_spec_simplified[i] > max_y) max_y = ad->fft_y_spec_simplified[i];
+		if(ad->fft_z_spec_simplified[i] > max_z) max_z = ad->fft_z_spec_simplified[i];
+	}
+	for (int i = 0; i < sampleRate; ++i) {
+		ad->avg_nroi_x += ad->fft_x_spec_simplified[i];
+		ad->avg_nroi_y += ad->fft_y_spec_simplified[i];
+		ad->avg_nroi_z += ad->fft_z_spec_simplified[i];
+	}
+
+	ad->avg_nroi_x = (ad->avg_nroi_x - ad->avg_roi_x) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
+	ad->avg_roi_x = ad->avg_roi_x / (2*ad->maxFreq-2*ad->minFreq+1);
+	ad->avg_nroi_y = (ad->avg_nroi_y - ad->avg_roi_y) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
+	ad->avg_roi_y = ad->avg_roi_y / (2*ad->maxFreq-2*ad->minFreq+1);
+	ad->avg_nroi_z = (ad->avg_nroi_z - ad->avg_roi_z) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
+	ad->avg_roi_z = ad->avg_roi_z / (2*ad->maxFreq-2*ad->minFreq+1);
+
+	//dlog_print(DLOG_INFO, LOG_TAG, "minfreq: %f, maxfeq: %f", ad->minFreq, ad->maxFreq);
+
+
+	//dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_x: %f, avgRoi_x: %f, (max_x_roi: %f)", ad->avg_nroi_x, ad->avg_roi_x, max_x);
+	//dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_y: %f, avgRoi_y: %f, (max_y_roi: %f)", ad->avg_nroi_y, ad->avg_roi_y, max_y);
+	//dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_z: %f, avgRoi_z: %f, (max_z_roi: %f)", ad->avg_nroi_z, ad->avg_roi_z, max_z);
+
+	//print comp freqs 0-1Hz 1-2Hz 2-3Hz ... 9-10Hz
+	/*dlog_print(DLOG_INFO, LOG_TAG, "x: %f  %f  %f  %f  %f  %f  %f  %f  %f  %f", ad->fft_x_spec_simplified[0]+ad->fft_x_spec_simplified[1], ad->fft_x_spec_simplified[2]+ad->fft_x_spec_simplified[3],
+			ad->fft_x_spec_simplified[4]+ad->fft_x_spec_simplified[5], ad->fft_x_spec_simplified[6]+ad->fft_x_spec_simplified[7], ad->fft_x_spec_simplified[8]+ad->fft_x_spec_simplified[9],
+			ad->fft_x_spec_simplified[10]+ad->fft_x_spec_simplified[11], ad->fft_x_spec_simplified[12]+ad->fft_x_spec_simplified[13], ad->fft_x_spec_simplified[14]+ad->fft_x_spec_simplified[15],
+			ad->fft_x_spec_simplified[16]+ad->fft_x_spec_simplified[17], ad->fft_x_spec_simplified[18]+ad->fft_x_spec_simplified[19]);
+	dlog_print(DLOG_INFO, LOG_TAG, "y: %f  %f  %f  %f  %f  %f  %f  %f  %f  %f", ad->fft_y_spec_simplified[0]+ad->fft_y_spec_simplified[1], ad->fft_y_spec_simplified[2]+ad->fft_y_spec_simplified[3],
+			ad->fft_y_spec_simplified[4]+ad->fft_y_spec_simplified[5], ad->fft_y_spec_simplified[7]+ad->fft_y_spec_simplified[6], ad->fft_y_spec_simplified[9]+ad->fft_y_spec_simplified[8],
+			ad->fft_y_spec_simplified[11]+ad->fft_y_spec_simplified[10], ad->fft_y_spec_simplified[13]+ad->fft_y_spec_simplified[12], ad->fft_y_spec_simplified[15]+ad->fft_y_spec_simplified[14],
+			ad->fft_y_spec_simplified[17]+ad->fft_y_spec_simplified[16], ad->fft_y_spec_simplified[19]+ad->fft_y_spec_simplified[18]);
+	dlog_print(DLOG_INFO, LOG_TAG, "z: %f  %f  %f  %f  %f  %f  %f  %f  %f  %f", ad->fft_z_spec_simplified[0]+ad->fft_z_spec_simplified[1], ad->fft_z_spec_simplified[2]+ad->fft_z_spec_simplified[3],
+			ad->fft_z_spec_simplified[4]+ad->fft_z_spec_simplified[5], ad->fft_z_spec_simplified[7]+ad->fft_z_spec_simplified[6], ad->fft_z_spec_simplified[9]+ad->fft_z_spec_simplified[8],
+			ad->fft_z_spec_simplified[11]+ad->fft_z_spec_simplified[10], ad->fft_z_spec_simplified[13]+ad->fft_z_spec_simplified[12], ad->fft_z_spec_simplified[15]+ad->fft_z_spec_simplified[14],
+			ad->fft_z_spec_simplified[17]+ad->fft_z_spec_simplified[16], ad->fft_z_spec_simplified[19]+ad->fft_z_spec_simplified[18]);
+	*/
+
+	ad->multRatio = ((ad->avg_roi_x/ad->avg_nroi_x) + (ad->avg_roi_y/ad->avg_nroi_y) + (ad->avg_roi_z/ad->avg_nroi_z)) / 3.0;
+
+	//combine three values for threshold comparison
+	ad->avgRoi = sqrt(ad->avg_roi_x * ad->avg_roi_x + ad->avg_roi_y * ad->avg_roi_y + ad->avg_roi_z * ad->avg_roi_z);
+
+	dlog_print(DLOG_INFO, LOG_TAG, "# multRatio: %f, avgRoi: %f", ad->multRatio, ad->avgRoi);
+	if (ad->avgRoi >= ad->avgRoiThresh)
+		dlog_print(DLOG_INFO, LOG_TAG, "---> avgRoiThresh reached");
+	else
+		//dlog_print(DLOG_INFO, LOG_TAG, "---> avgRoiThresh NOT reached");
+
+	if (ad->multRatio >= ad->multThresh)
+		dlog_print(DLOG_INFO, LOG_TAG, "---> multThresh reached");
+	else
+		//dlog_print(DLOG_INFO, LOG_TAG, "---> multThresh NOT reached");
+
+	//check both conditions for increasing alarmstate
+	if(ad->multRatio >= ad->multThresh && ad->avgRoi >= ad->avgRoiThresh) {
+		ad->alarmState = ad->alarmState+1;
+		dlog_print(DLOG_INFO, LOG_TAG, "### alarmState increased by one to %i", ad->alarmState);
+
+		//TODO add appropriate handling for WARNING state (i.e. vibrate motors, display on, sounds?!)
+		//navigator.vibrate(100);
+		//send new notification
+		issue_warning_notification(ad->alarmState);
+
+		if(ad->alarmState >= ad->warnTime) {
+			dlog_print(DLOG_INFO, LOG_TAG, "#### ALARM RAISED ####");
+			//TODO add appropriate handling for ALARM state (i.e. contact persons based on GPS location?!)
+			issue_alarm_notification(ad->alarmState);
+			//navigator.vibrate(100);
+			//TODO seizure detected! handle this appropriately in UI!
+			start_UI();
+		}
+	} else {
+		if(ad->alarmState > 1) {
+			ad->alarmState = ad->alarmState - 1;
+			dlog_print(DLOG_INFO, LOG_TAG, "### alarmState decreased by one to %i", ad->alarmState);
+		} else if (ad->alarmState == 1) {
+			ad->alarmState = ad->alarmState - 1;
+			dlog_print(DLOG_INFO, LOG_TAG, "### alarmState decreased by one to %i", ad->alarmState);
+		}
+	}
+
+	if(ad->logging) {
+		//write log to local storage after every analysis
+		save_log(ad);
+	}
+}
+
+//sensor event callback implementation, to be called every time sensor data is received!
+void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *data)
 {
 	// Extracting application data
-	appdata_s* ad = (appdata_s*)user_data;
+	appdata_s* ad = (appdata_s*)data;
 
 	sensor_type_e type = SENSOR_ALL;
 
@@ -660,152 +804,15 @@ void sensor_event_callback(sensor_h sensor, sensor_event_s *event, void *user_da
 		ringbuf_push(ad->rb_y, event->values[1]);
 		ringbuf_push(ad->rb_z, event->values[2]);
 
-		//dlog_print(DLOG_INFO, LOG_TAG, "sensors read!");
-
 		//each second perform fft analysis -> a second has passed if sampleRate number of new entries were made in rb_X, i.e., if rb_x->idx % sampleRate == 0
 		if((ad->rb_x)->idx % sampleRate == 0)
 		{
-			//TODO remove after extensive testing!!!
-
-			//dlog_print(DLOG_INFO, LOG_TAG, "read out ringbufs...");
-			ringbuf_get_buf(ad->rb_x, ad->fft_x_spec);
-			ringbuf_get_buf(ad->rb_y, ad->fft_y_spec);
-			ringbuf_get_buf(ad->rb_z, ad->fft_z_spec);
-			//dlog_print(DLOG_INFO, LOG_TAG, "starting FFT...");
-			fft_forward(ad->fft_x, ad->fft_x_spec);
-			fft_forward(ad->fft_y, ad->fft_y_spec);
-			fft_forward(ad->fft_z, ad->fft_z_spec);
-			//dlog_print(DLOG_INFO, LOG_TAG, "FFT done.");
-
-			//rearrange transform output s.t. sin and cos parts are not separated, also normalize them, i.e., take their absolute values
-			for (int i = 0; i < bufferSize/2; ++i) {
-				ad->fft_x_spec[i] = sqrt(ad->fft_x_spec[2*i]*ad->fft_x_spec[2*i] + ad->fft_x_spec[2*i+1]*ad->fft_x_spec[2*i+1]);
-				ad->fft_y_spec[i] = sqrt(ad->fft_y_spec[2*i]*ad->fft_y_spec[2*i] + ad->fft_y_spec[2*i+1]*ad->fft_y_spec[2*i+1]);
-				ad->fft_z_spec[i] = sqrt(ad->fft_z_spec[2*i]*ad->fft_z_spec[2*i] + ad->fft_z_spec[2*i+1]*ad->fft_z_spec[2*i+1]);
-
-			} //note fft_X_spec[i] now contains the magnitudes freq 0.1Hz*i (for i=0 ... sampleSize/2)
-
-			//collect the freqs in bins of 0.5Hz each (in ad->fft_X_spec_simplified); they each have a total of sampleSize bins
-			for (int i = 0; i < sampleRate; ++i) {
-				//dlog_print(DLOG_INFO, LOG_TAG, "i: %i", i);
-				ad->fft_x_spec_simplified[i] = 0;
-				ad->fft_y_spec_simplified[i] = 0;
-				ad->fft_z_spec_simplified[i] = 0;
-				for (int j = i*dataAnalysisInterval/2 + (i==0 ? 1 : 0); j < (i+1)*dataAnalysisInterval/2; ++j) { //skip case j=0 as it contains movement corr to 0Hz movement
-					//dlog_print(DLOG_INFO, LOG_TAG, " j: %i", j);
-					ad->fft_x_spec_simplified[i] += ad->fft_x_spec[j];
-					ad->fft_y_spec_simplified[i] += ad->fft_y_spec[j];
-					ad->fft_z_spec_simplified[i] += ad->fft_z_spec[j];
-				}
-			}
-			//dlog_print(DLOG_INFO, LOG_TAG, "spec simplified!");
-
-			//first step of analysis: compute the average value among the relevant freqs, and
-			//second step of analysis: compute the average value of all other freqs
-			ad->avg_roi_x = 0;
-			ad->avg_roi_y = 0;
-			ad->avg_roi_z = 0;
-			ad->avg_nroi_x = 0;
-			ad->avg_nroi_y = 0;
-			ad->avg_nroi_z = 0;
-
-			double max_x = 0;
-			double max_y = 0;
-			double max_z = 0;
-			for (int i = 2*ad->minFreq; i <= 2*ad->maxFreq; ++i) {
-				ad->avg_roi_x += ad->fft_x_spec_simplified[i];
-				ad->avg_roi_y += ad->fft_y_spec_simplified[i];
-				ad->avg_roi_z += ad->fft_z_spec_simplified[i];
-				if(ad->fft_x_spec_simplified[i] > max_x) max_x = ad->fft_x_spec_simplified[i];
-				if(ad->fft_y_spec_simplified[i] > max_y) max_y = ad->fft_y_spec_simplified[i];
-				if(ad->fft_z_spec_simplified[i] > max_z) max_z = ad->fft_z_spec_simplified[i];
-			}
-			for (int i = 0; i < sampleRate; ++i) {
-				ad->avg_nroi_x += ad->fft_x_spec_simplified[i];
-				ad->avg_nroi_y += ad->fft_y_spec_simplified[i];
-				ad->avg_nroi_z += ad->fft_z_spec_simplified[i];
-			}
-
-			ad->avg_nroi_x = (ad->avg_nroi_x - ad->avg_roi_x) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
-			ad->avg_roi_x = ad->avg_roi_x / (2*ad->maxFreq-2*ad->minFreq+1);
-			ad->avg_nroi_y = (ad->avg_nroi_y - ad->avg_roi_y) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
-			ad->avg_roi_y = ad->avg_roi_y / (2*ad->maxFreq-2*ad->minFreq+1);
-			ad->avg_nroi_z = (ad->avg_nroi_z - ad->avg_roi_z) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
-			ad->avg_roi_z = ad->avg_roi_z / (2*ad->maxFreq-2*ad->minFreq+1);
-
-			//dlog_print(DLOG_INFO, LOG_TAG, "minfreq: %f, maxfeq: %f", ad->minFreq, ad->maxFreq);
-
-
-			//dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_x: %f, avgRoi_x: %f, (max_x_roi: %f)", ad->avg_nroi_x, ad->avg_roi_x, max_x);
-			//dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_y: %f, avgRoi_y: %f, (max_y_roi: %f)", ad->avg_nroi_y, ad->avg_roi_y, max_y);
-			//dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_z: %f, avgRoi_z: %f, (max_z_roi: %f)", ad->avg_nroi_z, ad->avg_roi_z, max_z);
-
-			//print comp freqs 0-1Hz 1-2Hz 2-3Hz ... 9-10Hz
-			/*dlog_print(DLOG_INFO, LOG_TAG, "x: %f  %f  %f  %f  %f  %f  %f  %f  %f  %f", ad->fft_x_spec_simplified[0]+ad->fft_x_spec_simplified[1], ad->fft_x_spec_simplified[2]+ad->fft_x_spec_simplified[3],
-					ad->fft_x_spec_simplified[4]+ad->fft_x_spec_simplified[5], ad->fft_x_spec_simplified[6]+ad->fft_x_spec_simplified[7], ad->fft_x_spec_simplified[8]+ad->fft_x_spec_simplified[9],
-					ad->fft_x_spec_simplified[10]+ad->fft_x_spec_simplified[11], ad->fft_x_spec_simplified[12]+ad->fft_x_spec_simplified[13], ad->fft_x_spec_simplified[14]+ad->fft_x_spec_simplified[15],
-					ad->fft_x_spec_simplified[16]+ad->fft_x_spec_simplified[17], ad->fft_x_spec_simplified[18]+ad->fft_x_spec_simplified[19]);
-			dlog_print(DLOG_INFO, LOG_TAG, "y: %f  %f  %f  %f  %f  %f  %f  %f  %f  %f", ad->fft_y_spec_simplified[0]+ad->fft_y_spec_simplified[1], ad->fft_y_spec_simplified[2]+ad->fft_y_spec_simplified[3],
-					ad->fft_y_spec_simplified[4]+ad->fft_y_spec_simplified[5], ad->fft_y_spec_simplified[7]+ad->fft_y_spec_simplified[6], ad->fft_y_spec_simplified[9]+ad->fft_y_spec_simplified[8],
-					ad->fft_y_spec_simplified[11]+ad->fft_y_spec_simplified[10], ad->fft_y_spec_simplified[13]+ad->fft_y_spec_simplified[12], ad->fft_y_spec_simplified[15]+ad->fft_y_spec_simplified[14],
-					ad->fft_y_spec_simplified[17]+ad->fft_y_spec_simplified[16], ad->fft_y_spec_simplified[19]+ad->fft_y_spec_simplified[18]);
-			dlog_print(DLOG_INFO, LOG_TAG, "z: %f  %f  %f  %f  %f  %f  %f  %f  %f  %f", ad->fft_z_spec_simplified[0]+ad->fft_z_spec_simplified[1], ad->fft_z_spec_simplified[2]+ad->fft_z_spec_simplified[3],
-					ad->fft_z_spec_simplified[4]+ad->fft_z_spec_simplified[5], ad->fft_z_spec_simplified[7]+ad->fft_z_spec_simplified[6], ad->fft_z_spec_simplified[9]+ad->fft_z_spec_simplified[8],
-					ad->fft_z_spec_simplified[11]+ad->fft_z_spec_simplified[10], ad->fft_z_spec_simplified[13]+ad->fft_z_spec_simplified[12], ad->fft_z_spec_simplified[15]+ad->fft_z_spec_simplified[14],
-					ad->fft_z_spec_simplified[17]+ad->fft_z_spec_simplified[16], ad->fft_z_spec_simplified[19]+ad->fft_z_spec_simplified[18]);
-			*/
-
-			ad->multRatio = ((ad->avg_roi_x/ad->avg_nroi_x) + (ad->avg_roi_y/ad->avg_nroi_y) + (ad->avg_roi_z/ad->avg_nroi_z)) / 3.0;
-
-			//combine three values for threshold comparison
-			ad->avgRoi = sqrt(ad->avg_roi_x * ad->avg_roi_x + ad->avg_roi_y * ad->avg_roi_y + ad->avg_roi_z * ad->avg_roi_z);
-
-			dlog_print(DLOG_INFO, LOG_TAG, "# multRatio: %f, avgRoi: %f", ad->multRatio, ad->avgRoi);
-			if (ad->avgRoi >= ad->avgRoiThresh)
-				dlog_print(DLOG_INFO, LOG_TAG, "---> avgRoiThresh reached");
-			else
-				//dlog_print(DLOG_INFO, LOG_TAG, "---> avgRoiThresh NOT reached");
-
-			if (ad->multRatio >= ad->multThresh)
-				dlog_print(DLOG_INFO, LOG_TAG, "---> multThresh reached");
-			else
-				//dlog_print(DLOG_INFO, LOG_TAG, "---> multThresh NOT reached");
-
-			//check both conditions for increasing alarmstate
-			if(ad->multRatio >= ad->multThresh && ad->avgRoi >= ad->avgRoiThresh) {
-				ad->alarmState = ad->alarmState+1;
-				dlog_print(DLOG_INFO, LOG_TAG, "### alarmState increased by one to %i", ad->alarmState);
-
-				//TODO add appropriate handling for WARNING state (i.e. vibrate motors, display on, sounds?!)
-				//navigator.vibrate(100);
-				//send new notification
-				issue_warning_notification(ad->alarmState);
-
-				if(ad->alarmState >= ad->warnTime) {
-					dlog_print(DLOG_INFO, LOG_TAG, "#### ALARM RAISED ####");
-					//TODO add appropriate handling for ALARM state (i.e. contact persons based on GPS location?!)
-					issue_alarm_notification(ad->alarmState);
-					//navigator.vibrate(100);
-					start_UI();
-				}
-			} else {
-				if(ad->alarmState > 1) {
-					ad->alarmState = ad->alarmState - 1;
-					dlog_print(DLOG_INFO, LOG_TAG, "### alarmState decreased by one to %i", ad->alarmState);
-				} else if (ad->alarmState == 1) {
-					ad->alarmState = ad->alarmState - 1;
-					dlog_print(DLOG_INFO, LOG_TAG, "### alarmState decreased by one to %i", ad->alarmState);
-				}
-			}
-
-			if(ad->logging) {
-				//write log to local storage after every analysis
-				save_log(ad);
-			}
+			seizure_detection(ad);
 		}
 	}
 }
 
+//called on service app creation (initialized fft_trafos, rbs, and req params to defaults (these are overidden when started through UI!))
 bool service_app_create(void *data)
 {
 	// Extracting application data
@@ -860,6 +867,7 @@ int isRunning(void *data)
 	return ad->listener != NULL;
 }
 
+//starts the sensor with the seizure detection algorithm, if data->logging is set to true after every analysis a log-file is saved.
 void sensor_start(void *data)
 {
 	// Extracting application data
@@ -890,7 +898,8 @@ void sensor_start(void *data)
 	}
 }
 
-//input: appdata, bool that tells if a warning notification should be sent.
+//stops the sensor and the seizure detection algorithm.
+//input: appdata, bool that tells if a warning notification should be sent (e.g. if it the sensor is not stopped by UI)
 void sensor_stop(void *data, int sendNot)
 {
 	// Extracting application data
@@ -898,7 +907,6 @@ void sensor_stop(void *data, int sendNot)
 
 	if(!isRunning(ad)) {
 		dlog_print(DLOG_INFO, LOG_TAG, "Sensor listener already destroyed.");
-		//dlog_print(DLOG_INFO, LOG_TAG, "(destroying is attempted nonetheless!)");
 		return;
 	}
 
@@ -926,6 +934,7 @@ void sensor_stop(void *data, int sendNot)
 
 }
 
+//called when service app is terminated (this is NOT called when sensor listener is destroyed and analysis stopped!!)
 void service_app_terminate(void *data)
 {
 	// Extracting application data
@@ -953,6 +962,7 @@ void service_app_terminate(void *data)
 	free(ad->fft_z_spec_simplified);
 }
 
+//handles incoming appcontrols from UI (e.g. starting/stopping analysis, ftp upload, compression, etc..)
 void service_app_control(app_control_h app_control, void *data)
 {
 	// Extracting application data
@@ -1104,27 +1114,27 @@ void service_app_control(app_control_h app_control, void *data)
     }
 }
 
-static void
-service_app_lang_changed(app_event_info_h event_info, void *user_data)
+//called when language is changed (??)
+static void service_app_lang_changed(app_event_info_h event_info, void *user_data)
 {
 	/*APP_EVENT_LANGUAGE_CHANGED*/
 	return;
 }
 
-static void
-service_app_region_changed(app_event_info_h event_info, void *user_data)
+//called when ???
+static void service_app_region_changed(app_event_info_h event_info, void *user_data)
 {
 	/*APP_EVENT_REGION_FORMAT_CHANGED*/
 }
 
-static void
-service_app_low_battery(app_event_info_h event_info, void *user_data)
+//called when battery is low => do nothing TODO should we do sth?!
+static void service_app_low_battery(app_event_info_h event_info, void *user_data)
 {
 	/*APP_EVENT_LOW_BATTERY*/
 }
 
-static void
-service_app_low_memory(app_event_info_h event_info, void *user_data)
+//called when memory is low => stop logging if it was activated!
+static void service_app_low_memory(app_event_info_h event_info, void *user_data)
 {
 	// Extracting application data
 	appdata_s* ad = (appdata_s*)user_data;
@@ -1133,6 +1143,7 @@ service_app_low_memory(app_event_info_h event_info, void *user_data)
 	ad->logging=FALSE;
 	//TODO notify UI that logging was disabled!
 }
+
 
 int main(int argc, char* argv[])
 {
