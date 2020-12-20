@@ -523,7 +523,6 @@ a {
      -moz-appearance: none;
           appearance: none;
   outline: 0;
-  top: 2px;
   -webkit-backface-visibility: hidden;
           backface-visibility: hidden;
   -webkit-mask-image: none;

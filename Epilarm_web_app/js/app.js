@@ -10,11 +10,13 @@
 			pageId = page ? page.id : '';
 
 			if (pageId === 'main' && !activePopup) {
-				try {
+				try {				
+					console.log("closing app!");
 					tizen.application.getCurrentApplication().exit();
 				} catch (ignore) {
 				}
-			} else {
+			} else if(!activePopup) {
+				console.log("history.back()");
 				window.history.back();
 			}
 		}

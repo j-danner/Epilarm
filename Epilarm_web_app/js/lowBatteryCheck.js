@@ -3,7 +3,7 @@
 
 		systeminfo: null,
 
-		lowThreshold: 0.04,
+		lowThreshold: 0.02,
 
 		/**
 		 * Listener for the battery level changes
