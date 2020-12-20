@@ -13,6 +13,7 @@
 #include <sensor.h>
 #include <device/power.h>
 #include <device/battery.h>
+#include <device/haptic.h>
 #include <notification.h>
 
 //ftp upload
@@ -25,7 +26,6 @@
 #define _FILE_OFFSET_BITS 64
 #include <zlib.h>
 #include <microtar.h>
-
 
 //FFT
 #include <fft.h>
@@ -541,45 +541,45 @@ int share_data(const char* ftp_url) {
 //send notification
 void issue_warning_notification(int as)
 {
-	dlog_print(DLOG_ERROR, LOG_TAG, "creating notification!");
+	dlog_print(DLOG_INFO, LOG_TAG, "creating notification!");
 
 	notification_h warn_notification = NULL;
 	warn_notification = notification_create(NOTIFICATION_TYPE_NOTI);
 	if (warn_notification == NULL) {
-		dlog_print(DLOG_ERROR, LOG_TAG, "could not create warning notification!");
+		dlog_print(DLOG_WARN, LOG_TAG, "could not create warning notification!");
 		return;
 	}
 
 	int noti_err = NOTIFICATION_ERROR_NONE;
 	noti_err = notification_set_text(warn_notification, NOTIFICATION_TEXT_TYPE_TITLE, "WARNING!", "EPILARM_NOTIFICATION_TITLE", NOTIFICATION_VARIABLE_TYPE_NONE);
 	if (noti_err != NOTIFICATION_ERROR_NONE) {
-		dlog_print(DLOG_ERROR, LOG_TAG, "could not create title of warning notification!");
+		dlog_print(DLOG_WARN, LOG_TAG, "could not create title of warning notification!");
 		return;
 	}
-	dlog_print(DLOG_ERROR, LOG_TAG, "notification title set!");
+	dlog_print(DLOG_INFO, LOG_TAG, "notification title set!");
 
 	noti_err = notification_set_text(warn_notification, NOTIFICATION_TEXT_TYPE_CONTENT, "Seizure-like movements detected! (alarmState = %d)",
 			"EPILARM_NOTIFICATION_CONTENT", NOTIFICATION_VARIABLE_TYPE_INT, as, NOTIFICATION_VARIABLE_TYPE_NONE);
 	if (noti_err != NOTIFICATION_ERROR_NONE) {
-		dlog_print(DLOG_ERROR, LOG_TAG, "could not create content of warning notification!");
+		dlog_print(DLOG_WARN, LOG_TAG, "could not create content of warning notification!");
 		return;
 	}
-	dlog_print(DLOG_ERROR, LOG_TAG, "notification content set!");
+	dlog_print(DLOG_INFO, LOG_TAG, "notification content set!");
 
 	noti_err = notification_set_vibration(warn_notification, NOTIFICATION_VIBRATION_TYPE_DEFAULT, NULL);
 	if (noti_err != NOTIFICATION_ERROR_NONE) {
-		dlog_print(DLOG_ERROR, LOG_TAG, "could not set vibration of warning notification!");
+		dlog_print(DLOG_WARN, LOG_TAG, "could not set vibration of warning notification!");
 	    return;
 	}
-	dlog_print(DLOG_ERROR, LOG_TAG, "notification vibration set!");
+	dlog_print(DLOG_INFO, LOG_TAG, "notification vibration set!");
 
 
 	noti_err = notification_post(warn_notification);
 	if (noti_err != NOTIFICATION_ERROR_NONE) {
-		dlog_print(DLOG_ERROR, LOG_TAG, "could not post warning notification!");
+		dlog_print(DLOG_WARN, LOG_TAG, "could not post warning notification!");
 	    return;
 	}
-	dlog_print(DLOG_ERROR, LOG_TAG, "notification posted!");
+	dlog_print(DLOG_INFO, LOG_TAG, "notification posted!");
 }
 
 //send notification
@@ -647,6 +647,22 @@ void start_UI()
 	}
 }
 
+//vibrates for 'duration' ms with
+static void device_vibrate(int duration, int feedback) {
+	haptic_device_h haptic_handle;
+	haptic_effect_h effect_handle;
+
+	if(device_haptic_open(0, &haptic_handle) == DEVICE_ERROR_NONE) {
+		dlog_print(DLOG_INFO, LOG_TAG, "Connection to vibrator established");
+
+		if(device_haptic_vibrate(haptic_handle, duration, feedback, &effect_handle) == DEVICE_ERROR_NONE) {
+			dlog_print(DLOG_INFO, LOG_TAG, "Device vibrates!");
+		}
+	} else {
+		dlog_print(DLOG_INFO, LOG_TAG, "Connection to vibrator established");
+	}
+}
+
 //given sensor data (with user_data) performs FFT and our seizure detection on this. Also handles raising of alarms.
 void seizure_detection(void *data) {
 	// Extracting application data
@@ -694,16 +710,16 @@ void seizure_detection(void *data) {
 	ad->avg_nroi_y = 0;
 	ad->avg_nroi_z = 0;
 
-	double max_x = 0;
-	double max_y = 0;
-	double max_z = 0;
+	//double max_x = 0;
+	//double max_y = 0;
+	//double max_z = 0;
 	for (int i = 2*ad->minFreq; i <= 2*ad->maxFreq; ++i) {
 		ad->avg_roi_x += ad->fft_x_spec_simplified[i];
 		ad->avg_roi_y += ad->fft_y_spec_simplified[i];
 		ad->avg_roi_z += ad->fft_z_spec_simplified[i];
-		if(ad->fft_x_spec_simplified[i] > max_x) max_x = ad->fft_x_spec_simplified[i];
-		if(ad->fft_y_spec_simplified[i] > max_y) max_y = ad->fft_y_spec_simplified[i];
-		if(ad->fft_z_spec_simplified[i] > max_z) max_z = ad->fft_z_spec_simplified[i];
+		//if(ad->fft_x_spec_simplified[i] > max_x) max_x = ad->fft_x_spec_simplified[i];
+		//if(ad->fft_y_spec_simplified[i] > max_y) max_y = ad->fft_y_spec_simplified[i];
+		//if(ad->fft_z_spec_simplified[i] > max_z) max_z = ad->fft_z_spec_simplified[i];
 	}
 	for (int i = 0; i < sampleRate; ++i) {
 		ad->avg_nroi_x += ad->fft_x_spec_simplified[i];
@@ -720,13 +736,13 @@ void seizure_detection(void *data) {
 
 	//dlog_print(DLOG_INFO, LOG_TAG, "minfreq: %f, maxfeq: %f", ad->minFreq, ad->maxFreq);
 
-
-	//dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_x: %f, avgRoi_x: %f, (max_x_roi: %f)", ad->avg_nroi_x, ad->avg_roi_x, max_x);
-	//dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_y: %f, avgRoi_y: %f, (max_y_roi: %f)", ad->avg_nroi_y, ad->avg_roi_y, max_y);
-	//dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_z: %f, avgRoi_z: %f, (max_z_roi: %f)", ad->avg_nroi_z, ad->avg_roi_z, max_z);
+	/*
+	dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_x: %f, avgRoi_x: %f, (max_x_roi: %f)", ad->avg_nroi_x, ad->avg_roi_x, max_x);
+	dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_y: %f, avgRoi_y: %f, (max_y_roi: %f)", ad->avg_nroi_y, ad->avg_roi_y, max_y);
+	dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_z: %f, avgRoi_z: %f, (max_z_roi: %f)", ad->avg_nroi_z, ad->avg_roi_z, max_z);
 
 	//print comp freqs 0-1Hz 1-2Hz 2-3Hz ... 9-10Hz
-	/*dlog_print(DLOG_INFO, LOG_TAG, "x: %f  %f  %f  %f  %f  %f  %f  %f  %f  %f", ad->fft_x_spec_simplified[0]+ad->fft_x_spec_simplified[1], ad->fft_x_spec_simplified[2]+ad->fft_x_spec_simplified[3],
+	dlog_print(DLOG_INFO, LOG_TAG, "x: %f  %f  %f  %f  %f  %f  %f  %f  %f  %f", ad->fft_x_spec_simplified[0]+ad->fft_x_spec_simplified[1], ad->fft_x_spec_simplified[2]+ad->fft_x_spec_simplified[3],
 			ad->fft_x_spec_simplified[4]+ad->fft_x_spec_simplified[5], ad->fft_x_spec_simplified[6]+ad->fft_x_spec_simplified[7], ad->fft_x_spec_simplified[8]+ad->fft_x_spec_simplified[9],
 			ad->fft_x_spec_simplified[10]+ad->fft_x_spec_simplified[11], ad->fft_x_spec_simplified[12]+ad->fft_x_spec_simplified[13], ad->fft_x_spec_simplified[14]+ad->fft_x_spec_simplified[15],
 			ad->fft_x_spec_simplified[16]+ad->fft_x_spec_simplified[17], ad->fft_x_spec_simplified[18]+ad->fft_x_spec_simplified[19]);
@@ -740,6 +756,7 @@ void seizure_detection(void *data) {
 			ad->fft_z_spec_simplified[17]+ad->fft_z_spec_simplified[16], ad->fft_z_spec_simplified[19]+ad->fft_z_spec_simplified[18]);
 	*/
 
+
 	ad->multRatio = ((ad->avg_roi_x/ad->avg_nroi_x) + (ad->avg_roi_y/ad->avg_nroi_y) + (ad->avg_roi_z/ad->avg_nroi_z)) / 3.0;
 
 	//combine three values for threshold comparison
@@ -747,40 +764,40 @@ void seizure_detection(void *data) {
 
 	dlog_print(DLOG_INFO, LOG_TAG, "# multRatio: %f, avgRoi: %f", ad->multRatio, ad->avgRoi);
 	if (ad->avgRoi >= ad->avgRoiThresh)
-		dlog_print(DLOG_INFO, LOG_TAG, "---> avgRoiThresh reached");
-	else
-		//dlog_print(DLOG_INFO, LOG_TAG, "---> avgRoiThresh NOT reached");
+		dlog_print(DLOG_WARN, LOG_TAG, "---> avgRoiThresh reached");
+	//else
+	//	dlog_print(DLOG_INFO, LOG_TAG, "---> avgRoiThresh NOT reached");
 
 	if (ad->multRatio >= ad->multThresh)
-		dlog_print(DLOG_INFO, LOG_TAG, "---> multThresh reached");
-	else
-		//dlog_print(DLOG_INFO, LOG_TAG, "---> multThresh NOT reached");
+		dlog_print(DLOG_WARN, LOG_TAG, "---> multThresh reached");
+	//else
+	//	dlog_print(DLOG_INFO, LOG_TAG, "---> multThresh NOT reached");
 
 	//check both conditions for increasing alarmstate
 	if(ad->multRatio >= ad->multThresh && ad->avgRoi >= ad->avgRoiThresh) {
 		ad->alarmState = ad->alarmState+1;
-		dlog_print(DLOG_INFO, LOG_TAG, "### alarmState increased by one to %i", ad->alarmState);
+		dlog_print(DLOG_WARN, LOG_TAG, "### alarmState increased by one to %i", ad->alarmState);
 
 		//TODO add appropriate handling for WARNING state (i.e. vibrate motors, display on, sounds?!)
-		//navigator.vibrate(100);
-		//send new notification
+		device_vibrate(100, 100);
+		//send notification
 		issue_warning_notification(ad->alarmState);
 
 		if(ad->alarmState >= ad->warnTime) {
-			dlog_print(DLOG_INFO, LOG_TAG, "#### ALARM RAISED ####");
+			dlog_print(DLOG_WARN, LOG_TAG, "#### ALARM RAISED ####");
 			//TODO add appropriate handling for ALARM state (i.e. contact persons based on GPS location?!)
 			issue_alarm_notification(ad->alarmState);
-			//navigator.vibrate(100);
+			device_vibrate(800, 100);
 			//TODO seizure detected! handle this appropriately in UI!
 			start_UI();
 		}
 	} else {
 		if(ad->alarmState > 1) {
 			ad->alarmState = ad->alarmState - 1;
-			dlog_print(DLOG_INFO, LOG_TAG, "### alarmState decreased by one to %i", ad->alarmState);
+			dlog_print(DLOG_WARN, LOG_TAG, "### alarmState decreased by one to %i", ad->alarmState);
 		} else if (ad->alarmState == 1) {
 			ad->alarmState = ad->alarmState - 1;
-			dlog_print(DLOG_INFO, LOG_TAG, "### alarmState decreased by one to %i", ad->alarmState);
+			dlog_print(DLOG_WARN, LOG_TAG, "### alarmState decreased by one to %i", ad->alarmState);
 		}
 	}
 
