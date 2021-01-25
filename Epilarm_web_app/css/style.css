@@ -973,4 +973,9 @@ input[type="checkbox"]#checkboxControl {
 	margin-bottom: 0px;
 	padding-bottom: 0px;
 }
-
+.hidden {
+	display: none;
+}
+.disabled {
+	color: rgb(51,51,51);
+}

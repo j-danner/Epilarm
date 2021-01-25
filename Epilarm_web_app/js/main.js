@@ -165,6 +165,7 @@ function start_service_app() {
 	//disable settings!
     disable_settings();
 	
+
     console.log('starting service app...');
     var obj = new tizen.ApplicationControlData('service_action', ['start']);
     var obj_params = new tizen.ApplicationControlData('params', analysisParamsToString());
@@ -179,25 +180,23 @@ function start_service_app() {
             function() {
                 console.log('Launch Service succeeded');
                 
-                update_seizure_detection_checkbox()
+                update_seizure_detection_checkbox();
             },
             function(e) {
                 console.log('Launch Service failed : ' + e.message);
                 tau.openPopup('#StartFailedPopup');
                 
-                update_seizure_detection_checkbox()
+                update_seizure_detection_checkbox();
             }, null);
     } catch (e) {
         window.alert('Error when starting appcontrol for starting seizure detection! error msg:' + e.toString());
         
-        update_seizure_detection_checkbox()
+        update_seizure_detection_checkbox();
     }
 }
 
 //stop service app and seizure detection (also makes sure that the corr checkbox is in the correct position!)
 function stop_service_app() {
-	//enable settings!
-    enable_settings();
 	
     console.log('stopping service app...');
     var obj = new tizen.ApplicationControlData('service_action', ['stop']); //you'll find the app id in config.xml file.
@@ -212,17 +211,17 @@ function stop_service_app() {
             function() {
                 console.log('Stopping Service Request succeeded');
                 
-                update_seizure_detection_checkbox()
+                update_seizure_detection_checkbox();
             },
             function(e) {
                 console.log('Stopping Service Request failed : ' + e.message);
                 
-                update_seizure_detection_checkbox()
+                update_seizure_detection_checkbox();
             }, null);
     } catch (e) {
         window.alert('Error when starting appcontrol for stopping seizure detection! error msg:' + e.toString());
         
-        update_seizure_detection_checkbox()
+        update_seizure_detection_checkbox();
     }
 }
 
@@ -234,8 +233,10 @@ function update_checkboxes() {
     automatic_analysis_checkbox.checked = params.alarm;
 }
 
-//update seizure detection, logging and alarm
+//update seizure detection checkbox + make sure that settings are enabled or disabled accordingly!
 function update_seizure_detection_checkbox() {
+	disable_settings();
+	
     //update checkbox indicating whether service app is running:
     console.log('ask service app if the sensor listener is running...');
     var obj = new tizen.ApplicationControlData('service_action', ['running?']);
@@ -251,6 +252,11 @@ function update_seizure_detection_checkbox() {
             start_stop_checkbox.checked = (data[0].value[0] === '1');
             console.log('received: ' + data[0].value[0]);
             console.log('updated checkbox! (to ' + (data[0].value[0] === '1') + ')');
+            
+            //enable settings if analysis is NOT running
+            if(!start_stop_checkbox.checked) {
+            	enable_settings();
+            }
         },
         // callee returned failure
         onfailure: function() {
@@ -278,25 +284,33 @@ function update_seizure_detection_checkbox() {
 }
 
 
+function recChildDisabled(elem, disabled) {
+	if(disabled) elem.classList.add("disabled");
+	else elem.classList.remove("disabled");
+	elem.disabled = disabled;
+	if(elem.children) {
+		return;
+	}
+	if(elem.children.length == 0){
+		return;
+	} else {
+		elem.children.forEach((el) => {
+			recChildDisabled(el, disabled);
+		});
+	}
+}
+
 function enable_settings() {
-	setting_elems.forEach( (elem) => {elem.disabled = true;});
-	/*for(elem in setting_elems) {
-		//elem.style.opacity = 0.5;
-		//elem.style.click(false);
-		elem.disabled = true;
-	}*/
-	//TODO put code that works in here!!
+	setting_elems.forEach( (elem) => {
+		recChildDisabled(elem, false);
+	});
 }
 
 function disable_settings() {
-	for(elem in setting_elems) {
-		//elem.style.opacity = 0.5;
-		//elem.style.click(false);
-		elem.disabled = false;
-	}
-	//TODO put code that works in here!!
+	setting_elems.forEach( (elem) => {
+		recChildDisabled(elem, true);
+	});
 }
-
 
 
 function toggle_analysis() {
@@ -309,76 +323,10 @@ function toggle_analysis() {
 
 
 function toggle_logging() {
-    if (logging_checkbox.checked) {
-        params.logging = true;
-    } else {
-        params.logging = false;
-    }
+	params.logging = logging_checkbox.checked;
     save_params();
 }
 
-/*
-//this function directly calls the applicationcontrols that start the seizure detection of sensor-service.
-//due to the fact that (for some non-understandable reason) the API allows only appcontrols of UI applications, we cannot use this :(
-//instead we call the UI itself s.t. it starts/stops the service for us!
-function add_alarms() {
-	console.log('add_alarm: start.');
-	remove_alarms();
-	console.log('add_alarm: alarms removed.');
-
-	//generate appcontrol to be called on remove_alarm
-    var obj_stop = new tizen.ApplicationControlData('service_action', ['stop']); //you'll find the app id in config.xml file.
-    var appcontrol_stop = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
-        null,
-        null,
-        null, [obj_stop]
-    );
-   
-    var obj_start = new tizen.ApplicationControlData('service_action', ['start']);
-    var obj_params_start = new tizen.ApplicationControlData('params', analysisParamsToString());
-    var appcontrol_start = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
-        null,
-        null,
-        null, [obj_start, obj_params_start]
-    );
-	console.log('add_alarm: created application controls.');
-	
-	var notification_content_stop =
-	{
-	  content: 'Automatically started seizure detection!',
-	  actions: {vibration: true}
-	};
-	var notification_stop = new tizen.UserNotification('SIMPLE', 'Epilarm', notification_content_stop);
-
-	var notification_content_start =
-	{
-	  content: 'Automatically stopped seizure detection!',
-	  actions: {vibration: true}
-	  //actions: {soundPath: "music/Over the horizon.mp3", vibration: true}
-	};
-	var notification_start = new tizen.UserNotification('SIMPLE', 'Epilarm', notification_content_start);
-	console.log('add_alarm: created notifications.');
-
-	var alarm_notification_start = new tizen.AlarmAbsolute(params.alarm_start_date);//, params.alarm_days);
-	var alarm_notification_stop = new tizen.AlarmAbsolute(params.alarm_stop_date);//, params.alarm_days);
-	var alarm_start = new tizen.AlarmAbsolute(params.alarm_start_date);//, params.alarm_days);
-	var alarm_stop = new tizen.AlarmAbsolute(params.alarm_stop_date);//, params.alarm_days);
-	console.log('add_alarm: created alarms.');
-	
-	tizen.alarm.addAlarmNotification(alarm_notification_start, notification_start);
-	tizen.alarm.addAlarmNotification(alarm_notification_stop, notification_stop);
-	console.log('add_alarm: scheduled notifications.');
-
-	tizen.alarm.add(alarm_stop, SERVICE_APP_ID); //, appcontrol_stop);
-	console.log('add_alarm: scheduled stop appcontrol.');
-	tizen.alarm.add(alarm_start, SERVICE_APP_ID, appcontrol_start);
-	console.log('add_alarm: scheduled start appcontrol.');
-
-	console.log('add_alarm: scheduled appcontrols.');
-
-	console.log('add_alarm: done.');
-}
-*/
 
 function add_alarms() {
 	console.log('add_alarm: start.');
@@ -504,13 +452,10 @@ function reset_params() {
         
         //alarm info
         alarm: false,
-        alarm_start_date: new Date(Date.parse("2020-11-23T16:28")),
-        alarm_stop_date: new Date(Date.parse("2020-11-23T16:29")),
+        alarm_start_date: new Date(Date.parse("2020-11-23T06:00")),
+        alarm_stop_date: new Date(Date.parse("2020-11-23T18:00")),
         alarm_days: ["MO", "TU", "WE", "TH", "FR", "SA", "SU"],
     };
-    
-    //make sure checkboxes are set correctly
-    update_checkboxes();
 }
 
 //re-launch UI and start seizure detection
@@ -554,31 +499,55 @@ function test_stop() {
 }
 
 
-window.onload = function() {
-    //leave screen on
-    //tizen.power.request('SCREEN', 'SCREEN_NORMAL');
+function addEventListeners() {
+	var getURLcb = function(url) {
+		return function(event) {
+			if(!event.target.classList.contains("disabled")){
+				console.log(event);
+				tau.changePage(url);
+			}
+		}
+	};
+	
+	settings_alarm_start.addEventListener("click", getURLcb("/contents/settings/automatic_start_picker.html"));
 
+	settings_alarm_stop.addEventListener("click", getURLcb("contents/settings/automatic_stop_picker.html"));
+
+	settings_minfreq.addEventListener("click", getURLcb("contents/settings/minfreq-picker.html"));
+	settings_maxfreq.addEventListener("click", getURLcb("contents/settings/maxfreq-picker.html"));
+
+	settings_avgthresh.addEventListener("click", getURLcb("contents/settings/avgroithresh-picker.html"));
+	settings_multthresh.addEventListener("click", getURLcb("contents/settings/multthresh-picker.html"));
+	
+	settings_warntime.addEventListener("click", getURLcb("contents/settings/warntime-picker.html"));
+
+	settings_restore.addEventListener("click", getURLcb("#ResetPopup"));
+	
+	
+	//checkboxes
+    start_stop_checkbox.addEventListener('change', toggle_analysis);
+	
+    automatic_analysis_checkbox.addEventListener('change', toggle_alarm);
+
+    logging_checkbox.addEventListener('change', toggle_logging);
+}
+
+function loadListElements() {
 	//define vars for all relevant list items and add eventlisteners!
     list = tau.widget.Listview(document.getElementById('main_list'))._items;
     
     //settings:    
     start_stop = list.find(el => el.id == 'start_stop');
     start_stop_checkbox = start_stop.childNodes[3].childNodes[1];
-    
-    start_stop_checkbox.addEventListener('change', toggle_analysis);
-    
+        
     settings_alarm_start = list.find(el => el.id == 'settings_alarm_start');
     settings_alarm_stop = list.find(el => el.id == 'settings_alarm_stop');
     
     automatic_analysis = list.find(el => el.id == 'automatic_analysis');
     automatic_analysis_checkbox = automatic_analysis.childNodes[3].childNodes[1];
     
-    automatic_analysis_checkbox.addEventListener('change', toggle_alarm);
-    
     settings_logging = list.find(el => el.id == 'settings_logging');
     logging_checkbox = settings_logging.childNodes[3].childNodes[1];
-    
-    logging_checkbox.addEventListener('change', toggle_logging);
     
     settings_minfreq = list.find(el => el.id == 'settings_minfreq');
     settings_maxfreq = list.find(el => el.id == 'settings_maxfreq');
@@ -594,34 +563,54 @@ window.onload = function() {
     setting_elems = [settings_alarm_start, settings_alarm_stop, settings_logging, logging_checkbox,
                      settings_minfreq, settings_maxfreq, settings_avgthresh, settings_multthresh,
                      settings_warntime, settings_restore, ftp_upload];
+}
 
+
+window.onload = function() {
+    //leave screen on
+    //tizen.power.request('SCREEN', 'SCREEN_NORMAL');
     
-	//load user settings (or default!) //MUST NOT BE DONE BEFORE INITILIZING ALL ELEMENTS OF THE LIST (since it also updates the checkboxes correspondingly!)
+	//initialize all list elems
+	loadListElements();
+
+	//load user settings (or default!)
     load_params();
 	
-    
     //update 'simple' checkboxes (where service app must not be asked for)
     update_checkboxes();
+    
     //seizure detection checkbox is updated when handling appcontrol:
     
     //check whether app was launched due to some appControl:
     var reqAppControl = tizen.application.getCurrentApplication().getRequestedAppControl();
     if (reqAppControl) {
+    	
     	if (reqAppControl.appControl.operation != 'http://tizen.org/appcontrol/operation/default') {
+    		//launched by non-default appcontrol, e.g., not started from drawer.
     		console.log('launched by appcontrol!');
     	    console.log(reqAppControl);
     	}
+    	
         if (reqAppControl.appControl.data.length>0 && reqAppControl.appControl.operation === 'http://tizen.org/appcontrol/operation/service') {
+        	//called from an appcontrol with operation name 'service'
         	if (reqAppControl.appControl.data[0].key === 'service_action' && reqAppControl.appControl.data[0].value[0] === 'start') {
+        		//appcontrol request to start service app, also open Popup informing user!
         		console.log('appcontrol with service action _start_ received!');
+        		
         		start_service_app(); //updates seizure detection checkbox aufter launch!
-        		//open popup informing user that seizure detection was automatically started!
-        		tau.openPopup('#AutomaticDetectionStartPopup');
+        		//open popup (timeout needed as otherwise the popup is not correctly aligned on the watch's display!)
+        		setTimeout(function(event){    				
+        			tau.openPopup('#AutomaticDetectionStartPopup');
+    			},100)
     		} else if (reqAppControl.appControl.data[0].key === 'service_action' && reqAppControl.appControl.data[0].value[0] === 'stop') {
+        		//appcontrol request to stop service app, also open Popup informing user!
         		console.log('appcontrol with service action _stop_ received!');
+        		
     			stop_service_app(); //updates seizure detection checkbox aufter termination!
-        		//open popup informing user that seizure detection was automatically stopped!
-        		tau.openPopup('#AutomaticDetectionStopPopup');
+        		//open popup (timeout needed as otherwise the popup is not correctly aligned on the watch's display!)
+    			setTimeout(function(event){    				
+    				tau.openPopup('#AutomaticDetectionStopPopup');
+    			},100)
 			}
         }
     } else {
@@ -629,6 +618,17 @@ window.onload = function() {
         
         update_seizure_detection_checkbox();
     }
+    
+    //finally load elements and addEventlisteners, this makes sure that the checkbox is (probably) already updated before the user can change it!
+    setTimeout(function(event){
+    	addEventListeners();
+    },200);
 
     console.log('UI started!');
+};
+
+
+window.onpageshow = function() {
+	update_checkboxes();
+	update_seizure_detection_checkbox();
 };
