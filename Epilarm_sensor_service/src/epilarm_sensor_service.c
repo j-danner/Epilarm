@@ -127,7 +127,7 @@ void save_log(void *data) {
 
 	//find appropriate file name and path
 	char file_path[MAX_PATH];
-	char* data_path = app_get_data_path();
+	char* data_path = app_get_shared_data_path();
 	snprintf(file_path, sizeof(file_path), "%s/logs/log_%s.%s", data_path, timebuf, "json");
 	free(data_path);
 
@@ -247,7 +247,7 @@ int compress_logs() {
 	}
 
 	char file_path[MAX_PATH];
-	char* data_path = app_get_data_path();
+	char* data_path = app_get_shared_data_path();
 	char tar_path[MAX_PATH];
 	char buff[2048]; //must be large enough to fit one log-file (!!)
 
@@ -280,7 +280,7 @@ int compress_logs() {
     		//now dir->d_name stores name of file in dir
     		if (strncmp(dir->d_name,"log_",4) == 0 && strcmp(strrchr(dir->d_name, '.'), ".json") == 0)
     		{
-    			//dlog_print(DLOG_INFO, LOG_TAG, "processing file %s", dir->d_name);
+    			dlog_print(DLOG_INFO, LOG_TAG, "processing file %s", dir->d_name);
     			//set correct file_path
     			snprintf(file_path, sizeof(file_path), "%s%s", data_path, dir->d_name);
 
@@ -295,6 +295,7 @@ int compress_logs() {
     			/* to get the file size */
     			if(fstat(fileno(fd), &file_info) != 0) {
     				//dlog_print(DLOG_INFO, LOG_TAG, "file is empty? (skipping file!)");
+    				fclose(fd);
     				continue; //skip file
     			}
 				//dlog_print(DLOG_INFO, LOG_TAG, "log-file %s has size %d.", dir->d_name, file_info.st_size);
@@ -319,7 +320,7 @@ int compress_logs() {
 				}
     		} else {
     			//dir is either no regular file, its name is shorter than 5 chars or it does not end with .json
-    			//dlog_print(DLOG_INFO, LOG_TAG, "skipping 'file' %s", dir->d_name);
+    			dlog_print(DLOG_INFO, LOG_TAG, "skipping 'file' %s", dir->d_name);
     		}
     	}
     	closedir(d);
@@ -424,7 +425,7 @@ int share_data(const char* ftp_url) {
 
     //get local data path
 	char file_path[MAX_PATH];
-	char* data_path = app_get_data_path();
+	char* data_path = app_get_shared_data_path();
 	char URL[MAX_URL_LEN]; //should be large enough to store ad->ftp_url + filename!
 
     //iterate over files:
@@ -905,7 +906,7 @@ void sensor_start(void *data)
 				//create folder for logs
 				if(ad->logging) {
 					char logs_path[MAX_PATH];
-					char* data_path = app_get_data_path();
+					char* data_path = app_get_shared_data_path();
 					snprintf(logs_path, sizeof(logs_path), "%s/logs", data_path);
 					free(data_path);
 					mkdir(logs_path, 0700);
