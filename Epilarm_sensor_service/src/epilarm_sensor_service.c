@@ -105,6 +105,17 @@ typedef struct appdata
 } appdata_s;
 
 
+//get path where logs should be saved, does not create the folder if it does not exist!
+//result must be released!
+char* get_log_path() {
+	char* log_path = malloc(MAX_PATH * sizeof(char));
+
+	char* data_path = app_get_shared_data_path();
+	snprintf(log_path, MAX_PATH*sizeof(char), "%slogs", data_path);
+	free(data_path);
+	return log_path;
+}
+
 //locally save analyzed data (called after each analysis and stored locally) -> CAUTION: must not be called more than once per second!
 void save_log(void *data) {
 	// Extracting application data
@@ -127,9 +138,9 @@ void save_log(void *data) {
 
 	//find appropriate file name and path
 	char file_path[MAX_PATH];
-	char* data_path = app_get_shared_data_path();
-	snprintf(file_path, sizeof(file_path), "%s/logs/log_%s.%s", data_path, timebuf, "json");
-	free(data_path);
+	char* log_path = get_log_path();
+	snprintf(file_path, sizeof(file_path), "%s/log_%s.%s", log_path, timebuf, "json");
+	free(log_path);
 
 	dlog_print(DLOG_INFO, LOG_TAG, "save_log: data_path=%s", file_path);
 
@@ -236,6 +247,43 @@ void save_log(void *data) {
     fclose(fp);
 }
 
+
+//deletes ALL log-files
+int delete_logs() {
+	if(device_power_request_lock(POWER_LOCK_CPU, 0) != DEVICE_ERROR_NONE)
+	{
+		dlog_print(DLOG_INFO, LOG_TAG, "could not lock CPU for log compression!");
+		return -1;
+	}
+
+    dlog_print(DLOG_INFO, LOG_TAG, "delete_logs: removing log-files.");
+
+    //traverse log-files and delete them
+    d = opendir(log_path);
+    if(!d) dlog_print(DLOG_INFO, LOG_TAG, "could not open directory to delete log-files!"); //since we opened them just before, we should still be able to open them ;)
+   	while ((dir = readdir(d)) != NULL) {
+   		if (strncmp(dir->d_name,"log_",4) == 0 && strcmp(strrchr(dir->d_name, '.'), ".json") == 0)
+   		{
+   			//set correct file_path
+   			snprintf(file_path, sizeof(file_path), "%s%s", log_path, dir->d_name);
+			//remove log file
+			remove(file_path);
+			//WARNING! here ALL files are deleted, it may happen that if tar is too large, some logs are skipped, this - however - only
+			//         comes into play, when more than 2^21 logs have to be tarred. This is data worth ~3.5 weeks of continuous logging, so we may ignore this case!
+			//         (I suspect that the space on the watch runs out before that many logs are created anyways^^)
+    	}
+    }
+    closedir(d);
+	free(log_path);
+
+    dlog_print(DLOG_INFO, LOG_TAG, "finished compression and deleted all log-files.");
+
+	device_power_release_lock(POWER_LOCK_CPU);
+
+	return 0;
+}
+
+
 //compress all locally stored logs (all files ending with .json) (after successful compression, log-files are deleted)
 int compress_logs() {
 	dlog_print(DLOG_INFO, LOG_TAG, "compress_logs: start");
@@ -247,7 +295,7 @@ int compress_logs() {
 	}
 
 	char file_path[MAX_PATH];
-	char* data_path = app_get_shared_data_path();
+	char* log_path = get_log_path();
 	char tar_path[MAX_PATH];
 	char buff[2048]; //must be large enough to fit one log-file (!!)
 
@@ -258,8 +306,7 @@ int compress_logs() {
 	clock_gettime(CLOCK_REALTIME, &tmnow);
 	tm = localtime(&tmnow.tv_sec);
 	strftime(timebuf, 30, "%Y_%m_%dT%H_%M_%S", tm);
-	snprintf(tar_path, sizeof(tar_path), "%slogs_%s.tar", data_path, timebuf);
-	strcat(data_path, "logs/");
+	snprintf(tar_path, sizeof(tar_path), "%s/logs_%s.tar", log_path, timebuf);
 
 	mtar_t tar;
 	mtar_open(&tar, tar_path, "wb");
@@ -273,8 +320,8 @@ int compress_logs() {
     int no_files_tar = 0;
     size_t tar_size = 0;
 
-    d = opendir(data_path);
-	dlog_print(DLOG_INFO, LOG_TAG, "reading data in %s", data_path);
+    d = opendir(log_path);
+	dlog_print(DLOG_INFO, LOG_TAG, "reading data in %s", log_path);
     if (d) {
     	while ((dir = readdir(d)) != NULL) {
     		//now dir->d_name stores name of file in dir
@@ -282,19 +329,19 @@ int compress_logs() {
     		{
     			dlog_print(DLOG_INFO, LOG_TAG, "processing file %s", dir->d_name);
     			//set correct file_path
-    			snprintf(file_path, sizeof(file_path), "%s%s", data_path, dir->d_name);
+    			snprintf(file_path, sizeof(file_path), "%s/%s", log_path, dir->d_name);
 
     			//dlog_print(DLOG_INFO, LOG_TAG, "reading %s", file_path);
 
     			fd = fopen(file_path, "rb"); /* open file to add to tar */
     			if(!fd) {
-    				//dlog_print(DLOG_INFO, LOG_TAG, "could not open file! (skipping file!)");
+    				dlog_print(DLOG_WARN, LOG_TAG, "could not open file! (skipping file!)");
     				continue; //skip this file!
     			}
 
     			/* to get the file size */
     			if(fstat(fileno(fd), &file_info) != 0) {
-    				//dlog_print(DLOG_INFO, LOG_TAG, "file is empty? (skipping file!)");
+    				dlog_print(DLOG_WARN, LOG_TAG, "file is empty? (skipping file!)");
     				fclose(fd);
     				continue; //skip file
     			}
@@ -326,7 +373,7 @@ int compress_logs() {
     	closedir(d);
 	} else {
 		dlog_print(DLOG_INFO, LOG_TAG, "directory does not exist or cannot be opened!");
-		free(data_path);
+		free(log_path);
 
 	    mtar_finalize(&tar);
 	    mtar_close(&tar);
@@ -372,33 +419,13 @@ int compress_logs() {
     	return -1;
     }
 
-    //remove tar- and log-files
-    dlog_print(DLOG_INFO, LOG_TAG, "removing tar- and log-files.");
+    dlog_print(DLOG_INFO, LOG_TAG, "removing tar-files.");
     //remove tar-file
     remove(tar_path);
-    //traverse log-files and delete them
-    d = opendir(data_path);
-    if(!d) dlog_print(DLOG_INFO, LOG_TAG, "could no open directory to delete log-files!"); //since we opened them just before, we should still be able to open them ;)
-   	while ((dir = readdir(d)) != NULL) {
-   		if (strncmp(dir->d_name,"log_",4) == 0 && strcmp(strrchr(dir->d_name, '.'), ".json") == 0)
-   		{
-   			//set correct file_path
-   			snprintf(file_path, sizeof(file_path), "%s%s", data_path, dir->d_name);
-			//remove log file
-			remove(file_path);
-			//WARNING! here ALL files are deleted, it may happen that if tar is too large, some logs are skipped, this - however - only
-			//         comes into play, when more than 2^21 logs have to be tarred. This is data worth ~3.5 weeks of continuous logging, so we may ignore this case!
-			//         (I suspect that the space on the watch runs out before that many logs are created anyways^^)
-    	}
-    }
-    closedir(d);
-	free(data_path);
-
-    dlog_print(DLOG_INFO, LOG_TAG, "finished compression and deleted all log-files.");
 
 	device_power_release_lock(POWER_LOCK_CPU);
 
-    return 0;
+    return delete_logs();
 }
 
 
@@ -425,14 +452,14 @@ int share_data(const char* ftp_url) {
 
     //get local data path
 	char file_path[MAX_PATH];
-	char* data_path = app_get_shared_data_path();
+	char* log_path = get_log_path();
 	char URL[MAX_URL_LEN]; //should be large enough to store ad->ftp_url + filename!
 
     //iterate over files:
     DIR *d;
     struct dirent *dir;
-    d = opendir(data_path);
-	dlog_print(DLOG_INFO, LOG_TAG, "reading data in %s", data_path);
+    d = opendir(log_path);
+	dlog_print(DLOG_INFO, LOG_TAG, "reading data in %s", log_path);
     if (d) {
     	while ((dir = readdir(d)) != NULL) {
     		//now dir->d_name stores name of file in dir
@@ -440,14 +467,14 @@ int share_data(const char* ftp_url) {
     		{
     			dlog_print(DLOG_INFO, LOG_TAG, "processing file %s", dir->d_name);
     			//set correct file_path
-    			snprintf(file_path, sizeof(file_path), "%s%s", data_path, dir->d_name);
+    			snprintf(file_path, sizeof(file_path), "%s/%s", log_path, dir->d_name);
 
     			dlog_print(DLOG_INFO, LOG_TAG, "reading %s", file_path);
 
     			fd = fopen(file_path, "rb"); /* open file to upload */
     			if(!fd) {
     				dlog_print(DLOG_INFO, LOG_TAG, "could not open file!");
-    				free(data_path);
+    				free(log_path);
     				device_power_release_lock(POWER_LOCK_CPU);
     				return -1; /* can't continue */
     			}
@@ -455,7 +482,7 @@ int share_data(const char* ftp_url) {
     			/* to get the file size */
     			if(fstat(fileno(fd), &file_info) != 0) {
     				dlog_print(DLOG_INFO, LOG_TAG, "file is empty?");
-    				free(data_path);
+    				free(log_path);
     				device_power_release_lock(POWER_LOCK_CPU);
         			fclose(fd);
     				return -1; /* can't continue */
@@ -496,7 +523,7 @@ int share_data(const char* ftp_url) {
     				/* Check for errors */
     				if(res != CURLE_OK) {
     					dlog_print(DLOG_INFO, LOG_TAG, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-    					free(data_path);
+    					free(log_path);
     					device_power_release_lock(POWER_LOCK_CPU);
         				curl_easy_cleanup(curl);
             			fclose(fd);
@@ -524,14 +551,14 @@ int share_data(const char* ftp_url) {
     	closedir(d);
 	} else {
 		dlog_print(DLOG_INFO, LOG_TAG, "directory does not exist or cannot be opened!");
-		free(data_path);
+		free(log_path);
 		device_power_release_lock(POWER_LOCK_CPU);
 		return -1;
 	}
 
     curl_global_cleanup();
 
-	free(data_path);
+	free(log_path);
 
 	//release cpu-lock
 	device_power_release_lock(POWER_LOCK_CPU);
@@ -877,7 +904,7 @@ bool service_app_create(void *data)
 }
 
 //checks whether analysis is running, by checking if sensor listener is running
-int isRunning(void *data)
+int is_running(void *data)
 {
 	// Extracting application data
 	appdata_s* ad = (appdata_s*)data;
@@ -905,11 +932,9 @@ void sensor_start(void *data)
 				dlog_print(DLOG_INFO, LOG_TAG, "Sensor listener started.");
 				//create folder for logs
 				if(ad->logging) {
-					char logs_path[MAX_PATH];
-					char* data_path = app_get_shared_data_path();
-					snprintf(logs_path, sizeof(logs_path), "%s/logs", data_path);
-					free(data_path);
-					mkdir(logs_path, 0700);
+					char* log_path = get_log_path();
+					mkdir(log_path, 0700);
+					free(log_path);
 				}
 			}
 		}
@@ -923,7 +948,7 @@ void sensor_stop(void *data, int sendNot)
 	// Extracting application data
 	appdata_s* ad = (appdata_s*)data;
 
-	if(!isRunning(ad)) {
+	if(!is_running(ad)) {
 		dlog_print(DLOG_INFO, LOG_TAG, "Sensor listener already destroyed.");
 		return;
 	}
@@ -1016,7 +1041,7 @@ void service_app_control(app_control_h app_control, void *data)
         		ad->warnTime = atoi(params[4]);
         		ad->logging = atoi(params[5]);
 
-        		if(!isRunning(ad)) {
+        		if(!is_running(ad)) {
         			dlog_print(DLOG_INFO, LOG_TAG, "Starting epilarm sensor service!");
         			sensor_start(ad); //TODO add return value in case starting of sensor listener fails!
         		} else {
@@ -1046,9 +1071,9 @@ void service_app_control(app_control_h app_control, void *data)
         	app_control_h reply;
     		app_control_create(&reply);
     		app_control_get_app_id(app_control, &app_id);
-    		app_control_add_extra_data(reply, APP_CONTROL_DATA_SELECTED, isRunning(ad) ? "1" : "0");
+    		app_control_add_extra_data(reply, APP_CONTROL_DATA_SELECTED, is_running(ad) ? "1" : "0");
     		app_control_reply_to_launch_request(reply, app_control, APP_CONTROL_RESULT_SUCCEEDED);
-            dlog_print(DLOG_INFO, LOG_TAG, "reply sent (%d)", isRunning(ad));
+            dlog_print(DLOG_INFO, LOG_TAG, "reply sent (%d)", is_running(ad));
 
     		app_control_destroy(reply);
 
