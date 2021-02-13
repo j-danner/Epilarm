@@ -37,11 +37,12 @@
 					</div>
 				</li>
 				<!-- temporarily moved upload option to top ! -->
-				<li id="ftp_upload">
+				<li id="logs_upload">
 					<a data-rel="popup" href="#UploadPopup" onclick="start_ftp_upload()">
 						Upload logs
 					</a>
 				</li>
+
 				<li class="li-has-toggle ui-li-grid ui-li-grid-full" id="automatic_analysis">
 					<div>
 						automatic analysis
@@ -50,6 +51,11 @@
                         <input type="checkbox" class="ui-switch-input" id="automatic_analysis_checkbox"/>
 						<div class="ui-switch-button"> </div>
 					</div>
+				</li>
+				<li id="logs_delete">
+					<a data-rel="popup" href="#DeletionConfirmationPopup">
+						Delete logs
+					</a>
 				</li>
 				
   				<li class="ui-li-group-index">
@@ -149,6 +155,7 @@
 			</ul>
 		</div>
 		
+		
 		<!-- popup for uploading of logs/info/reseting params -->		
 		<div class="ui-popup" id="UploadPopup">
 			<div class="ui-popup-content">
@@ -201,6 +208,61 @@
 				</a>
 			</div>
 		</div>
+		
+		<!-- popup for deletion of logs -->		
+		<div class="ui-popup" id="DeletePopup">
+			<div class="ui-popup-content">
+				<div class="small-processing-container">
+					<div class="ui-processing" style="-webkit-transform: scale(1.08); position: relative;">
+					</div>
+					<div id="UploadPopupText" class="ui-processing-text" style="position:relative; margin-top: 22px;">
+						deleting logs...
+					</div>
+				</div>
+			</div>
+		</div>
+		
+		<div class="ui-popup" id="DeletionFailedPopup">
+			<div class="ui-popup-header">
+				Warning!
+			</div>
+			<div class="ui-popup-content">
+				Deletion of log files failed!
+				
+				<br />
+				
+				This is due to an internal error, try again!
+				
+				<br />
+				
+				If the error occurs more frequently, please contact the developers!
+			</div>
+			<div class="ui-popup-footer ui-bottom-button">
+				<a class="ui-btn" data-rel="back" href="#" id="1btnPopup-cancel">
+					OK
+				</a>
+			</div>
+		</div>
+		
+		<div class="ui-popup" id="DeletionConfirmationPopup">
+			<div class="ui-popup-header">
+				Warning!
+			</div>
+			<div class="ui-popup-content">
+				You are about to delete all log files.
+				Do you want to proceed?
+			</div>
+			<div class="ui-popup-footer ui-side-button ui-grid-col-2">
+				<a class="ui-btn ui-btn-delete" data-rel="back" href="#">
+					Cancel
+				</a>
+				<a class="ui-btn ui-btn-check" data-rel="back" href="#" onclick="delete_logs()">
+					OK
+				</a>
+			</div>
+		</div>
+		
+		
 		
 		<div class="ui-popup" id="StartFailedPopup">
 			<div class="ui-popup-header">

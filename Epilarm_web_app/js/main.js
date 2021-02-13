@@ -7,7 +7,8 @@ var list;
 var start_stop;
 var start_stop_checkbox;
 
-var ftp_upload;
+var logs_upload;
+var logs_delete;
 
 var automatic_analysis;
 var automatic_analysis_checkbox;
@@ -159,6 +160,54 @@ function start_ftp_upload() {
         window.alert('ftp_upload: Error when starting appcontrol for compressing logs! error msg:' + e.toString());
     }
 }
+
+function delete_logs() {
+	//make sure screen stays on!
+	tizen.power.request('SCREEN', 'SCREEN_NORMAL');
+	
+	//delete log files!
+    var obj = new tizen.ApplicationControlData('service_action', ['delete_logs']);
+    var obj1 = new tizen.ApplicationControl('http://tizen.org/appcontrol/operation/service',
+        null,
+        null,
+        null, [obj], 'SINGLE'
+    );
+    var appControlReplyCallback = {
+    		// callee sent a reply
+            onsuccess: function(data) {
+                console.log('delete_logs: all log files deleted.');
+                //end loading symbol...
+                tau.closePopup();
+                                
+                //make screen turn off again:
+            	tizen.power.release('SCREEN');
+            },
+            // callee returned failure
+            onfailure: function() {
+                console.log('delete_logs: deletion of logs failed!');
+                //end loading popup
+                tau.closePopup();
+                //show upload failed popup
+                tau.openPopup('#DeletionFailedPopup');
+                
+                //make screen turn off again:
+            	tizen.power.release('SCREEN');
+            }
+        };
+    try {
+        tizen.application.launchAppControl(obj1,
+            SERVICE_APP_ID,
+            function() {
+                console.log('delete_logs: Starting deletion of logs succeeded.');
+            },
+            function(e) {
+                console.log('delete_logs: Starting deletion of logs failed : ' + e.message);
+            }, appControlReplyCallback);
+    } catch (e) {
+        window.alert('delete_logs: Error when starting appcontrol for deleting logs! error msg:' + e.toString());
+    }
+}
+
 
 //start service app and seizure detection (also makes sure that the corr checkbox is in the correct position!)
 function start_service_app() {
@@ -556,13 +605,15 @@ function loadListElements() {
     settings_warntime = list.find(el => el.id == 'settings_warntime');
     
     settings_ftp = list.find(el => el.id == 'settings_ftp');
-    ftp_upload = list.find(el => el.id == 'ftp_upload');
+    logs_upload = list.find(el => el.id == 'logs_upload');
+    logs_delete = list.find(el => el.id == 'logs_delete');
+
     settings_restore = list.find(el => el.id == 'settings_restore');
 
     //collect all elements which should only be 'changeable' in case analysis is not running
     setting_elems = [settings_alarm_start, settings_alarm_stop, settings_logging, logging_checkbox,
                      settings_minfreq, settings_maxfreq, settings_avgthresh, settings_multthresh,
-                     settings_warntime, settings_restore, ftp_upload];
+                     settings_warntime, settings_restore, logs_upload, logs_delete];
 }
 
 

@@ -258,6 +258,13 @@ int delete_logs() {
 
     dlog_print(DLOG_INFO, LOG_TAG, "delete_logs: removing log-files.");
 
+	char file_path[MAX_PATH];
+	char* log_path = get_log_path();
+
+    //iterate over files
+    DIR *d;
+    struct dirent *dir;
+
     //traverse log-files and delete them
     d = opendir(log_path);
     if(!d) dlog_print(DLOG_INFO, LOG_TAG, "could not open directory to delete log-files!"); //since we opened them just before, we should still be able to open them ;)
@@ -276,7 +283,7 @@ int delete_logs() {
     closedir(d);
 	free(log_path);
 
-    dlog_print(DLOG_INFO, LOG_TAG, "finished compression and deleted all log-files.");
+    dlog_print(DLOG_INFO, LOG_TAG, "delete_logs: deleted all log-files.");
 
 	device_power_release_lock(POWER_LOCK_CPU);
 
@@ -419,11 +426,13 @@ int compress_logs() {
     	return -1;
     }
 
-    dlog_print(DLOG_INFO, LOG_TAG, "removing tar-files.");
+    dlog_print(DLOG_INFO, LOG_TAG, "remove tar-file.");
     //remove tar-file
     remove(tar_path);
 
 	device_power_release_lock(POWER_LOCK_CPU);
+
+    dlog_print(DLOG_INFO, LOG_TAG, "compress_logs: compression finished.");
 
     return delete_logs();
 }
@@ -1098,9 +1107,26 @@ void service_app_control(app_control_h app_control, void *data)
 
         } else if((caller_id != NULL) && (action_value != NULL)
                 && (!strncmp(caller_id, MYSERVICELAUNCHER_APP_ID, STRNCMP_LIMIT))
+                && (!strncmp(action_value, "delete_logs", STRNCMP_LIMIT)))
+        {
+        	//// >>>> DELETE ALL LOGS <<<< ////
+        	dlog_print(DLOG_INFO, LOG_TAG, "Deleting logs!");
+        	int success = delete_logs(); //compress all locally stored logs
+      		//tell UI if compression failed
+        	char *app_id;
+           	app_control_h reply;
+           	app_control_create(&reply);
+           	app_control_get_app_id(app_control, &app_id);
+           	app_control_reply_to_launch_request(reply, app_control, (success==0) ? APP_CONTROL_RESULT_SUCCEEDED : APP_CONTROL_RESULT_FAILED);
+            app_control_destroy(reply);
+           	free(app_id);
+            dlog_print(DLOG_INFO, LOG_TAG, "reply sent (%d)", success==0);
+
+        } else if((caller_id != NULL) && (action_value != NULL)
+                && (!strncmp(caller_id, MYSERVICELAUNCHER_APP_ID, STRNCMP_LIMIT))
                 && (!strncmp(action_value, "log_upload", STRNCMP_LIMIT)))
         {
-        	//// >>>> UPLOAD LOG FILES <<<< ////
+        	//// >>>> UPLOAD COMPRESSED LOG FILES <<<< ////
            	//get params from appcontrol: [ftp_hostname, ftpport, ftpusernam, ftppassword, ftppath]
             dlog_print(DLOG_INFO, LOG_TAG, "started epilarm log upload! reading params...");
             char **params; int length;
@@ -1110,7 +1136,7 @@ void service_app_control(app_control_h app_control, void *data)
             	dlog_print(DLOG_INFO, LOG_TAG, "received %i params: ftpHostname=%s, ftpPort=%s, ftpUsername=%s, ftpPassword=%s, ftpPath=%s",
             			length, params[0], params[1], params[2], params[3], params[4]);
             	//set new params
-            	dlog_print(DLOG_INFO, LOG_TAG, "Starting sharing of logs!");
+            	dlog_print(DLOG_INFO, LOG_TAG, "Start sharing of logs!");
                	char ftp_url[MAX_URL_LEN];
             	//assemble ftp url
         		strcpy(ftp_url, "ftp://");
