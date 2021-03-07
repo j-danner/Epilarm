@@ -748,31 +748,25 @@ void seizure_detection(void *data) {
   ad->avg_nroi_y = 0;
   ad->avg_nroi_z = 0;
 
-  //double max_x = 0;
-  //double max_y = 0;
-  //double max_z = 0;
-  for (int i = 2*ad->minFreq; i <= 2*ad->maxFreq; ++i) {
-    ad->avg_roi_x += ad->fft_x_spec_simplified[i];
-    ad->avg_roi_y += ad->fft_y_spec_simplified[i];
-    ad->avg_roi_z += ad->fft_z_spec_simplified[i];
-    //if(ad->fft_x_spec_simplified[i] > max_x) max_x = ad->fft_x_spec_simplified[i];
-    //if(ad->fft_y_spec_simplified[i] > max_y) max_y = ad->fft_y_spec_simplified[i];
-    //if(ad->fft_z_spec_simplified[i] > max_z) max_z = ad->fft_z_spec_simplified[i];
-  }
+  int minfreq_ = 2*ad->minFreq;
+  int maxfreq_ = 2*ad->maxFreq;
   for (int i = 0; i < sampleRate; ++i) {
-    ad->avg_nroi_x += ad->fft_x_spec_simplified[i];
-    ad->avg_nroi_y += ad->fft_y_spec_simplified[i];
-    ad->avg_nroi_z += ad->fft_z_spec_simplified[i];
+    if (minfreq_ <= i && i<=maxfreq_) {
+      ad->avg_roi_x += ad->fft_x_spec_simplified[i];
+      ad->avg_roi_y += ad->fft_y_spec_simplified[i];
+      ad->avg_roi_z += ad->fft_z_spec_simplified[i];
+    } else {
+      ad->avg_nroi_x += ad->fft_x_spec_simplified[i];
+      ad->avg_nroi_y += ad->fft_y_spec_simplified[i];
+      ad->avg_nroi_z += ad->fft_z_spec_simplified[i];
+    }
   }
-
-  ad->avg_nroi_x = (ad->avg_nroi_x - ad->avg_roi_x) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
+  ad->avg_nroi_x = ad->avg_nroi_x / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
   ad->avg_roi_x = ad->avg_roi_x / (2*ad->maxFreq-2*ad->minFreq+1);
-  ad->avg_nroi_y = (ad->avg_nroi_y - ad->avg_roi_y) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
+  ad->avg_nroi_y = ad->avg_nroi_y / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
   ad->avg_roi_y = ad->avg_roi_y / (2*ad->maxFreq-2*ad->minFreq+1);
-  ad->avg_nroi_z = (ad->avg_nroi_z - ad->avg_roi_z) / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
+  ad->avg_nroi_z = ad->avg_nroi_z / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
   ad->avg_roi_z = ad->avg_roi_z / (2*ad->maxFreq-2*ad->minFreq+1);
-
-  //dlog_print(DLOG_INFO, LOG_TAG, "minfreq: %f, maxfeq: %f", ad->minFreq, ad->maxFreq);
 
   /*
   dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_x: %f, avgRoi_x: %f, (max_x_roi: %f)", ad->avg_nroi_x, ad->avg_roi_x, max_x);
