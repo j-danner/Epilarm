@@ -582,40 +582,28 @@ void issue_warning_notification(int as)
 
   notification_h warn_notification = NULL;
   warn_notification = notification_create(NOTIFICATION_TYPE_NOTI);
-  if (warn_notification == NULL) {
-    dlog_print(DLOG_WARN, LOG_TAG, "could not create warning notification!");
-    return;
-  }
+  if (warn_notification == NULL) { dlog_print(DLOG_WARN, LOG_TAG, "could not create warning notification!"); return; }
 
   int noti_err = NOTIFICATION_ERROR_NONE;
   noti_err = notification_set_text(warn_notification, NOTIFICATION_TEXT_TYPE_TITLE, "WARNING!", "EPILARM_NOTIFICATION_TITLE", NOTIFICATION_VARIABLE_TYPE_NONE);
-  if (noti_err != NOTIFICATION_ERROR_NONE) {
-    dlog_print(DLOG_WARN, LOG_TAG, "could not create title of warning notification!");
-    return;
-  }
+  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_WARN, LOG_TAG, "could not create title of warning notification!"); return; }
   dlog_print(DLOG_INFO, LOG_TAG, "notification title set!");
 
   noti_err = notification_set_text(warn_notification, NOTIFICATION_TEXT_TYPE_CONTENT, "Seizure-like movements detected! (alarmState = %d)",
       "EPILARM_NOTIFICATION_CONTENT", NOTIFICATION_VARIABLE_TYPE_INT, as, NOTIFICATION_VARIABLE_TYPE_NONE);
-  if (noti_err != NOTIFICATION_ERROR_NONE) {
-    dlog_print(DLOG_WARN, LOG_TAG, "could not create content of warning notification!");
-    return;
-  }
+  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_WARN, LOG_TAG, "could not create content of warning notification!"); return; }
   dlog_print(DLOG_INFO, LOG_TAG, "notification content set!");
 
   noti_err = notification_set_vibration(warn_notification, NOTIFICATION_VIBRATION_TYPE_DEFAULT, NULL);
-  if (noti_err != NOTIFICATION_ERROR_NONE) {
-    dlog_print(DLOG_WARN, LOG_TAG, "could not set vibration of warning notification!");
-      return;
-  }
+  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_WARN, LOG_TAG, "could not set vibration of warning notification!"); return; }
   dlog_print(DLOG_INFO, LOG_TAG, "notification vibration set!");
 
   noti_err = notification_post(warn_notification);
-  if (noti_err != NOTIFICATION_ERROR_NONE) {
-    dlog_print(DLOG_WARN, LOG_TAG, "could not post warning notification!");
-      return;
-  }
+  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_WARN, LOG_TAG, "could not post warning notification!"); return; }
   dlog_print(DLOG_INFO, LOG_TAG, "notification posted!");
+
+  noti_err = notification_free(warn_notification);
+  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_WARN, LOG_TAG, "could not free warning notification!"); return; }
 }
 
 //send notification
@@ -624,21 +612,24 @@ void issue_alarm_notification(int as)
 
   notification_h warn_notification = NULL;
   warn_notification = notification_create(NOTIFICATION_TYPE_NOTI);
-  if (warn_notification == NULL) { dlog_print(DLOG_ERROR, LOG_TAG, "could not create warning notification!"); return;}
+  if (warn_notification == NULL) { dlog_print(DLOG_ERROR, LOG_TAG, "could not create alarm notification!"); return;}
 
   int noti_err = NOTIFICATION_ERROR_NONE;
   noti_err = notification_set_text(warn_notification, NOTIFICATION_TEXT_TYPE_TITLE, "ALARM!", "EPILARM_NOTIFICATION_TITLE", NOTIFICATION_VARIABLE_TYPE_NONE);
-  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not create title of warning notification!"); return; }
+  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not create title of alarm notification!"); return; }
 
   noti_err = notification_set_text(warn_notification, NOTIFICATION_TEXT_TYPE_CONTENT, "Seizure-like movements detected! (alarmState = %d)",
       "EPILARM_NOTIFICATION_CONTENT", NOTIFICATION_VARIABLE_TYPE_INT, as, NOTIFICATION_VARIABLE_TYPE_NONE);
-  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not create content of warning notification!"); return; }
+  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not create content of alarm notification!"); return; }
 
   noti_err = notification_set_vibration(warn_notification, NOTIFICATION_VIBRATION_TYPE_DEFAULT, NULL);
-  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not set vibration of warning notification!"); return; }
+  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not set vibration of alarm notification!"); return; }
 
   noti_err = notification_post(warn_notification);
-  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not post warning notification!"); return; }
+  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not post alarm notification!"); return; }
+
+  noti_err = notification_free(warn_notification);
+  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_WARN, LOG_TAG, "could not free alarm notification!"); return; }
 }
 
 //send notification
@@ -661,6 +652,9 @@ void issue_unplanned_shutdown_notification()
 
   noti_err = notification_post(warn_notification);
   if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not post shutdown notification!"); return; }
+
+  noti_err = notification_free(warn_notification);
+  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_WARN, LOG_TAG, "could not free shutdown notification!"); return; }
 }
 
 void start_UI()
@@ -695,7 +689,7 @@ static void device_vibrate(int duration, int feedback) {
       dlog_print(DLOG_INFO, LOG_TAG, "Device vibrates!");
     }
   } else {
-    dlog_print(DLOG_INFO, LOG_TAG, "Connection to vibrator established");
+    dlog_print(DLOG_INFO, LOG_TAG, "Connection to vibrator could not be established!");
   }
 }
 
@@ -810,7 +804,7 @@ void seizure_detection(void *data) {
     dlog_print(DLOG_WARN, LOG_TAG, "### alarmState increased by one to %i", ad->alarmState);
 
     //TODO add appropriate handling for WARNING state (i.e. vibrate motors, display on, sounds?!)
-    device_vibrate(100, 100);
+    //device_vibrate(100, 100);
     //send notification
     issue_warning_notification(ad->alarmState);
 
@@ -818,7 +812,7 @@ void seizure_detection(void *data) {
       dlog_print(DLOG_WARN, LOG_TAG, "#### ALARM RAISED ####");
       //TODO add appropriate handling for ALARM state (i.e. contact persons based on GPS location?!)
       issue_alarm_notification(ad->alarmState);
-      device_vibrate(800, 100);
+      //device_vibrate(800, 100);
       //TODO seizure detected! handle this appropriately in UI!
       start_UI();
     }
