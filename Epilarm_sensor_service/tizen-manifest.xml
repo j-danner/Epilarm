@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<manifest xmlns="http://tizen.org/ns/packages" api-version="4.0" package="org.example.epilarm_sensor_service" version="1.0.0">
+<manifest xmlns="http://tizen.org/ns/packages" api-version="5.5" package="org.example.epilarm_sensor_service" version="1.0.0">
+    <author email="julian@danner-web.de">Julian Danner</author>
     <profile name="wearable"/>
-    <service-application appid="org.example.epilarm_sensor_service" auto-restart="false" exec="epilarm_sensor_service" multiple="false" nodisplay="true" on-boot="false" type="capp">
+    <service-application appid="org.example.epilarm_sensor_service" auto-restart="true" exec="epilarm_sensor_service" multiple="false" nodisplay="true" on-boot="true" type="capp">
         <label>epilarm_sensor_service</label>
         <icon>epilarm_sensor_service.png</icon>
         <app-control>
@@ -13,14 +14,15 @@
         <background-category value="sensor"/>
         <background-category value="background-network"/>
     </service-application>
+    <dependencies>
+        <dependency required-version="1.0.0" type="wants">QOeM6aBGp0</dependency>
+    </dependencies>
     <privileges>
         <privilege>http://tizen.org/privilege/appdir.shareddata</privilege>
         <privilege>http://tizen.org/privilege/appmanager.launch</privilege>
-        <privilege>http://tizen.org/privilege/alarm.get</privilege>
         <privilege>http://tizen.org/privilege/internet</privilege>
         <privilege>http://tizen.org/privilege/notification</privilege>
         <privilege>http://tizen.org/privilege/display</privilege>
-        <privilege>http://tizen.org/privilege/alarm.set</privilege>
     </privileges>
     <feature name="http://tizen.org/feature/network.internet">true</feature>
     <feature name="http://tizen.org/feature/battery">true</feature>
