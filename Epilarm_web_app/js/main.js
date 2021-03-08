@@ -486,7 +486,7 @@ function reset_params() {
     params = {
         minFreq: 3, //minimal freq of seizure-like movements (3Hz -> TODO verify using videos!)
         maxFreq: 8, //maximum freq of seizure-like movements (8Hz -> TODO verify using videos!)
-        avgRoiThresh: 2.3, //average value above which the relevant (combined) freqs have to be for warning mode
+        avgRoiThresh: 1.7, //average value above which the relevant (combined) freqs have to be for warning mode
         multThresh: 2.5, //threshhold for ration of average of non-relevant freqs and relevant freqs required for warning mode (as sum of the rations of the three dimensions)
         warnTime: 10, //time after which a continuous WARNING state raises an ALARM
 
