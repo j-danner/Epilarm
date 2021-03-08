@@ -132,9 +132,9 @@ void save_log(void *data) {
   sprintf(nsec_buf, "%03d", (int) round(tmnow.tv_nsec/1000000));
   strcat(timebuf, nsec_buf);
 
-    //read battery status
-    int battery_status = -1;
-    device_battery_get_percent(&battery_status);
+  //read battery status
+  int battery_status = -1;
+  device_battery_get_percent(&battery_status);
 
   //find appropriate file name and path
   char file_path[MAX_PATH];
@@ -153,13 +153,14 @@ void save_log(void *data) {
   json_builder_add_string_value (builder, timebuf);
 
   //add battery percentage
-  json_builder_set_member_name (builder, "battery");
+  json_builder_set_member_name (builder, "bat");
   json_builder_add_int_value (builder, battery_status);
 
   //add alarmstate
-  json_builder_set_member_name (builder, "alarmstate");
+  json_builder_set_member_name (builder, "a-st");
   json_builder_add_int_value (builder, ad->alarmState);
 
+  /*
   //add multRatio
   json_builder_set_member_name (builder, "multRatio");
   json_builder_add_double_value (builder, ad->multRatio);
@@ -167,6 +168,7 @@ void save_log(void *data) {
   //add avgRoi
   json_builder_set_member_name (builder, "avgRoi");
   json_builder_add_double_value (builder, ad->avgRoi);
+  
 
   //add avg_roi_x|y|z
   json_builder_set_member_name (builder, "avg_roi");
@@ -183,19 +185,20 @@ void save_log(void *data) {
   json_builder_add_double_value(builder, ad->avg_nroi_y);
   json_builder_add_double_value(builder, ad->avg_nroi_z);
   json_builder_end_array(builder);
+  */
 
-  //include the bins of fft_x_spec_simplified corresponding to the first 20 bins (so in the 0-10Hz range)
+  //include the bins of fft_x_spec_simplified corresponding to the first 25 bins (so in the 0-12.5Hz range)
   json_builder_set_member_name (builder, "x_spec");
   json_builder_begin_array(builder);
-  for (int i = 0; i < 20; ++i) {
+  for (int i = 0; i < 25; ++i) {
     json_builder_add_double_value(builder, ad->fft_x_spec_simplified[i]);
   }
   json_builder_end_array(builder);
 
-  //include the bins of fft_y_spec_simplified corresponding to the first 40 bins (so in the 0-20Hz range)
+  //include the bins of fft_y_spec_simplified corresponding to the first 40 bins (so in the 0-25Hz range)
   json_builder_set_member_name (builder, "y_spec");
   json_builder_begin_array(builder);
-  for (int i = 0; i < 20; ++i) {
+  for (int i = 0; i < 2*25; ++i) {
     json_builder_add_double_value(builder, ad->fft_y_spec_simplified[i]);
   }
   json_builder_end_array(builder);
@@ -203,7 +206,7 @@ void save_log(void *data) {
   //include the bins of fft_z_spec_simplified corresponding to the first 40 bins (so in the 0-20Hz range)
   json_builder_set_member_name (builder, "z_spec");
   json_builder_begin_array(builder);
-  for (int i = 0; i < 20; ++i) {
+  for (int i = 0; i < 2*25; ++i) {
     json_builder_add_double_value(builder, ad->fft_z_spec_simplified[i]);
   }
   json_builder_end_array(builder);
@@ -213,15 +216,15 @@ void save_log(void *data) {
   json_builder_set_member_name (builder, "params");
   json_builder_begin_array(builder);
   json_builder_begin_object(builder);
-  json_builder_set_member_name(builder, "minFreq");
+  json_builder_set_member_name(builder, "minF");
   json_builder_add_double_value(builder, ad->minFreq);
-  json_builder_set_member_name(builder, "maxFreq");
+  json_builder_set_member_name(builder, "maxF");
   json_builder_add_double_value(builder, ad->maxFreq);
-  json_builder_set_member_name(builder, "avgRoiThresh");
+  json_builder_set_member_name(builder, "aRT");
   json_builder_add_double_value(builder, ad->avgRoiThresh);
-  json_builder_set_member_name(builder, "multThresh");
+  json_builder_set_member_name(builder, "mT");
   json_builder_add_double_value(builder, ad->multThresh);
-  json_builder_set_member_name(builder, "warnTime");
+  json_builder_set_member_name(builder, "wT");
   json_builder_add_int_value(builder, ad->warnTime);
   json_builder_end_object(builder);
   json_builder_end_array(builder);
@@ -241,10 +244,10 @@ void save_log(void *data) {
   //dlog_print(DLOG_INFO, LOG_TAG, "save_log: content with len %d is = '%s'", strlen(str), str);
 
   //write contents to file
-    FILE *fp;
-    fp = fopen(file_path, "w");
-    fputs(str, fp);
-    fclose(fp);
+  FILE *fp;
+  fp = fopen(file_path, "w");
+  fputs(str, fp);
+  fclose(fp);
 }
 
 
@@ -750,7 +753,7 @@ void seizure_detection(void *data) {
 
   int minfreq_ = 2*ad->minFreq;
   int maxfreq_ = 2*ad->maxFreq;
-  for (int i = 0; i < sampleRate; ++i) {
+  for (int i = 0; i < 2*25; ++i) {
     if (minfreq_ <= i && i<=maxfreq_) {
       ad->avg_roi_x += ad->fft_x_spec_simplified[i];
       ad->avg_roi_y += ad->fft_y_spec_simplified[i];
@@ -761,12 +764,12 @@ void seizure_detection(void *data) {
       ad->avg_nroi_z += ad->fft_z_spec_simplified[i];
     }
   }
-  ad->avg_nroi_x = ad->avg_nroi_x / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
-  ad->avg_roi_x = ad->avg_roi_x / (2*ad->maxFreq-2*ad->minFreq+1);
-  ad->avg_nroi_y = ad->avg_nroi_y / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
-  ad->avg_roi_y = ad->avg_roi_y / (2*ad->maxFreq-2*ad->minFreq+1);
-  ad->avg_nroi_z = ad->avg_nroi_z / (sampleRate-(2*ad->maxFreq-2*ad->minFreq+1));
-  ad->avg_roi_z = ad->avg_roi_z / (2*ad->maxFreq-2*ad->minFreq+1);
+  ad->avg_nroi_x = ad->avg_nroi_x / (2*25-(maxfreq_-minfreq_));
+  ad->avg_roi_x = ad->avg_roi_x / (maxfreq_-minfreq_+1);
+  ad->avg_nroi_y = ad->avg_nroi_y / (2*25-(maxfreq_-minfreq_));
+  ad->avg_roi_y = ad->avg_roi_y / (maxfreq_-minfreq_+1);
+  ad->avg_nroi_z = ad->avg_nroi_z / (2*25-(maxfreq_-minfreq_));
+  ad->avg_roi_z = ad->avg_roi_z / (maxfreq_-minfreq_+1);
 
   /*
   dlog_print(DLOG_INFO, LOG_TAG, "avg_nroi_x: %f, avgRoi_x: %f, (max_x_roi: %f)", ad->avg_nroi_x, ad->avg_roi_x, max_x);
