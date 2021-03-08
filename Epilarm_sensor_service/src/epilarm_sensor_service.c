@@ -82,26 +82,26 @@ typedef struct appdata
   bool logging;
 
   //current alarmState
-    int alarmState;
+  int alarmState;
 
   //circular buffers for x, y, and z linear acc data
-    ringbuf_t rb_x;
-    ringbuf_t rb_y;
-    ringbuf_t rb_z;
+  ringbuf_t rb_x;
+  ringbuf_t rb_y;
+  ringbuf_t rb_z;
 
   FFTTransformer* fft_x;
   FFTTransformer* fft_y;
   FFTTransformer* fft_z;
 
   //store results of ffts of buffers
-    double* fft_x_spec;
-    double* fft_y_spec;
-    double* fft_z_spec;
+  double* fft_x_spec;
+  double* fft_y_spec;
+  double* fft_z_spec;
 
-    //simplify fft_X_spec s.t. each entry collects the sum of magnitudes of 0.5Hz width (so fft_X_spec_simplified[0] ~ 0.1-0.5Hz, [1] ~ 0.6-1Hz, ..., [9] ~ 4.6-5Hz)
-    double* fft_x_spec_simplified;
-    double* fft_y_spec_simplified;
-    double* fft_z_spec_simplified;
+  //simplify fft_X_spec s.t. each entry collects the sum of magnitudes of 0.5Hz width (so fft_X_spec_simplified[0] ~ 0.1-0.5Hz, [1] ~ 0.6-1Hz, ..., [9] ~ 4.6-5Hz)
+  double* fft_x_spec_simplified;
+  double* fft_y_spec_simplified;
+  double* fft_z_spec_simplified;
 } appdata_s;
 
 
@@ -259,34 +259,34 @@ int delete_logs() {
     return -1;
   }
 
-    dlog_print(DLOG_INFO, LOG_TAG, "delete_logs: removing log-files.");
+  dlog_print(DLOG_INFO, LOG_TAG, "delete_logs: removing log-files.");
 
   char file_path[MAX_PATH];
   char* log_path = get_log_path();
 
-    //iterate over files
-    DIR *d;
-    struct dirent *dir;
+  //iterate over files
+  DIR *d;
+  struct dirent *dir;
 
-    //traverse log-files and delete them
-    d = opendir(log_path);
-    if(!d) dlog_print(DLOG_INFO, LOG_TAG, "could not open directory to delete log-files!"); //since we opened them just before, we should still be able to open them ;)
-     while ((dir = readdir(d)) != NULL) {
-       if (strncmp(dir->d_name,"log_",4) == 0 && strcmp(strrchr(dir->d_name, '.'), ".json") == 0)
-       {
-         //set correct file_path
-         snprintf(file_path, sizeof(file_path), "%s%s", log_path, dir->d_name);
-      //remove log file
-      remove(file_path);
-      //WARNING! here ALL files are deleted, it may happen that if tar is too large, some logs are skipped, this - however - only
-      //         comes into play, when more than 2^21 logs have to be tarred. This is data worth ~3.5 weeks of continuous logging, so we may ignore this case!
-      //         (I suspect that the space on the watch runs out before that many logs are created anyways^^)
-      }
+  //traverse log-files and delete them
+  d = opendir(log_path);
+  if(!d) dlog_print(DLOG_INFO, LOG_TAG, "could not open directory to delete log-files!"); //since we opened them just before, we should still be able to open them ;)
+  while ((dir = readdir(d)) != NULL) {
+    if (strncmp(dir->d_name,"log_",4) == 0 && strcmp(strrchr(dir->d_name, '.'), ".json") == 0)
+    {
+    //set correct file_path
+    snprintf(file_path, sizeof(file_path), "%s%s", log_path, dir->d_name);
+    //remove log file
+    remove(file_path);
+    //WARNING! here ALL files are deleted, it may happen that if tar is too large, some logs are skipped, this - however - only
+    //         comes into play, when more than 2^21 logs have to be tarred. This is data worth ~3.5 weeks of continuous logging, so we may ignore this case!
+    //         (I suspect that the space on the watch runs out before that many logs are created anyways^^)
     }
-    closedir(d);
+  }
+  closedir(d);
   free(log_path);
 
-    dlog_print(DLOG_INFO, LOG_TAG, "delete_logs: deleted all log-files.");
+  dlog_print(DLOG_INFO, LOG_TAG, "delete_logs: deleted all log-files.");
 
   device_power_release_lock(POWER_LOCK_CPU);
 
@@ -321,46 +321,45 @@ int compress_logs() {
   mtar_t tar;
   mtar_open(&tar, tar_path, "wb");
 
-    //iterate over files
+  //iterate over files
   struct stat file_info;
   FILE *fd;
-    DIR *d;
-    struct dirent *dir;
+  DIR *d;
+  struct dirent *dir;
 
-    int no_files_tar = 0;
-    size_t tar_size = 0;
+  int no_files_tar = 0;
+  size_t tar_size = 0;
 
-    d = opendir(log_path);
+  d = opendir(log_path);
   dlog_print(DLOG_INFO, LOG_TAG, "reading data in %s", log_path);
-    if (d) {
-      while ((dir = readdir(d)) != NULL) {
-        //now dir->d_name stores name of file in dir
-        if (strncmp(dir->d_name,"log_",4) == 0 && strcmp(strrchr(dir->d_name, '.'), ".json") == 0)
-        {
-          dlog_print(DLOG_INFO, LOG_TAG, "processing file %s", dir->d_name);
-          //set correct file_path
-          snprintf(file_path, sizeof(file_path), "%s/%s", log_path, dir->d_name);
+  if (d) {
+    while ((dir = readdir(d)) != NULL) {
+      //now dir->d_name stores name of file in dir
+      if (strncmp(dir->d_name,"log_",4) == 0 && strcmp(strrchr(dir->d_name, '.'), ".json") == 0)
+      {
+        dlog_print(DLOG_INFO, LOG_TAG, "processing file %s", dir->d_name);
+        //set correct file_path
+        snprintf(file_path, sizeof(file_path), "%s/%s", log_path, dir->d_name);
+        //dlog_print(DLOG_INFO, LOG_TAG, "reading %s", file_path);
 
-          //dlog_print(DLOG_INFO, LOG_TAG, "reading %s", file_path);
+        fd = fopen(file_path, "rb"); /* open file to add to tar */
+        if(!fd) {
+          dlog_print(DLOG_WARN, LOG_TAG, "could not open file! (skipping file!)");
+          continue; //skip this file!
+        }
 
-          fd = fopen(file_path, "rb"); /* open file to add to tar */
-          if(!fd) {
-            dlog_print(DLOG_WARN, LOG_TAG, "could not open file! (skipping file!)");
-            continue; //skip this file!
-          }
-
-          /* to get the file size */
-          if(fstat(fileno(fd), &file_info) != 0) {
-            dlog_print(DLOG_WARN, LOG_TAG, "file is empty? (skipping file!)");
-            fclose(fd);
-            continue; //skip file
-          }
+        /* to get the file size */
+        if(fstat(fileno(fd), &file_info) != 0) {
+          dlog_print(DLOG_WARN, LOG_TAG, "file is empty? (skipping file!)");
+          fclose(fd);
+          continue; //skip file
+        }
         //dlog_print(DLOG_INFO, LOG_TAG, "log-file %s has size %d.", dir->d_name, file_info.st_size);
 
-          //read data
-          fgets(buff, file_info.st_size+1, fd);
-          fclose(fd);
-          tar_size = tar_size + file_info.st_size+1;
+        //read data
+        fgets(buff, file_info.st_size+1, fd);
+        fclose(fd);
+        tar_size = tar_size + file_info.st_size+1;
 
         //attach file to tar
         mtar_write_file_header(&tar, dir->d_name, file_info.st_size);
@@ -375,69 +374,68 @@ int compress_logs() {
         if (no_files_tar > 2097151) { // 2^32/2048 = 2097152
           break;
         }
-        } else {
-          //dir is either no regular file, its name is shorter than 5 chars or it does not end with .json
-          dlog_print(DLOG_INFO, LOG_TAG, "skipping 'file' %s", dir->d_name);
-        }
+      } else {
+        //dir is either no regular file, its name is shorter than 5 chars or it does not end with .json
+        dlog_print(DLOG_INFO, LOG_TAG, "skipping 'file' %s", dir->d_name);
       }
-      closedir(d);
+    }
+    closedir(d);
   } else {
     dlog_print(DLOG_INFO, LOG_TAG, "directory does not exist or cannot be opened!");
     free(log_path);
-
-      mtar_finalize(&tar);
-      mtar_close(&tar);
+    mtar_finalize(&tar);
+    mtar_close(&tar);
 
     device_power_release_lock(POWER_LOCK_CPU);
     return -1;
   }
 
-    /* Finalize -- this needs to be the last thing done before closing */
-    mtar_finalize(&tar);
-    /* Close archive */
-    mtar_close(&tar);
+  /* Finalize -- this needs to be the last thing done before closing */
+  mtar_finalize(&tar);
+  /* Close archive */
+  mtar_close(&tar);
 
   dlog_print(DLOG_INFO, LOG_TAG, "tarring %d log-files finished of total size %d", no_files_tar, tar_size);
 
-    char tar_gz_path[MAX_PATH];
+  char tar_gz_path[MAX_PATH];
   snprintf(tar_gz_path, sizeof(tar_gz_path), "%s.gz", tar_path);
 
   dlog_print(DLOG_INFO, LOG_TAG, "compression started. (%s)", tar_gz_path);
 
   //code taken from function 'gz_compress' of minigzip ('https://github.com/madler/zlib/blob/master/test/minigzip.c')
-    FILE   *in = fopen(tar_path, "rb");
-    gzFile out = gzopen(tar_gz_path, "w");
+  FILE   *in = fopen(tar_path, "rb");
+  gzFile out = gzopen(tar_gz_path, "w");
 
-    char buf[BUFLEN];
-    int len;
-    int err;
-    for (;;) {
-        len = (int)fread(buf, 1, sizeof(buf), in);
-        if (ferror(in)) {
-          dlog_print(DLOG_INFO, LOG_TAG, "error in fread when compressing!");
-            return -1;
-        }
-        if (len == 0) break;
-
-        if (gzwrite(out, buf, (unsigned)len) != len) dlog_print(DLOG_INFO, LOG_TAG, "gzerror: %s", gzerror(out, &err));
+  char buf[BUFLEN];
+  int len;
+  int err;
+  for (;;) {
+    len = (int)fread(buf, 1, sizeof(buf), in);
+    if (ferror(in)) {
+      dlog_print(DLOG_INFO, LOG_TAG, "error in fread when compressing!");
+        return -1;
     }
-    fclose(in);
-    if (gzclose(out) != Z_OK) {
-      dlog_print(DLOG_INFO, LOG_TAG, "failed gzclose");
+    if (len == 0) break;
 
-      device_power_release_lock(POWER_LOCK_CPU);
-      return -1;
-    }
+    if (gzwrite(out, buf, (unsigned)len) != len) dlog_print(DLOG_INFO, LOG_TAG, "gzerror: %s", gzerror(out, &err));
+  }
+  fclose(in);
+  if (gzclose(out) != Z_OK) {
+    dlog_print(DLOG_INFO, LOG_TAG, "failed gzclose");
 
-    dlog_print(DLOG_INFO, LOG_TAG, "remove tar-file.");
-    //remove tar-file
-    remove(tar_path);
+    device_power_release_lock(POWER_LOCK_CPU);
+    return -1;
+  }
+
+  dlog_print(DLOG_INFO, LOG_TAG, "remove tar-file.");
+  //remove tar-file
+  remove(tar_path);
 
   device_power_release_lock(POWER_LOCK_CPU);
 
-    dlog_print(DLOG_INFO, LOG_TAG, "compress_logs: compression finished.");
+  dlog_print(DLOG_INFO, LOG_TAG, "compress_logs: compression finished.");
 
-    return delete_logs();
+  return delete_logs();
 }
 
 
@@ -462,105 +460,104 @@ int share_data(const char* ftp_url) {
   double speed_upload, total_time;
   FILE *fd;
 
-    //get local data path
+  //get local data path
   char file_path[MAX_PATH];
   char* log_path = get_log_path();
   char URL[MAX_URL_LEN]; //should be large enough to store ad->ftp_url + filename!
 
-    //iterate over files:
-    DIR *d;
-    struct dirent *dir;
-    d = opendir(log_path);
+  //iterate over files:
+  DIR *d;
+  struct dirent *dir;
+  d = opendir(log_path);
   dlog_print(DLOG_INFO, LOG_TAG, "reading data in %s", log_path);
-    if (d) {
-      while ((dir = readdir(d)) != NULL) {
-        //now dir->d_name stores name of file in dir
-        if (strncmp(dir->d_name, "logs_",5) == 0 && strcmp(strrchr(dir->d_name, '.'), ".gz") == 0)
+  if (d) {
+    while ((dir = readdir(d)) != NULL) {
+      //now dir->d_name stores name of file in dir
+      if (strncmp(dir->d_name, "logs_",5) == 0 && strcmp(strrchr(dir->d_name, '.'), ".gz") == 0)
+      {
+        dlog_print(DLOG_INFO, LOG_TAG, "processing file %s", dir->d_name);
+        //set correct file_path
+        snprintf(file_path, sizeof(file_path), "%s/%s", log_path, dir->d_name);
+
+        dlog_print(DLOG_INFO, LOG_TAG, "reading %s", file_path);
+        fd = fopen(file_path, "rb"); /* open file to upload */
+        if(!fd) {
+          dlog_print(DLOG_INFO, LOG_TAG, "could not open file!");
+          free(log_path);
+          device_power_release_lock(POWER_LOCK_CPU);
+          return -1; /* can't continue */
+        }
+
+        /* to get the file size */
+        if(fstat(fileno(fd), &file_info) != 0) {
+          dlog_print(DLOG_INFO, LOG_TAG, "file is empty?");
+          free(log_path);
+          device_power_release_lock(POWER_LOCK_CPU);
+          fclose(fd);
+          return -1; /* can't continue */
+        }
+
+        curl = curl_easy_init();
+        if(curl)
         {
-          dlog_print(DLOG_INFO, LOG_TAG, "processing file %s", dir->d_name);
-          //set correct file_path
-          snprintf(file_path, sizeof(file_path), "%s/%s", log_path, dir->d_name);
-
-          dlog_print(DLOG_INFO, LOG_TAG, "reading %s", file_path);
-
-          fd = fopen(file_path, "rb"); /* open file to upload */
-          if(!fd) {
-            dlog_print(DLOG_INFO, LOG_TAG, "could not open file!");
-            free(log_path);
-            device_power_release_lock(POWER_LOCK_CPU);
-            return -1; /* can't continue */
-          }
-
-          /* to get the file size */
-          if(fstat(fileno(fd), &file_info) != 0) {
-            dlog_print(DLOG_INFO, LOG_TAG, "file is empty?");
-            free(log_path);
-            device_power_release_lock(POWER_LOCK_CPU);
-              fclose(fd);
-            return -1; /* can't continue */
-          }
-
-          curl = curl_easy_init();
-          if(curl)
-          {
-            //construct url
+          //construct url
           dlog_print(DLOG_INFO, LOG_TAG, "ftp_url=%s", ftp_url);
           dlog_print(DLOG_INFO, LOG_TAG, "d_name=%s", dir->d_name);
 
-            strcpy(URL, ftp_url);
-            strcat(URL, dir->d_name);
+          strcpy(URL, ftp_url);
+          strcat(URL, dir->d_name);
           dlog_print(DLOG_INFO, LOG_TAG, "assembled URL=%s", URL);
 
           // try using ssl
           curl_easy_setopt(curl, CURLOPT_USE_SSL, CURLUSESSL_TRY);
 
-            /* upload to this place */
-            curl_easy_setopt(curl, CURLOPT_URL, URL);
-            // create directory if it does not exist
-            curl_easy_setopt(curl, CURLOPT_FTP_CREATE_MISSING_DIRS, CURLFTP_CREATE_DIR_RETRY);
+          /* upload to this place */
+          curl_easy_setopt(curl, CURLOPT_URL, URL);
+          // create directory if it does not exist
+          curl_easy_setopt(curl, CURLOPT_FTP_CREATE_MISSING_DIRS, CURLFTP_CREATE_DIR_RETRY);
 
-            /* tell it to "upload" to the URL */
-            curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+          /* tell it to "upload" to the URL */
+          curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
 
-            /* set where to read from (on Windows you need to use READFUNCTION too) */
-            curl_easy_setopt(curl, CURLOPT_READDATA, fd);
+          /* set where to read from (on Windows you need to use READFUNCTION too) */
+          curl_easy_setopt(curl, CURLOPT_READDATA, fd);
 
-            /* and give the size of the upload (optional) */
-            curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t)file_info.st_size);
+          /* and give the size of the upload (optional) */
+          curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t)file_info.st_size);
 
-            /* enable verbose for easier tracing */
-            curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+          /* enable verbose for easier tracing */
+          curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
 
-            res = curl_easy_perform(curl);
-            /* Check for errors */
-            if(res != CURLE_OK) {
-              dlog_print(DLOG_INFO, LOG_TAG, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-              free(log_path);
-              device_power_release_lock(POWER_LOCK_CPU);
-                curl_easy_cleanup(curl);
-                  fclose(fd);
-              return -1;
-            } else {
-              dlog_print(DLOG_INFO, LOG_TAG, "file uploaded! (size=%d)", file_info.st_size);
-              /* now extract transfer info */
-              curl_easy_getinfo(curl, CURLINFO_SPEED_UPLOAD, &speed_upload);
-              curl_easy_getinfo(curl, CURLINFO_TOTAL_TIME, &total_time);
-
-              dlog_print(DLOG_INFO, LOG_TAG, "Speed: %.0f bytes/sec during %.1f seconds", speed_upload, total_time);
-
-              remove(file_path);
-              dlog_print(DLOG_INFO, LOG_TAG, "local file deleted.");
-            }
-            /* always cleanup */
+          res = curl_easy_perform(curl);
+          /* Check for errors */
+          if(res != CURLE_OK) {
+            dlog_print(DLOG_INFO, LOG_TAG, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
+            free(log_path);
+            device_power_release_lock(POWER_LOCK_CPU);
             curl_easy_cleanup(curl);
+            fclose(fd);
+            return -1;
+          } else {
+            dlog_print(DLOG_INFO, LOG_TAG, "file uploaded! (size=%d)", file_info.st_size);
+            /* now extract transfer info */
+            curl_easy_getinfo(curl, CURLINFO_SPEED_UPLOAD, &speed_upload);
+            curl_easy_getinfo(curl, CURLINFO_TOTAL_TIME, &total_time);
+
+            dlog_print(DLOG_INFO, LOG_TAG, "Speed: %.0f bytes/sec during %.1f seconds", speed_upload, total_time);
+
+            remove(file_path);
+            dlog_print(DLOG_INFO, LOG_TAG, "local file deleted.");
           }
-          fclose(fd);
-        } else {
-          //dir is either no regular file, its name is shorter than 5 chars or it does not end with .json
-          //dlog_print(DLOG_INFO, LOG_TAG, "skipping 'file' %s", dir->d_name);
+          /* always cleanup */
+          curl_easy_cleanup(curl);
         }
+        fclose(fd);
+      } else {
+        //dir is either no regular file, its name is shorter than 5 chars or it does not end with .json
+        //dlog_print(DLOG_INFO, LOG_TAG, "skipping 'file' %s", dir->d_name);
       }
-      closedir(d);
+    }
+    closedir(d);
   } else {
     dlog_print(DLOG_INFO, LOG_TAG, "directory does not exist or cannot be opened!");
     free(log_path);
@@ -568,7 +565,7 @@ int share_data(const char* ftp_url) {
     return -1;
   }
 
-    curl_global_cleanup();
+  curl_global_cleanup();
 
   free(log_path);
 
@@ -612,7 +609,6 @@ void issue_warning_notification(int as)
       return;
   }
   dlog_print(DLOG_INFO, LOG_TAG, "notification vibration set!");
-
 
   noti_err = notification_post(warn_notification);
   if (noti_err != NOTIFICATION_ERROR_NONE) {
