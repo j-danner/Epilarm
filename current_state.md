@@ -14,10 +14,10 @@ Below you can find a task-list which indicates the current state of the project 
   - [ ] optimize analysis, i.e., remove the (unnecessary) aggregation of the spectra in 0.5Hz bins
   - [x] implement basic functionality for ftp upload
   - [x] start UI (web app) if alarmstate changes (and app is not running)
-  - [ ] appcontrol to delete all log files
+  - [x] appcontrol to delete all log files
   - [ ] raise alarm by initializing phone call and/or send SMS (write companion app for Android or stick to LTE version of smart watch/can we use Samsung's very own SOS system?)
   - [ ] read GPS data every now and then s.t. it can be sent as an attachment of the alarm notification
-  - [ ] automatically start and stop analysis at given times (use Alarm API?!)
+  - [x] automatically start and stop analysis at given times (using Alarm API)
 
 
 - [Tizen Web Application](https://docs.tizen.org/application/web/index) (javascript):
@@ -32,24 +32,29 @@ Below you can find a task-list which indicates the current state of the project 
   - [x] UI to change default values of params (see above)
   - [x] save settings to local storage and load them from there
   - [x] if something goes wrong in the service app, give appropriate popup warnings in UI (compression failed, upload failed, seizure detection failed)
-  - [ ] deactivate settings if sensor listener is running (settings only get applied after restart of listener!)
-  - [ ] button to delete all log files (with confirmation popup, then one can easily erase data each day if no seizure happened...)
+  - [x] deactivate settings if sensor listener is running (settings only get applied after restart of listener!)
+  - [ ] improve visuals s.t. it is clear that settings cannot be changed during activated seizure detection
+  - [x] button to delete all log files (with confirmation popup, then one can easily erase data each day if no seizure happened...)
 
 
 - Python Log Analysis:
   - [x] download tars from ftp server
   - [x] convert json into python-dicts
   - [x] (automatic) analysis of 'gaps' between measurements
-  - [ ] verify c-implementation, i.e., comptuation of multRatio, avgROI (etc) from the spectrum, then remove those values from the logs
+  - [x] verify c-implementation, i.e., comptuation of multRatio, avgROI (etc) from the spectrum, then remove those values from the logs
   - [ ] using list of timestamps from actual seazures and their corresponding logs, optimize params of analysis s.t. less false alarms are raised but still all seizures detected
 
+- Known issues:
+  - [ ] automatic seizure detection start/stop does not work reliably
+  - [ ] (local) notifications are not sent properly (i.e. no vibration)
 
 other todos:
- - [ ] fix default values on SM-R830; I could at least not trigger the alarm on purpose :/
+ - [x] fix default values on SM-R830; I could at least not trigger the alarm on purpose :/
  - [ ] optimize battery usage (currently 4.2%/h battery on SM-R820 with logging enabled)
   - with/without logging (try to minimize the difference, logging is (at least for now) extremely important!)
   - decrease sampleRate (beware of aliasing effects!)
  - [ ] check whether _night mode_ affects actual sampling rate
  - [x] make first prototype available to first _real_ test person (not just my shaky hand)
  - [ ] clarify which LICENSE can be used
- - [ ] create logo
+ - [x] create logo
+ - [ ] create widget that allows starting/stopping of seizure detection, and shows if it is running
