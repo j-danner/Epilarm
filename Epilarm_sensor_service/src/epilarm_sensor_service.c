@@ -108,6 +108,11 @@ typedef struct appdata
   double* fft_x_spec_simplified;
   double* fft_y_spec_simplified;
   double* fft_z_spec_simplified;
+
+  //notification handles
+  notification_h alarm_notification;
+  notification_h shutdown_notification;
+  notification_h warn_notification;
 } appdata_s;
 
 
@@ -577,87 +582,22 @@ int share_data(const char* ftp_url) {
   return 0;
 }
 
-//send notification
-void issue_warning_notification(int as)
-{
-  dlog_print(DLOG_INFO, LOG_TAG, "creating notification!");
 
-  notification_h warn_notification = NULL;
-  warn_notification = notification_create(NOTIFICATION_TYPE_NOTI);
-  if (warn_notification == NULL) { dlog_print(DLOG_WARN, LOG_TAG, "could not create warning notification!"); return; }
-
-  int noti_err = NOTIFICATION_ERROR_NONE;
-  noti_err = notification_set_text(warn_notification, NOTIFICATION_TEXT_TYPE_TITLE, "WARNING!", "EPILARM_NOTIFICATION_TITLE", NOTIFICATION_VARIABLE_TYPE_NONE);
-  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_WARN, LOG_TAG, "could not create title of warning notification!"); return; }
-  dlog_print(DLOG_INFO, LOG_TAG, "notification title set!");
-
-  noti_err = notification_set_text(warn_notification, NOTIFICATION_TEXT_TYPE_CONTENT, "Seizure-like movements detected! (alarmState = %d)",
-      "EPILARM_NOTIFICATION_CONTENT", NOTIFICATION_VARIABLE_TYPE_INT, as, NOTIFICATION_VARIABLE_TYPE_NONE);
-  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_WARN, LOG_TAG, "could not create content of warning notification!"); return; }
-  dlog_print(DLOG_INFO, LOG_TAG, "notification content set!");
-
-  noti_err = notification_set_vibration(warn_notification, NOTIFICATION_VIBRATION_TYPE_DEFAULT, NULL);
-  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_WARN, LOG_TAG, "could not set vibration of warning notification!"); return; }
-  dlog_print(DLOG_INFO, LOG_TAG, "notification vibration set!");
-
-  noti_err = notification_post(warn_notification);
-  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_WARN, LOG_TAG, "could not post warning notification!"); return; }
-  dlog_print(DLOG_INFO, LOG_TAG, "notification posted!");
-
-  noti_err = notification_free(warn_notification);
-  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_WARN, LOG_TAG, "could not free warning notification!"); return; }
-}
-
-//send notification
-void issue_alarm_notification(int as)
-{
-
-  notification_h warn_notification = NULL;
-  warn_notification = notification_create(NOTIFICATION_TYPE_NOTI);
-  if (warn_notification == NULL) { dlog_print(DLOG_ERROR, LOG_TAG, "could not create alarm notification!"); return;}
-
-  int noti_err = NOTIFICATION_ERROR_NONE;
-  noti_err = notification_set_text(warn_notification, NOTIFICATION_TEXT_TYPE_TITLE, "ALARM!", "EPILARM_NOTIFICATION_TITLE", NOTIFICATION_VARIABLE_TYPE_NONE);
-  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not create title of alarm notification!"); return; }
-
-  noti_err = notification_set_text(warn_notification, NOTIFICATION_TEXT_TYPE_CONTENT, "Seizure-like movements detected! (alarmState = %d)",
-      "EPILARM_NOTIFICATION_CONTENT", NOTIFICATION_VARIABLE_TYPE_INT, as, NOTIFICATION_VARIABLE_TYPE_NONE);
-  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not create content of alarm notification!"); return; }
-
-  noti_err = notification_set_vibration(warn_notification, NOTIFICATION_VIBRATION_TYPE_DEFAULT, NULL);
-  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not set vibration of alarm notification!"); return; }
-
-  noti_err = notification_post(warn_notification);
+//publish notification after updating its content with info on the current alarmstate
+void publish_updated_notification(notification_h noti, int as) {
+  int noti_err = notification_set_text(noti, NOTIFICATION_TEXT_TYPE_CONTENT, "Seizure-like movements detected! (alarmState = %d)",
+	"EPILARM_NOTIFICATION_CONTENT", NOTIFICATION_VARIABLE_TYPE_INT, as, NOTIFICATION_VARIABLE_TYPE_NONE);
+  if (noti_err != NOTIFICATION_ERROR_NONE) dlog_print(DLOG_ERROR, LOG_TAG, "could not create content of alarm notification!");
+  noti_err = notification_post(noti);
   if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not post alarm notification!"); return; }
-
-  noti_err = notification_free(warn_notification);
-  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_WARN, LOG_TAG, "could not free alarm notification!"); return; }
 }
 
-//send notification
-void issue_unplanned_shutdown_notification()
-{
-  notification_h warn_notification = NULL;
-  warn_notification = notification_create(NOTIFICATION_TYPE_NOTI);
-  if (warn_notification == NULL) { dlog_print(DLOG_ERROR, LOG_TAG, "could not create shutdown notification!"); return;}
-
-  int noti_err = NOTIFICATION_ERROR_NONE;
-  noti_err = notification_set_text(warn_notification, NOTIFICATION_TEXT_TYPE_TITLE, "Warning!", "EPILARM_NOTIFICATION_TITLE", NOTIFICATION_VARIABLE_TYPE_NONE);
-  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not create title of shutdown notification!"); return; }
-
-  noti_err = notification_set_text(warn_notification, NOTIFICATION_TEXT_TYPE_CONTENT, "Unscheduled shutdown of Epilarm!\n (Restart via Epilarm app!)",
-      "EPILARM_NOTIFICATION_CONTENT", NOTIFICATION_VARIABLE_TYPE_NONE);
-  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not create content of shutdown notification!"); return; }
-
-  noti_err = notification_set_vibration(warn_notification, NOTIFICATION_VIBRATION_TYPE_DEFAULT, NULL);
-  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not set vibration of shutdown notification!"); return; }
-
-  noti_err = notification_post(warn_notification);
+//publish notification
+void publish_notification(notification_h noti) {
+  int noti_err = notification_post(noti);
   if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_ERROR, LOG_TAG, "could not post shutdown notification!"); return; }
-
-  noti_err = notification_free(warn_notification);
-  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_WARN, LOG_TAG, "could not free shutdown notification!"); return; }
 }
+
 
 void start_UI()
 {
@@ -805,18 +745,20 @@ void seizure_detection(void *data) {
     ad->alarmState = ad->alarmState+1;
     dlog_print(DLOG_WARN, LOG_TAG, "### alarmState increased by one to %i", ad->alarmState);
 
-    //TODO add appropriate handling for WARNING state (i.e. vibrate motors, display on, sounds?!)
-    //device_vibrate(100, 100);
-    //send notification
-    issue_warning_notification(ad->alarmState);
-
     if(ad->alarmState >= ad->warnTime) {
       dlog_print(DLOG_WARN, LOG_TAG, "#### ALARM RAISED ####");
       //TODO add appropriate handling for ALARM state (i.e. contact persons based on GPS location?!)
-      issue_alarm_notification(ad->alarmState);
+      publish_updated_notification(ad->alarm_notification, ad->alarmState);
       //device_vibrate(800, 100);
       //TODO seizure detected! handle this appropriately in UI!
       start_UI();
+    } else {
+    	//alarm not raised BUT now in warning state!
+
+        //TODO add appropriate handling for WARNING state (i.e. vibrate motors, display on, sounds?!)
+        //device_vibrate(100, 100);
+        //send notification
+        publish_updated_notification(ad->warn_notification, ad->alarmState);
     }
   } else {
     if(ad->alarmState > 1) {
@@ -899,6 +841,35 @@ bool service_app_create(void *data)
 
   ad->logging = false;
 
+  //create notification handles
+  //shutdown notification:
+  ad->shutdown_notification = notification_create(NOTIFICATION_TYPE_NOTI);
+  if (ad->shutdown_notification == NULL) dlog_print(DLOG_ERROR, LOG_TAG, "could not create shutdown notification!");
+  int noti_err = NOTIFICATION_ERROR_NONE;
+  noti_err = notification_set_text(ad->shutdown_notification, NOTIFICATION_TEXT_TYPE_TITLE, "Warning!", "EPILARM_NOTIFICATION_TITLE", NOTIFICATION_VARIABLE_TYPE_NONE);
+  if (noti_err != NOTIFICATION_ERROR_NONE) dlog_print(DLOG_ERROR, LOG_TAG, "could not create title of shutdown notification!");
+  noti_err = notification_set_text(ad->shutdown_notification, NOTIFICATION_TEXT_TYPE_CONTENT, "Unscheduled shutdown of Epilarm!\n (Restart via Epilarm app!)",
+      "EPILARM_NOTIFICATION_CONTENT", NOTIFICATION_VARIABLE_TYPE_NONE);
+  if (noti_err != NOTIFICATION_ERROR_NONE) dlog_print(DLOG_ERROR, LOG_TAG, "could not create content of shutdown notification!");
+  noti_err = notification_set_vibration(ad->shutdown_notification, NOTIFICATION_VIBRATION_TYPE_DEFAULT, NULL);
+  if (noti_err != NOTIFICATION_ERROR_NONE) dlog_print(DLOG_ERROR, LOG_TAG, "could not set vibration of shutdown notification!");
+
+  //alarm notification:
+  noti_err = notification_clone(ad->shutdown_notification, &(ad->alarm_notification));
+  if (noti_err != NOTIFICATION_ERROR_NONE) dlog_print(DLOG_ERROR, LOG_TAG, "could not clone alarm notification!");
+  noti_err = notification_set_text(ad->alarm_notification, NOTIFICATION_TEXT_TYPE_TITLE, "ALARM!", "EPILARM_NOTIFICATION_TITLE", NOTIFICATION_VARIABLE_TYPE_NONE);
+  if (noti_err != NOTIFICATION_ERROR_NONE) dlog_print(DLOG_ERROR, LOG_TAG, "could not create title of alarm notification!");
+  noti_err = notification_set_text(ad->alarm_notification, NOTIFICATION_TEXT_TYPE_CONTENT, "Seizure-like movements detected! (alarmState = -1)",
+      "EPILARM_NOTIFICATION_CONTENT", NOTIFICATION_VARIABLE_TYPE_NONE);
+  if (noti_err != NOTIFICATION_ERROR_NONE) dlog_print(DLOG_ERROR, LOG_TAG, "could not create content of alarm notification!");
+
+  //warn notification:
+  noti_err = notification_clone(ad->shutdown_notification, &(ad->warn_notification));
+  ad->alarm_notification = notification_create(NOTIFICATION_TYPE_NOTI);
+  if (noti_err != NOTIFICATION_ERROR_NONE) dlog_print(DLOG_ERROR, LOG_TAG, "could not clone warn notification!");
+  noti_err = notification_set_text(ad->warn_notification, NOTIFICATION_TEXT_TYPE_TITLE, "WARNING!", "EPILARM_NOTIFICATION_TITLE", NOTIFICATION_VARIABLE_TYPE_NONE);
+  if (noti_err != NOTIFICATION_ERROR_NONE) dlog_print(DLOG_WARN, LOG_TAG, "could not create title of warning notification!");
+
   return true;
 }
 
@@ -942,7 +913,7 @@ void sensor_start(void *data)
 
 //stops the sensor and the seizure detection algorithm.
 //input: appdata, bool that tells if a warning notification should be sent (e.g. if it the sensor is not stopped by UI)
-void sensor_stop(void *data, int sendNot)
+void sensor_stop(void *data, bool warn)
 {
   // Extracting application data
   appdata_s* ad = (appdata_s*)data;
@@ -958,9 +929,9 @@ void sensor_stop(void *data, int sendNot)
   {
     ad->listener = NULL;
     dlog_print(DLOG_INFO, LOG_TAG, "Sensor listener destroyed.");
-    if (sendNot != 0) { //send notification that sensorlistener is destroyed
+    if (warn) { //send notification that sensorlistener is destroyed
       dlog_print(DLOG_INFO, LOG_TAG, "Unscheduled shutdown of Epilarm-service! (Restart via UI!)");
-      issue_unplanned_shutdown_notification();
+      publish_notification(ad->shutdown_notification);
       //TODO start UI and tell it that service app crashed!
       start_UI();
     }
@@ -982,7 +953,7 @@ void service_app_terminate(void *data)
   // Extracting application data
   appdata_s* ad = (appdata_s*)data;
 
-  sensor_stop(data, 1); //if sensor is stopped - with a warning; if already stopped before, no warning
+  sensor_stop(data, true); //if sensor is stopped - with a warning; if already stopped before, no warning
 
   //destroy fft_transformers
   free_fft_transformer(ad->fft_x);
@@ -1002,6 +973,15 @@ void service_app_terminate(void *data)
   free(ad->fft_x_spec_simplified);
   free(ad->fft_y_spec_simplified);
   free(ad->fft_z_spec_simplified);
+
+  //free notification handles
+  int noti_err = notification_free(ad->shutdown_notification);
+  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_WARN, LOG_TAG, "could not free shutdown notification!"); return; }
+  noti_err = notification_free(ad->warn_notification);
+  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_WARN, LOG_TAG, "could not free warn notification!"); return; }
+  noti_err = notification_free(ad->alarm_notification);
+  if (noti_err != NOTIFICATION_ERROR_NONE) { dlog_print(DLOG_WARN, LOG_TAG, "could not free alarm notification!"); return; }
+
 }
 
 //handles incoming appcontrols from UI (e.g. starting/stopping analysis, ftp upload, compression, etc..)
@@ -1057,7 +1037,7 @@ void service_app_control(app_control_h app_control, void *data)
         {
           //// >>>> STOP SERVICE APP <<<< ////
             dlog_print(DLOG_INFO, LOG_TAG, "Stopping epilarm sensor service!");
-            sensor_stop(data, 0); //stop sensor listener without notification (as it was shut down on purpose)
+            sensor_stop(data, false); //stop sensor listener without notification (as it was shut down on purpose)
 
         } else if((caller_id != NULL) && (action_value != NULL)
                 && (!strncmp(caller_id, MYSERVICELAUNCHER_APP_ID, STRNCMP_LIMIT))
