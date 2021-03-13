@@ -55,6 +55,6 @@ other todos:
   - decrease sampleRate (beware of aliasing effects!)
  - [ ] check whether _night mode_ affects actual sampling rate
  - [x] make first prototype available to first _real_ test person (not just my shaky hand)
- - [ ] clarify which LICENSE can be used
+ - [x] clarify which LICENSE can be used
  - [x] create logo
  - [ ] create widget that allows starting/stopping of seizure detection, and shows if it is running
