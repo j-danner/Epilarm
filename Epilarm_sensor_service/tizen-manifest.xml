@@ -4,7 +4,7 @@
     <profile name="wearable"/>
     <service-application appid="org.example.epilarm_sensor_service" auto-restart="true" exec="epilarm_sensor_service" multiple="false" nodisplay="true" on-boot="true" type="capp">
         <label>epilarm_sensor_service</label>
-        <icon>epilarm_sensor_service.png</icon>
+        <icon>icon.png</icon>
         <app-control>
             <operation name="http://tizen.org/appcontrol/operation/service"/>
             <privilege>http://tizen.org/privilege/appmanager.launch</privilege>
