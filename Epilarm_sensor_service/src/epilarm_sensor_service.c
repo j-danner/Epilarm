@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <math.h>
 #include <dirent.h>
+#include <string.h>
 //tizen...
 #include <sensor.h>
 #include <device/power.h>
@@ -32,11 +33,16 @@
 //RingBuffer
 #include <rb.h>
 
+//debugging...
+#include <assert.h>
+
 
 
 #define BUFLEN 16384
 #define MAX_PATH 256
 #define MAX_URL_LEN 256
+#define MAX_LOG_LEN 4096
+
 
 
 // some constant values used in the app
@@ -105,15 +111,23 @@ typedef struct appdata
 } appdata_s;
 
 
-//get path where logs should be saved, does not create the folder if it does not exist!
-//result must be released!
-char* get_log_path() {
-  char* log_path = malloc(MAX_PATH * sizeof(char));
-
+//get path where logs should be saved, log_path should have size at least MAX_PATH
+void get_log_path(char* log_path) {
   char* data_path = app_get_shared_data_path();
   snprintf(log_path, MAX_PATH*sizeof(char), "%slogs", data_path);
   free(data_path);
-  return log_path;
+}
+
+//write timestamp in timebuf (it should have size at least 30!)
+void get_timestamp(char* timebuf) {
+  struct timespec tmnow;
+  struct tm *tm;
+  char nsec_buf[6];
+  clock_gettime(CLOCK_REALTIME, &tmnow);
+  tm = localtime(&tmnow.tv_sec);
+  strftime(timebuf, 30, "%Y-%m-%dT%H:%M:%S.", tm);
+  sprintf(nsec_buf, "%03d", (int) round(tmnow.tv_nsec/1000000));
+  strncat(timebuf, nsec_buf, sizeof(timebuf)-sizeof(nsec_buf)-1);
 }
 
 //locally save analyzed data (called after each analysis and stored locally) -> CAUTION: must not be called more than once per second!
@@ -122,15 +136,8 @@ void save_log(void *data) {
   appdata_s* ad = (appdata_s*)data;
 
   //get timestamp:
-  struct timespec tmnow;
-  struct tm *tm;
-  char timebuf[30], nsec_buf[6];
-
-  clock_gettime(CLOCK_REALTIME, &tmnow);
-  tm = localtime(&tmnow.tv_sec);
-  strftime(timebuf, 30, "%Y-%m-%dT%H:%M:%S.", tm);
-  sprintf(nsec_buf, "%03d", (int) round(tmnow.tv_nsec/1000000));
-  strcat(timebuf, nsec_buf);
+  char timebuf[30];
+  get_timestamp(timebuf);
 
   //read battery status
   int battery_status = -1;
@@ -138,9 +145,9 @@ void save_log(void *data) {
 
   //find appropriate file name and path
   char file_path[MAX_PATH];
-  char* log_path = get_log_path();
+  char log_path[MAX_PATH];
+  get_log_path(log_path);
   snprintf(file_path, sizeof(file_path), "%s/log_%s.%s", log_path, timebuf, "json");
-  free(log_path);
 
   dlog_print(DLOG_INFO, LOG_TAG, "save_log: data_path=%s", file_path);
 
@@ -242,6 +249,7 @@ void save_log(void *data) {
   g_object_unref(builder);
 
   //dlog_print(DLOG_INFO, LOG_TAG, "save_log: content with len %d is = '%s'", strlen(str), str);
+  assert(strlen(str) < MAX_LOG_LEN);
 
   //write contents to file
   FILE *fp;
@@ -262,7 +270,8 @@ int delete_logs() {
   dlog_print(DLOG_INFO, LOG_TAG, "delete_logs: removing log-files.");
 
   char file_path[MAX_PATH];
-  char* log_path = get_log_path();
+  char log_path[MAX_PATH];
+  get_log_path(log_path);
 
   //iterate over files
   DIR *d;
@@ -284,7 +293,6 @@ int delete_logs() {
     }
   }
   closedir(d);
-  free(log_path);
 
   dlog_print(DLOG_INFO, LOG_TAG, "delete_logs: deleted all log-files.");
 
@@ -305,18 +313,18 @@ int compress_logs() {
   }
 
   char file_path[MAX_PATH];
-  char* log_path = get_log_path();
+  char log_path[MAX_PATH];
+  get_log_path(log_path);
   char tar_path[MAX_PATH];
-  char buff[2048]; //must be large enough to fit one log-file (!!)
+  char buff[MAX_LOG_LEN]; //must be large enough to fit one log-file (!!)
 
   //create tar file with appropriate name
-  struct timespec tmnow;
-  struct tm *tm;
+  //get timestamp:
   char timebuf[30];
-  clock_gettime(CLOCK_REALTIME, &tmnow);
-  tm = localtime(&tmnow.tv_sec);
-  strftime(timebuf, 30, "%Y_%m_%dT%H_%M_%S", tm);
+  get_timestamp(timebuf);
   snprintf(tar_path, sizeof(tar_path), "%s/logs_%s.tar", log_path, timebuf);
+  dlog_print(DLOG_INFO, LOG_TAG, "tarpath=%s", tar_path);
+
 
   mtar_t tar;
   mtar_open(&tar, tar_path, "wb");
@@ -340,7 +348,7 @@ int compress_logs() {
         dlog_print(DLOG_INFO, LOG_TAG, "processing file %s", dir->d_name);
         //set correct file_path
         snprintf(file_path, sizeof(file_path), "%s/%s", log_path, dir->d_name);
-        //dlog_print(DLOG_INFO, LOG_TAG, "reading %s", file_path);
+        dlog_print(DLOG_INFO, LOG_TAG, "reading %s", file_path);
 
         fd = fopen(file_path, "rb"); /* open file to add to tar */
         if(!fd) {
@@ -354,7 +362,7 @@ int compress_logs() {
           fclose(fd);
           continue; //skip file
         }
-        //dlog_print(DLOG_INFO, LOG_TAG, "log-file %s has size %d.", dir->d_name, file_info.st_size);
+        dlog_print(DLOG_INFO, LOG_TAG, "log-file %s has size %d.", dir->d_name, file_info.st_size);
 
         //read data
         fgets(buff, file_info.st_size+1, fd);
@@ -382,7 +390,6 @@ int compress_logs() {
     closedir(d);
   } else {
     dlog_print(DLOG_INFO, LOG_TAG, "directory does not exist or cannot be opened!");
-    free(log_path);
     mtar_finalize(&tar);
     mtar_close(&tar);
 
@@ -462,7 +469,8 @@ int share_data(const char* ftp_url) {
 
   //get local data path
   char file_path[MAX_PATH];
-  char* log_path = get_log_path();
+  char log_path[MAX_PATH];
+  get_log_path(log_path);
   char URL[MAX_URL_LEN]; //should be large enough to store ad->ftp_url + filename!
 
   //iterate over files:
@@ -483,7 +491,6 @@ int share_data(const char* ftp_url) {
         fd = fopen(file_path, "rb"); /* open file to upload */
         if(!fd) {
           dlog_print(DLOG_INFO, LOG_TAG, "could not open file!");
-          free(log_path);
           device_power_release_lock(POWER_LOCK_CPU);
           return -1; /* can't continue */
         }
@@ -491,7 +498,6 @@ int share_data(const char* ftp_url) {
         /* to get the file size */
         if(fstat(fileno(fd), &file_info) != 0) {
           dlog_print(DLOG_INFO, LOG_TAG, "file is empty?");
-          free(log_path);
           device_power_release_lock(POWER_LOCK_CPU);
           fclose(fd);
           return -1; /* can't continue */
@@ -532,7 +538,6 @@ int share_data(const char* ftp_url) {
           /* Check for errors */
           if(res != CURLE_OK) {
             dlog_print(DLOG_INFO, LOG_TAG, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-            free(log_path);
             device_power_release_lock(POWER_LOCK_CPU);
             curl_easy_cleanup(curl);
             fclose(fd);
@@ -560,14 +565,11 @@ int share_data(const char* ftp_url) {
     closedir(d);
   } else {
     dlog_print(DLOG_INFO, LOG_TAG, "directory does not exist or cannot be opened!");
-    free(log_path);
     device_power_release_lock(POWER_LOCK_CPU);
     return -1;
   }
 
   curl_global_cleanup();
-
-  free(log_path);
 
   //release cpu-lock
   device_power_release_lock(POWER_LOCK_CPU);
@@ -879,23 +881,23 @@ bool service_app_create(void *data)
 
 
   //create ringbuffs
-    ad->rb_x = ringbuf_new(bufferSize);
-    ad->rb_y = ringbuf_new(bufferSize);
-    ad->rb_z = ringbuf_new(bufferSize);
+  ad->rb_x = ringbuf_new(bufferSize);
+  ad->rb_y = ringbuf_new(bufferSize);
+  ad->rb_z = ringbuf_new(bufferSize);
   dlog_print(DLOG_INFO, LOG_TAG, "ringbufs created.");
 
   //create tmp arrays for results from fft and their simplified version
-    ad->fft_x_spec = malloc(sizeof(double)*(ad->fft_x)->n);
-    ad->fft_y_spec = malloc(sizeof(double)*(ad->fft_y)->n);
-    ad->fft_z_spec = malloc(sizeof(double)*(ad->fft_z)->n);
+  ad->fft_x_spec = malloc(sizeof(double)*(ad->fft_x)->n);
+  ad->fft_y_spec = malloc(sizeof(double)*(ad->fft_y)->n);
+  ad->fft_z_spec = malloc(sizeof(double)*(ad->fft_z)->n);
 
-    ad->fft_x_spec_simplified = malloc(sizeof(double)*(sampleRate));
-    ad->fft_y_spec_simplified = malloc(sizeof(double)*(sampleRate));
-    ad->fft_z_spec_simplified = malloc(sizeof(double)*(sampleRate));
+  ad->fft_x_spec_simplified = malloc(sizeof(double)*(sampleRate));
+  ad->fft_y_spec_simplified = malloc(sizeof(double)*(sampleRate));
+  ad->fft_z_spec_simplified = malloc(sizeof(double)*(sampleRate));
 
-    ad->alarmState = 0;
+  ad->alarmState = 0;
 
-    ad->logging = false;
+  ad->logging = false;
 
   return true;
 }
@@ -929,9 +931,9 @@ void sensor_start(void *data)
         dlog_print(DLOG_INFO, LOG_TAG, "Sensor listener started.");
         //create folder for logs
         if(ad->logging) {
-          char* log_path = get_log_path();
+          char log_path[MAX_PATH];
+          get_log_path(log_path);
           mkdir(log_path, 0700);
-          free(log_path);
         }
       }
     }
