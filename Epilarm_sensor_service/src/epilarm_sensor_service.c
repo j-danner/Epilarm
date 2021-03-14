@@ -1109,20 +1109,20 @@ void service_app_control(app_control_h app_control, void *data)
               dlog_print(DLOG_INFO, LOG_TAG, "Start sharing of logs!");
                  char ftp_url[MAX_URL_LEN];
               //assemble ftp url
-            strcpy(ftp_url, "ftp://");
-            strcat(ftp_url, params[2]); //username
-            strcat(ftp_url, ":");
-            strcat(ftp_url, params[3]); //password
-            strcat(ftp_url, "@");
-            strcat(ftp_url, params[0]); //hostname
-            strcat(ftp_url, ":");
-            strcat(ftp_url, params[1]); //port
-            strcat(ftp_url, "/");
-            strcat(ftp_url, params[4]); //path
-            strcat(ftp_url, "/");
+              strcpy(ftp_url, "ftp://");
+              strcat(ftp_url, params[2]); //username
+              strcat(ftp_url, ":");
+              strcat(ftp_url, params[3]); //password
+              strcat(ftp_url, "@");
+              strcat(ftp_url, params[0]); //hostname
+              strcat(ftp_url, ":");
+              strcat(ftp_url, params[1]); //port
+              strcat(ftp_url, "/");
+              strcat(ftp_url, params[4]); //path
+              strcat(ftp_url, "/");
 
-            dlog_print(DLOG_INFO, LOG_TAG, "ftp-url is %s.", ftp_url);
-               dlog_print(DLOG_INFO, LOG_TAG, "Starting upload to ftp server!");
+              dlog_print(DLOG_INFO, LOG_TAG, "ftp-url is %s.", ftp_url);
+              dlog_print(DLOG_INFO, LOG_TAG, "Starting upload to ftp server!");
               int success = share_data(ftp_url);
               if (success==-1) {
                 dlog_print(DLOG_INFO, LOG_TAG, "upload failed!");
@@ -1130,15 +1130,15 @@ void service_app_control(app_control_h app_control, void *data)
                 dlog_print(DLOG_INFO, LOG_TAG, "upload finished!");
               }
 
-               char *app_id;
-                 app_control_h reply;
-                 app_control_create(&reply);
-                 app_control_get_app_id(app_control, &app_id);
-                 app_control_reply_to_launch_request(reply, app_control, (success==0) ? APP_CONTROL_RESULT_SUCCEEDED : APP_CONTROL_RESULT_FAILED);
-                dlog_print(DLOG_INFO, LOG_TAG, "reply sent (%d)", success==0);
+              char *app_id;
+              app_control_h reply;
+              app_control_create(&reply);
+              app_control_get_app_id(app_control, &app_id);
+              app_control_reply_to_launch_request(reply, app_control, (success==0) ? APP_CONTROL_RESULT_SUCCEEDED : APP_CONTROL_RESULT_FAILED);
+              dlog_print(DLOG_INFO, LOG_TAG, "reply sent (%d)", success==0);
 
-                app_control_destroy(reply);
-                 free(app_id);
+              app_control_destroy(reply);
+              free(app_id);
             } else {
               dlog_print(DLOG_INFO, LOG_TAG, "receiving params failed! no logs shared!");
             }
