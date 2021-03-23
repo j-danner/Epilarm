@@ -1,5 +1,7 @@
-# Epilarm (for Galaxy Watch Active 2)
-Detection of generalized tonic-clonic seizures using the linear accelerometer of a Galaxy Watch Active 2.
+<img align="left" width="100" height="100" src="https://github.com/j-danner/Epilarm/blob/master/Epilarm_web_app/icon.png">
+
+# Epilarm
+Detection of generalized tonic-clonic seizures using the linear accelerometer of a _Galaxy Watch Active 2_.
 
 The general framework is heavily inspired by the project [OpenSeizureDetector](https://github.com/OpenSeizureDetector) which has the same goal but targets Garmin, Pebble, and (recently) PineTime smartwatches.
 This project targets the use of the smartwatch **Galaxy Watch Active 2**, which - in my opinion - looks nicer on your wrist and offers slightly more functionality ;)
