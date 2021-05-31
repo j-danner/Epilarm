@@ -1,3 +1,5 @@
+
+
 <img align="left" width="100" height="100" src="https://github.com/j-danner/Epilarm/blob/master/Epilarm_web_app/icon.png" alt="Epilarm app icon">
 
 # Epilarm
@@ -9,6 +11,10 @@ The general framework is heavily inspired by the project [OpenSeizureDetector](h
 This project targets the use of the smartwatch **Galaxy Watch Active 2**, which - in my opinion - looks nicer on your wrist and offers slightly more functionality ;)
 
 (The project's main goal is to give my girlfriend a little more freedom.)
+
+__UPDATE:__ ___Before starting to write the companion Android app, I took another look (and contacted the creator of) the afore-mentioned [OpenSeizureDetector](https://github.com/OpenSeizureDetector), which already has a (reliable) Android app for the analysis of movement data and notification via SMS when a seizure is suspected. 
+In order to avoid a second (independent) Android app that _only_ supports Tizen devices, and that can only send a emergency notification; I decided to switch to their approach and the OSD-app. That means instead of doing the 'hard' analysis on the watch and writing my own Android app, Epilarm will now also send raw acceleration data directly to the OSD-app (running on an Android phone) via Bluetooth LE, and let the app do all the 'hard' work.
+Due to the notably different appraoch compared to this project where the watch does _everything_ on its own, the OSD-client for Tizen OS can be found in a different [repo](https://github.com/j-danner/OpenSeizureDetector_Tizen). In case the battery consumption and seizure detection rate prove to be comparably good, the stand-alone 'Epilarm' will certainly be discontinued.___
 
 
 ## Methodology
