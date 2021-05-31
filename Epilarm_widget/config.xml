@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns:tizen="http://tizen.org/ns/widgets" xmlns="http://www.w3.org/ns/widgets" id="http://yourdomain/EpilarmWidget" version="1.0.0" viewmodes="maximized">
+    <tizen:app-widget id="LGobyLu4ns.EpilarmWidget.EpilarmWidget" primary="true">
+        <tizen:widget-label>Hello Web Widget!</tizen:widget-label>
+        <tizen:widget-content src="widget/EpilarmWidget/index.html">
+            <tizen:widget-size preview="widget/EpilarmWidget/preview.png">2x2</tizen:widget-size>
+        </tizen:widget-content>
+    </tizen:app-widget>
+    <tizen:application id="LGobyLu4ns.EpilarmWidget" package="LGobyLu4ns" required_version="4.0"/>
+    <content src="index.html"/>
+    <feature name="http://tizen.org/feature/screen.size.normal"/>
+    <icon src="icon.png"/>
+    <name>EpilarmWidget</name>
+    <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
+    <tizen:profile name="wearable"/>
+</widget>

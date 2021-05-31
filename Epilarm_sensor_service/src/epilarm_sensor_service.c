@@ -46,7 +46,7 @@
 
 
 // some constant values used in the app
-#define MYSERVICELAUNCHER_APP_ID "QOeM6aBGp0.Epilarm" // an ID of the UI application of our package
+#define MYSERVICELAUNCHER_APP_ID "YSjzGlSXnd.Epilarm" // an ID of the UI application of our package
 #define STRNCMP_LIMIT 256 // the limit of characters to be compared using strncmp function
 
 #define sampleRate 50 //in Hz (no samples per sec), this leads an interval of 1/sampleRate secs between measurements
